@@ -4,81 +4,79 @@ pragma solidity ^0.8.24;
 /**
  * @title GistBoard
  * @dev A smart contract for creating and storing hyperlocal, anonymous gists.
- * Each gist is pinned to a geographic location.
+ * Each gist is pinned to a geographic location and has a limited lifespan.
  */
 contract GistBoard {
-    // --- State Variables ---
+    // --- Errors ---
+    error GistNotFound();
+    error GistExpired();
+    error GistTextCannotBeEmpty();
+    error InvalidDuration();
 
-    // A counter to assign a unique ID to each new Gist.
+    // --- State Variables ---
     uint256 private _gistIdCounter;
 
     // --- Structs ---
-
-    /**
-     * @dev Represents a single Gist post.
-     * @param id The unique identifier for the Gist.
-     * @param creator The address of the user who created the Gist.
-     * @param text The main content or message of the Gist.
-     * @param latitude The latitude of the Gist's location (multiplied by 1e6 for precision).
-     * @param longitude The longitude of the Gist's location (multiplied by 1e6 for precision).
-     * @param timestamp The Unix timestamp when the Gist was created.
-     * @param category A category tag for the Gist (e.g., "alert", "tip", "story").
-     */
     struct Gist {
         uint256 id;
         address creator;
         string text;
-        int256 latitude; // Stored as integer, e.g., 34.052235 becomes 34052235
-        int256 longitude; // Stored as integer, e.g., -118.243683 becomes -118243683
+        int256 latitude;
+        int256 longitude;
         uint256 timestamp;
+        uint256 expiresAt; // NEW: The timestamp when the Gist expires.
         string category;
     }
 
     // --- Mappings ---
-
-    // A mapping from Gist ID to the Gist struct.
     mapping(uint256 => Gist) public gists;
 
     // --- Events ---
-
-    /**
-     * @dev Emitted when a new Gist is successfully created.
-     * @param gistId The ID of the newly created Gist.
-     * @param creator The address of the Gist's creator.
-     * @param latitude The latitude of the Gist's location.
-     * @param longitude The longitude of the Gist's location.
-     * @param category The category of the Gist.
-     */
     event GistCreated(
         uint256 indexed gistId,
         address indexed creator,
         int256 latitude,
         int256 longitude,
-        string category
+        string category,
+        uint256 expiresAt
     );
+
+    // --- Modifiers ---
+
+    /**
+     * @dev Modifier to ensure a Gist has not expired.
+     * @param _gistId The ID of the Gist to check.
+     */
+    modifier notExpired(uint256 _gistId) {
+        if (_gistId >= _gistIdCounter) revert GistNotFound();
+        if (gists[_gistId].expiresAt <= block.timestamp) revert GistExpired();
+        _;
+    }
 
     // --- Functions ---
 
     /**
      * @dev Creates a new Gist and stores it on the blockchain.
      * @param _text The content of the Gist.
-     * @param _latitude The latitude, which should be provided multiplied by 1e6 for precision.
-     * @param _longitude The longitude, which should be provided multiplied by 1e6 for precision.
+     * @param _latitude The latitude (multiplied by 1e6 for precision).
+     * @param _longitude The longitude (multiplied by 1e6 for precision).
      * @param _category The category of the Gist.
+     * @param _duration The duration in seconds for which the Gist will be active.
      */
     function createGist(
         string calldata _text,
         int256 _latitude,
         int256 _longitude,
-        string calldata _category
+        string calldata _category,
+        uint256 _duration // NEW: Duration parameter
     ) external {
-        // Ensure input text is not empty
-        require(bytes(_text).length > 0, "Gist text cannot be empty.");
+        if (bytes(_text).length == 0) revert GistTextCannotBeEmpty();
+        // Ensure the duration is reasonable (e.g., at least 1 minute)
+        if (_duration < 60) revert InvalidDuration();
 
-        // Assign a new unique ID
         uint256 gistId = _gistIdCounter;
+        uint256 expiresAt = block.timestamp + _duration; // NEW: Calculate expiry
 
-        // Create and store the new Gist struct
         gists[gistId] = Gist({
             id: gistId,
             creator: msg.sender,
@@ -86,19 +84,32 @@ contract GistBoard {
             latitude: _latitude,
             longitude: _longitude,
             timestamp: block.timestamp,
+            expiresAt: expiresAt, // NEW: Store expiry
             category: _category
         });
 
-        // Emit the event to notify listeners (like the front-end)
-        emit GistCreated(gistId, msg.sender, _latitude, _longitude, _category);
+        emit GistCreated(gistId, msg.sender, _latitude, _longitude, _category, expiresAt);
 
-        // Increment the counter for the next Gist
         _gistIdCounter++;
     }
 
     /**
-     * @dev Returns the total number of Gists created.
-     * This is useful for front-ends to know how many Gists to fetch.
+     * @dev Retrieves a single Gist by its ID, provided it has not expired.
+     * @param _gistId The ID of the Gist to retrieve.
+     * @return The Gist struct.
+     */
+    function getGist(uint256 _gistId)
+        external
+        view
+        notExpired(_gistId) // Use the modifier here
+        returns (Gist memory)
+    {
+        return gists[_gistId];
+    }
+
+    /**
+     * @dev Returns the total number of Gists ever created.
+     * The front-end can use this to loop and fetch Gists one by one.
      */
     function getTotalGists() external view returns (uint256) {
         return _gistIdCounter;
