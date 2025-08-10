@@ -96,7 +96,13 @@ async function main() {
     console.log("---------------------------------");
 }
 
-main().catch(error => {
-    console.error(error);
-    process.exit(1);
-});
+
+
+module.exports = { filterGists, main };
+
+if (require.main === module) {
+    main().catch(error => {
+        console.error(error);
+        process.exit(1);
+    });
+}
