@@ -1,7 +1,11 @@
 {
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
-    "dotenv": "^17.2.0",
+    "dotenv": "^17.2.1",
     "hardhat": "^2.26.0"
+  },
+  "dependencies": {
+    "ethers": "^6.15.0",
+    "haversine-distance": "^1.2.4"
   }
 }
