@@ -1,9 +1,7 @@
-import MapLoader from "@/components/MapLoader";
+import React from "react";
 
-export default function Home() {
-  return (
-    <main className="h-screen w-screen">
-      <MapLoader />
-    </main>
-  );
+function page() {
+  return <div>Entry page: Welcome</div>;
 }
+
+export default page;
