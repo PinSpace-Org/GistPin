@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useEffect, useRef } from 'react';
 import { Badge } from '../ui/badge';
 import { AnimatedBeam } from "../magicui/animated-beam";
@@ -90,7 +89,7 @@ export const Features: React.FC = () => {
               y={centerY}
               className="text-white w-18 h-18 text-lg font-bold"
             >
-              <img src="gistPin-header-logo.png" alt="Gistpin Icon" />
+              <img src="gistPin-header-logo.png" alt="Gistpin Icon"/>
             </Circle>
 
             {/* Surrounding Icons and Beams */}
