@@ -1,0 +1,36 @@
+[
+  {
+    "inputs": [],
+    "name": "getGists",
+    "outputs": [
+      {
+        "components": [
+          {
+            "type": "uint256",
+            "name": "id"
+          },
+          {
+            "type": "string",
+            "name": "message"
+          },
+          {
+            "type": "int256",
+            "name": "lat"
+          },
+          {
+            "type": "int256",
+            "name": "lng"
+          },
+          {
+            "type": "uint256",
+            "name": "expiresAt"
+          }
+        ],
+        "type": "tuple[]",
+        "name": ""
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
