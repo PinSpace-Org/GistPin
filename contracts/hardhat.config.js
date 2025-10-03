@@ -35,18 +35,18 @@ task(
 module.exports = {
   solidity: "0.8.24",
   networks: {
-    // Local development network
+
     localhost: {
       url: "http://127.0.0.1:8545/",
       chainId: 31337,
     },
-    // Songbird Canary Network (for testing)
+
     songbird: {
-      url: SONGBIRD_RPC_URL || "",
+      url: SONGBIRD_RPC_URL || "https://songbird-api.flare.network/ext/C/rpc"
       chainId: 19,
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
     },
-    // Flare Mainnet (for production)
+
     flare: {
       url: FLARE_RPC_URL || "",
       chainId: 14,

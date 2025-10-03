@@ -7,16 +7,17 @@ pragma solidity ^0.8.24;
  * Each gist is pinned to a geographic location and has a limited lifespan.
  */
 contract GistBoard {
-    // --- Errors ---
     error GistNotFound();
     error GistExpired();
     error GistTextCannotBeEmpty();
     error InvalidDuration();
 
-    // --- State Variables ---
+    mapping(string => Gist[]) public gistsByLocation;
+
+    
     uint256 private _gistIdCounter;
 
-    // --- Structs ---
+    
     struct Gist {
         uint256 id;
         address creator;
@@ -24,14 +25,14 @@ contract GistBoard {
         int256 latitude;
         int256 longitude;
         uint256 timestamp;
-        uint256 expiresAt; // NEW: The timestamp when the Gist expires.
+        uint256 expiresAt; 
         string category;
     }
 
-    // --- Mappings ---
+    
     mapping(uint256 => Gist) public gists;
 
-    // --- Events ---
+    
     event GistCreated(
         uint256 indexed gistId,
         address indexed creator,
@@ -41,7 +42,7 @@ contract GistBoard {
         uint256 expiresAt
     );
 
-    // --- Modifiers ---
+    
 
     /**
      * @dev Modifier to ensure a Gist has not expired.
@@ -53,7 +54,7 @@ contract GistBoard {
         _;
     }
 
-    // --- Functions ---
+    
 
     /**
      * @dev Creates a new Gist and stores it on the blockchain.
@@ -113,5 +114,33 @@ contract GistBoard {
      */
     function getTotalGists() external view returns (uint256) {
         return _gistIdCounter;
+    }
+
+    function pinGist(string memory _locationId, string memory _message) public {
+        require(bytes(_locationId).length > 0, "Location ID cannot be empty.");
+        require(bytes(_message).length > 0, "Message cannot be empty.");
+
+        Gist memory newGist = Gist({
+            pinner: msg.sender,
+            message: _message,
+            timestamp: block.timestamp
+        });
+
+        gistsByLocation[_locationId].push(newGist);
+
+        console.log(
+            "New Gist pinned by %s to location %s",
+            msg.sender,
+            _locationId
+        );
+        emit NewGist(msg.sender, _locationId, block.timestamp, _message);
+    }
+
+    function getGistsForLocation(string memory _locationId)
+        public
+        view
+        returns (Gist[] memory)
+    {
+        return gistsByLocation[_locationId];
     }
 }
