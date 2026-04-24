@@ -14,50 +14,25 @@ import {
 import { Line } from 'react-chartjs-2';
 import { exportRowsToCsv } from '@/lib/export';
 import ExportButton from '@/components/ui/ExportButton';
+import {
+  calculateProjections,
+  SCENARIOS,
+  MONTHS,
+  type ScenarioType,
+} from '@/lib/revenue-calc';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
-const MONTHS = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
-
-interface Inputs {
-  currentUsers: number;
-  monthlyGrowthRate: number;
-  conversionRate: number;
-  arpu: number;
-}
-
-function calcProjections(inputs: Inputs) {
-  const rows = [];
-  let users = inputs.currentUsers;
-
-  for (let i = 0; i < 12; i++) {
-    users = users * (1 + inputs.monthlyGrowthRate / 100);
-    const paidUsers = users * (inputs.conversionRate / 100);
-    const mrr = paidUsers * inputs.arpu;
-    const arr = mrr * 12;
-    const clv = inputs.arpu * (1 / (inputs.monthlyGrowthRate / 100 || 0.01)) * (inputs.conversionRate / 100);
-    rows.push({ month: MONTHS[i], users: Math.round(users), paidUsers: Math.round(paidUsers), mrr, arr, clv });
-  }
-
-  return rows;
-}
-
-const SCENARIOS = {
-  conservative: { monthlyGrowthRate: 3,  conversionRate: 2,  arpu: 8  },
-  moderate:     { monthlyGrowthRate: 8,  conversionRate: 4,  arpu: 12 },
-  aggressive:   { monthlyGrowthRate: 15, conversionRate: 7,  arpu: 18 },
-} as const;
-
-type Scenario = keyof typeof SCENARIOS;
-
 export default function ProjectionsPage() {
   const [currentUsers, setCurrentUsers] = useState(5000);
-  const [scenario, setScenario] = useState<Scenario>('moderate');
-  const [monthlyGrowthRate, setMonthlyGrowthRate] = useState<number>(SCENARIOS.moderate.monthlyGrowthRate);
+  const [scenario, setScenario] = useState<ScenarioType>('moderate');
+  const [monthlyGrowthRate, setMonthlyGrowthRate] = useState<number>(
+    SCENARIOS.moderate.monthlyGrowthRate
+  );
   const [conversionRate, setConversionRate] = useState<number>(SCENARIOS.moderate.conversionRate);
   const [arpu, setArpu] = useState<number>(SCENARIOS.moderate.arpu);
 
-  function applyScenario(s: Scenario) {
+  function applyScenario(s: ScenarioType) {
     setScenario(s);
     setMonthlyGrowthRate(SCENARIOS[s].monthlyGrowthRate);
     setConversionRate(SCENARIOS[s].conversionRate);
@@ -65,7 +40,7 @@ export default function ProjectionsPage() {
   }
 
   const projections = useMemo(
-    () => calcProjections({ currentUsers, monthlyGrowthRate, conversionRate, arpu }),
+    () => calculateProjections({ currentUsers, monthlyGrowthRate, conversionRate, arpu }),
     [currentUsers, monthlyGrowthRate, conversionRate, arpu]
   );
 
@@ -119,7 +94,7 @@ export default function ProjectionsPage() {
       {/* Scenario sliders */}
       <div className="rounded-lg border bg-white dark:bg-gray-900 p-6 shadow-sm space-y-5">
         <div className="flex gap-2 flex-wrap">
-          {(Object.keys(SCENARIOS) as Scenario[]).map((s) => (
+          {(Object.keys(SCENARIOS) as ScenarioType[]).map((s) => (
             <button
               key={s}
               onClick={() => applyScenario(s)}
