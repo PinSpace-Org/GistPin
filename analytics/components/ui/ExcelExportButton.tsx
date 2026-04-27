@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { downloadAnalyticsWorkbook } from '@/lib/excel';
+import { downloadAnalyticsWorkbook } from '@/lib/excel-export';
 
 export default function ExcelExportButton() {
   const [status, setStatus] = useState<string | null>(null);

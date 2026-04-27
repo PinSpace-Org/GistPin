@@ -1,40 +1,18 @@
 # GistPin Analytics Dashboard
 
-A data visualization dashboard for the GistPin platform, providing insights into gist activity, engagement trends, and geographic distribution.
+A data visualization dashboard for the GistPin platform, providing insights into gist activity, user engagement, and geographic distribution.
 
 ---
 
 ## Table of Contents
 
-- [Project Overview](#project-overview)
 - [Quick Start](#quick-start)
 - [Environment Variables](#environment-variables)
 - [Available Scripts](#available-scripts)
 - [Architecture](#architecture)
-- [Component Structure](#component-structure)
-- [Mock Data Documentation](#mock-data-documentation)
+- [Charts & Components](#charts--components)
 - [API Documentation](#api-documentation)
 - [Troubleshooting](#troubleshooting)
-
----
-
-## Project Overview
-
-The analytics dashboard is a Next.js application that visualizes data from the GistPin platform. It currently operates with mock data generators that simulate real gist activity and is designed to be wired to the GistPin REST API when ready.
-
-**Tech stack:**
-
-- [Next.js 15](https://nextjs.org/) — React framework with App Router
-- [Chart.js](https://www.chartjs.org/) + [react-chartjs-2](https://react-chartjs-2.js.org/) — chart rendering
-- TypeScript — strict mode
-
-**Charts provided:**
-
-| Chart | File | Purpose |
-|---|---|---|
-| Scatter Plot | `ScatterChart.tsx` | Gist age vs. engagement with regression trendline |
-| Radar Chart | `RadarChart.tsx` | Platform usage comparison: this month vs. last month |
-| Location Table | `LocationTable.tsx` + `Sparkline.tsx` | Geographic activity trends per city |
 
 ---
 
@@ -43,12 +21,11 @@ The analytics dashboard is a Next.js application that visualizes data from the G
 ### Prerequisites
 
 - Node.js 18+
-- npm, yarn, or pnpm
+- npm
 
 ### Installation
 
 ```bash
-# From the repo root
 cd analytics
 npm install
 ```
@@ -65,202 +42,117 @@ Open [http://localhost:3000](http://localhost:3000) to view the dashboard.
 
 ## Environment Variables
 
-The analytics app does not currently require any environment variables for local development — all chart data is generated client-side via mock utilities.
-
-When connecting to the live GistPin backend, create a `.env.local` file in this directory:
+Create a `.env.local` file in the `analytics/` directory:
 
 ```env
 # GistPin Backend API base URL
 NEXT_PUBLIC_API_URL=http://localhost:3000
 
-# Optional: override the number of mock gist records generated
+# Optional: override mock data record count
 NEXT_PUBLIC_MOCK_DATA_COUNT=500
 ```
 
-> The `NEXT_PUBLIC_` prefix is required for variables to be accessible in browser code via Next.js.
+No environment variables are required for local development — all data is generated client-side via mock utilities.
 
 ---
 
 ## Available Scripts
 
-Run these from inside the `analytics/` directory:
+Run from inside the `analytics/` directory:
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start development server with Turbopack |
+| `npm run dev` | Start development server |
 | `npm run build` | Build for production |
 | `npm run start` | Serve the production build |
-| `npm run lint` | Run ESLint across all source files |
+| `npm run lint` | Run ESLint |
+| `npm run typecheck` | TypeScript type check |
 
 ---
 
 ## Architecture
 
+**Tech stack:** Next.js 15 (App Router) · Chart.js + react-chartjs-2 · TanStack Query · TypeScript
+
 ```
 analytics/
 ├── app/
-│   └── page.tsx              # Dashboard entry — composes all chart sections
+│   ├── page.tsx                  # Main dashboard
+│   ├── forecast/                 # Forecast page
+│   ├── funnel/                   # User funnel page
+│   ├── segments/                 # Audience segments
+│   ├── campaigns/                # Campaign analytics
+│   ├── moderation/               # Content moderation
+│   ├── comparison/               # Period comparison
+│   ├── projections/              # Growth projections
+│   ├── reports/                  # Report builder
+│   ├── experiments/              # A/B experiments
+│   ├── query-builder/            # Custom query builder
+│   └── ...                       # Other feature pages
 ├── components/
-│   ├── charts/
-│   │   ├── ScatterChart.tsx  # Age vs. engagement scatter plot
-│   │   ├── RadarChart.tsx    # Monthly platform usage radar
-│   │   └── Sparkline.tsx     # Inline mini trend line (50×20px)
-│   └── ui/
-│       └── LocationTable.tsx # Table of cities with embedded sparklines
+│   ├── charts/                   # Chart components
+│   ├── ui/                       # Shared UI components
+│   ├── DateRangePicker.tsx        # Date range selector with presets
+│   └── KPICard.tsx               # KPI metric cards
+├── hooks/
+│   └── useDateRange.ts           # Date range state + URL persistence
 ├── lib/
-│   └── utils.ts              # Mock data generator + linear regression
+│   ├── analytics-data.ts         # Mock data generators
+│   ├── analytics-queries.ts      # TanStack Query hooks
+│   ├── anomaly.ts                # Anomaly detection
+│   ├── export.ts                 # CSV export utilities
+│   └── utils.ts                  # Shared utilities
 └── types/
-    └── index.ts              # Shared TypeScript interfaces
+    └── index.ts                  # Shared TypeScript interfaces
 ```
 
 ### Data flow
 
-```
-page.tsx
-  ├── ScatterChart  ──► generateGistData() ──► 500 GistData records (client-side)
-  │                     regression()        ──► linear trendline overlay
-  ├── RadarChart    ──► static hardcoded datasets (this month / last month)
-  └── LocationTable ──► static mock location array ──► Sparkline (per city)
-```
-
-All data generation happens on the client inside `useMemo` hooks. No network requests are made in the current implementation.
+All chart data is generated client-side via mock utilities in `lib/analytics-data.ts`. TanStack Query wraps each data source with a simulated async delay. No network requests are made in the current implementation.
 
 ---
 
-## Component Structure
+## Charts & Components
 
-### `app/page.tsx`
+### Main Dashboard (`app/page.tsx`)
 
-Root dashboard page. Renders three sections:
+| Component | Description |
+|---|---|
+| `KPICard` | Key metric cards (total gists, active users, etc.) |
+| `LiveGistCounter` | Real-time gist counter simulation |
+| `UserAreaChart` | New vs returning users over 90 days |
+| `DailyGistsChart` | Daily gist volume — last 30 days |
+| `ScatterChart` | Gist age vs. engagement with regression trendline |
+| `RadarChart` | Platform usage comparison (this month vs. last) |
+| `CategoryPieChart` | Gist category distribution (8 segments, interactive legend) |
+| `EngagementDonutChart` | Engagement breakdown: Views, Likes, Shares, Comments |
+| `LocationTable` | City-level activity trends with sparklines |
 
-```tsx
-<ScatterChart />   // Gist age vs. engagement
-<RadarChart />     // Platform channel comparison
-<LocationTable />  // City-level trend table
-```
+### `DateRangePicker`
 
----
+Preset buttons: **Today**, **Last 7 days**, **Last 30 days**, **Custom**.  
+Custom mode shows two `<input type="date">` fields. Selected range is persisted in URL params (`?preset=7d&from=...&to=...`).
 
-### `components/charts/ScatterChart.tsx`
-
-Interactive scatter plot using Chart.js `Scatter` component.
-
-**Features:**
-- Category filter dropdown (`All | Tech | Finance | AI | Web3`)
-- Color-coded points per category: Tech=blue, Finance=green, AI=purple, Web3=orange
-- Red regression trendline computed over the filtered dataset
-- Click a point to alert the gist ID
-
-**Props:** none — data is self-contained via `generateGistData()`
-
----
-
-### `components/charts/RadarChart.tsx`
-
-Radar chart comparing platform usage across six dimensions.
-
-**Axes:** Mobile, Desktop, API, Web, New Users, Power Users
-
-**Datasets:**
-- `This Month` — blue fill
-- `Last Month` — red fill
-
-**Props:** none — uses hardcoded static values
-
----
-
-### `components/charts/Sparkline.tsx`
-
-Minimal inline trend line rendered at 50×20px. Used inside `LocationTable`.
-
-**Props:**
-
-| Prop | Type | Description |
-|---|---|---|
-| `data` | `number[]` | Ordered series of numeric values |
-
-**Behavior:** border color is green when the last value exceeds the first, red otherwise.
-
----
-
-### `components/ui/LocationTable.tsx`
-
-Table listing cities with their 7-day activity trends.
-
-**Columns:** Location, Trend (sparkline + arrow indicator)
-
-**Mock data:**
-
-| Location | 7-day values | Direction |
-|---|---|---|
-| Abuja | 10, 20, 30, 25, 40, 50, 60 | ↑ |
-| Lagos | 60, 50, 40, 35, 30, 20, 10 | ↓ |
-
----
-
-## Mock Data Documentation
-
-### `lib/utils.ts`
-
-#### `generateGistData(count?: number): GistData[]`
-
-Generates an array of synthetic gist records for chart rendering.
-
-| Parameter | Default | Description |
-|---|---|---|
-| `count` | `500` | Number of records to generate |
-
-Each record has:
-
-| Field | Range | Description |
-|---|---|---|
-| `id` | `gist-0` … `gist-N` | Unique string identifier |
-| `age` | 0 – 364 | Days since the gist was posted |
-| `engagement` | 0 – 999 | Interaction count (views, reactions) |
-| `category` | Tech / Finance / AI / Web3 | Randomly assigned topic category |
-
-#### `regression(data: GistData[]): { slope: number; intercept: number }`
-
-Computes ordinary least squares linear regression over `age` (x) and `engagement` (y).
-
-Used by `ScatterChart` to render a best-fit trendline from `x=0` to `x=365`.
-
----
-
-### TypeScript types — `types/index.ts`
+### `useDateRange` hook
 
 ```ts
-type Category = 'Tech' | 'Finance' | 'AI' | 'Web3';
-
-interface GistData {
-  id: string;        // Unique gist identifier
-  age: number;       // Days since posting
-  engagement: number;// Interaction count
-  category: Category;
-}
-
-interface LocationTrend {
-  location: string;  // City name
-  values: number[];  // Time-series values (e.g., daily post counts)
-}
-
-interface RadarData {
-  label: string;     // Dataset label (e.g., "This Month")
-  values: number[];  // One value per radar axis
-}
+const { range, preset, applyPreset } = useDateRange();
+// range: { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }
+// preset: 'today' | '7d' | '30d' | 'custom'
+// applyPreset(preset, customRange?)
 ```
+
+State is synced to/from URL search params so ranges survive page refresh and are shareable.
 
 ---
 
 ## API Documentation
 
-The analytics dashboard is designed to eventually consume the GistPin REST API. The backend exposes the following relevant endpoints (served by the NestJS backend in `../Backend`):
+The dashboard is designed to consume the GistPin REST API. The backend exposes:
 
 ### `GET /gists`
 
-Returns gists near a given coordinate.
-
-**Query parameters:**
+Returns gists near a coordinate.
 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
@@ -268,7 +160,7 @@ Returns gists near a given coordinate.
 | `lon` | yes | — | Longitude (decimal degrees) |
 | `radius` | no | 500 | Search radius in meters |
 | `limit` | no | 20 | Max records per page |
-| `cursor` | no | — | Base64-encoded pagination cursor |
+| `cursor` | no | — | Pagination cursor (base64) |
 
 **Example response:**
 
@@ -298,42 +190,25 @@ Returns backend and database status.
 
 ### Swagger UI
 
-Full interactive API documentation is available at `http://localhost:3000/api/docs` when the backend is running.
+Full interactive API docs at `http://localhost:3000/api/docs` when the backend is running.
 
 ---
 
 ## Troubleshooting
 
-### Chart does not render / blank page
+**Chart does not render / blank page**  
+Each chart file calls `ChartJS.register(...)` at module level. If you add a new chart type, register its elements/scales there. All chart files must use the `'use client'` directive.
 
-- Ensure Chart.js components are registered before use. Each chart file calls `ChartJS.register(...)` at the module level — if you add a new chart type, register its scale/element there.
-- Charts use `'use client'` directive. If you move a chart into a Server Component, rendering will fail. Keep chart files as Client Components.
-
-### `@/` import paths not resolving
-
-The `@/` alias maps to the `analytics/` root. Verify your `tsconfig.json` contains:
-
+**`@/` import paths not resolving**  
+The `@/` alias maps to the `analytics/` root. Verify `tsconfig.json` contains:
 ```json
-{
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./*"]
-    }
-  }
-}
+{ "compilerOptions": { "paths": { "@/*": ["./*"] } } }
 ```
 
-### `Module not found: react-chartjs-2`
-
+**`Module not found: react-chartjs-2`**  
 Run `npm install` inside the `analytics/` directory. Dependencies are not hoisted from the repo root.
 
-### Stale mock data between renders
-
-`generateGistData()` is called inside `useMemo([], [])` in `ScatterChart`, so it runs once per mount. If you need a fresh dataset, remount the component or move the call outside `useMemo`.
-
-### Backend not connecting (future live-data mode)
-
-1. Confirm the backend is running: `cd ../Backend && npm run start:dev`
-2. Check `NEXT_PUBLIC_API_URL` matches the backend port (default `3000`)
-3. CORS is enabled on the backend for all origins in development — no additional config needed
-4. Inspect the Network tab in DevTools for specific error responses
+**Backend not connecting**  
+1. Start the backend: `cd ../Backend && npm run start:dev`
+2. Set `NEXT_PUBLIC_API_URL` in `.env.local` to match the backend port
+3. CORS is enabled for all origins in development

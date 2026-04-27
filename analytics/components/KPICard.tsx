@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -60,7 +60,7 @@ export interface KPICardProps {
 
 // ── KPICard ───────────────────────────────────────────────────────────────────
 
-export function KPICard({
+export const KPICard = memo(function KPICard({
   title,
   value,
   change,
@@ -151,7 +151,7 @@ export function KPICard({
       </div>
     </div>
   );
-}
+});
 
 // ── Default KPI dataset ───────────────────────────────────────────────────────
 

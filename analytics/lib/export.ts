@@ -106,3 +106,20 @@ export async function exportRowsToCsv({
   const csv = Papa.unparse(output);
   triggerDownload(csv, buildFilename(filenamePrefix));
 }
+
+import type { CohortRow } from '@/components/charts/CohortTable';
+
+export async function exportCohortToCsv(
+  rows: CohortRow[],
+  filters: Record<string, CsvValue> = {},
+) {
+  const weeks = Array.from({ length: 13 }, (_, i) => i);
+  const csvRows: CsvRow[] = rows.map((row) => {
+    const entry: CsvRow = { Cohort: row.cohort, Users: row.size };
+    weeks.forEach((w) => {
+      entry[`Week ${w}`] = row.retention[w] != null ? `${row.retention[w]}%` : '';
+    });
+    return entry;
+  });
+  await exportRowsToCsv({ filenamePrefix: 'cohort-retention', rows: csvRows, filters });
+}

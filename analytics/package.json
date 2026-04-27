@@ -3,28 +3,6 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "node ./node_modules/next/dist/bin/next build",
-    "lint": "node ./node_modules/eslint/bin/eslint.js .",
-    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit"
-  },
-  "dependencies": {
-    "@tanstack/react-query": "^5.66.9",
-    "chart.js": "^4.4.9",
-    "next": "^15.2.4",
-    "react": "^19.0.0",
-    "react-chartjs-2": "^5.3.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22.19.15",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "eslint": "^9.39.4",
-    "eslint-config-next": "^15.5.14",
-    "typescript": "^5.9.3"
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -32,30 +10,37 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.66.9",
+    "fuse.js": "^7.0.0",
     "chart.js": "^4.5.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.3",
+    "lucide-react": "^1.9.0",
+    "mapbox-gl": "^3.22.0",
     "next": "15.4.6",
-    "chart.js": "^4.5.0",
-    "next": "15.4.6",
+    "pako": "^2.1.0",
     "papaparse": "^5.5.3",
     "react": "19.1.0",
     "react-chartjs-2": "^5.3.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-grid-layout": "^1.5.2",
+    "react-map-gl": "^8.1.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@next/bundle-analyzer": "^15.4.6",
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/mapbox-gl": "^3.5.0",
     "@types/node": "^20",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@types/react-grid-layout": "^1.3.5",
+    "@types/pako": "^2.0.3",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/react-grid-layout": "^1.3.5",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
+    "tailwindcss": "^4.2.4",
     "typescript": "^5"
   }
 }

@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Badge } from '../ui/badge';
 import { AnimatedBeam } from "../magicui/animated-beam";
 import { Circle } from './Circle';
@@ -109,7 +110,7 @@ export const Features: React.FC = () => {
                 y={centerY}
                 className="text-white w-16 h-16 sm:w-20 sm:h-20 text-sm font-bold"
               >
-                <img src="gistPin-header-logo.png" alt="Gistpin Icon" className="w-full h-full object-contain" />
+                <Image src="/gistPin-header-logo.png" alt="Gistpin Icon" width={80} height={80} className="object-contain" priority />
               </Circle>
 
               {icons.map(({ Icon, color, x, y, px, py }, index) => (

@@ -13,6 +13,7 @@ import {
 import type { Plugin, TooltipItem } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { useRef, useMemo } from 'react';
+import ChartSkeleton from '@/components/ui/ChartSkeleton';
 import { useUserActivityQuery } from '@/lib/analytics-queries';
 import ExportButton from '@/components/ui/ExportButton';
 import { exportRowsToCsv } from '@/lib/export';
@@ -60,13 +61,8 @@ export default function UserAreaChart() {
 
   const displayLabels = useMemo(() => sparseLabels(labels), [labels]);
 
-  if (isLoading || !activityData) {
-    return <p>Loading user activity...</p>;
-  }
-
-  if (error) {
-    return <p>Unable to load user activity.</p>;
-  }
+  if (isLoading || !activityData) return <ChartSkeleton />;
+  if (error) return <p>Unable to load user activity.</p>;
 
   const data = {
     labels: displayLabels,
