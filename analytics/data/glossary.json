@@ -1,0 +1,191 @@
+[
+  {
+    "id": "dau",
+    "term": "DAU",
+    "full": "Daily Active Users",
+    "category": "Engagement",
+    "definition": "The number of unique users who interact with the platform on a given day.",
+    "example": "If 1,200 users post or view gists on Monday, the DAU for that day is 1,200.",
+    "related": ["mau", "retention-rate"]
+  },
+  {
+    "id": "mau",
+    "term": "MAU",
+    "full": "Monthly Active Users",
+    "category": "Engagement",
+    "definition": "The number of unique users who interact with the platform within a 30-day window.",
+    "example": "A MAU of 15,000 means 15,000 distinct users were active in the last month.",
+    "related": ["dau", "stickiness"]
+  },
+  {
+    "id": "stickiness",
+    "term": "Stickiness",
+    "full": "DAU / MAU Ratio",
+    "category": "Engagement",
+    "definition": "The ratio of DAU to MAU, expressed as a percentage. Measures how often monthly users return daily.",
+    "example": "DAU 1,200 / MAU 15,000 = 8% stickiness.",
+    "related": ["dau", "mau"]
+  },
+  {
+    "id": "retention-rate",
+    "term": "Retention Rate",
+    "full": "User Retention Rate",
+    "category": "Engagement",
+    "definition": "The percentage of users who return to the platform after their first visit within a defined period.",
+    "example": "Day-7 retention of 40% means 40% of new users came back within 7 days.",
+    "related": ["churn-rate", "dau"]
+  },
+  {
+    "id": "churn-rate",
+    "term": "Churn Rate",
+    "full": "User Churn Rate",
+    "category": "Engagement",
+    "definition": "The percentage of users who stop using the platform over a given period.",
+    "example": "A monthly churn of 5% means 5 out of every 100 active users left that month.",
+    "related": ["retention-rate"]
+  },
+  {
+    "id": "ctr",
+    "term": "CTR",
+    "full": "Click-Through Rate",
+    "category": "Conversion",
+    "definition": "The ratio of users who click on a specific element to the total number who view it.",
+    "example": "100 clicks on 2,000 impressions = 5% CTR.",
+    "related": ["conversion-rate"]
+  },
+  {
+    "id": "conversion-rate",
+    "term": "Conversion Rate",
+    "full": "Goal Conversion Rate",
+    "category": "Conversion",
+    "definition": "The percentage of users who complete a desired action (e.g., posting a gist, signing up).",
+    "example": "500 sign-ups from 10,000 visitors = 5% conversion rate.",
+    "related": ["ctr", "funnel"]
+  },
+  {
+    "id": "funnel",
+    "term": "Funnel",
+    "full": "Conversion Funnel",
+    "category": "Conversion",
+    "definition": "A series of steps users take toward a goal, showing drop-off at each stage.",
+    "example": "Signup → Email Verify → First Gist → Active User.",
+    "related": ["conversion-rate", "drop-off"]
+  },
+  {
+    "id": "drop-off",
+    "term": "Drop-off",
+    "full": "Funnel Drop-off Rate",
+    "category": "Conversion",
+    "definition": "The percentage of users who exit the funnel at a particular step without completing the next.",
+    "example": "If 1,000 users start signup but only 700 verify email, the drop-off is 30%.",
+    "related": ["funnel"]
+  },
+  {
+    "id": "arpu",
+    "term": "ARPU",
+    "full": "Average Revenue Per User",
+    "category": "Revenue",
+    "definition": "Total revenue divided by the number of active users in a period.",
+    "example": "$5,000 revenue / 1,000 users = $5 ARPU.",
+    "related": ["ltv", "mrr"]
+  },
+  {
+    "id": "ltv",
+    "term": "LTV",
+    "full": "Lifetime Value",
+    "category": "Revenue",
+    "definition": "The total revenue expected from a single user over their entire relationship with the platform.",
+    "example": "ARPU $5 × average 12-month lifespan = $60 LTV.",
+    "related": ["arpu", "cac"]
+  },
+  {
+    "id": "cac",
+    "term": "CAC",
+    "full": "Customer Acquisition Cost",
+    "category": "Revenue",
+    "definition": "The total cost of acquiring a new user, including marketing and sales expenses.",
+    "example": "$2,000 spent to acquire 200 users = $10 CAC.",
+    "related": ["ltv"]
+  },
+  {
+    "id": "mrr",
+    "term": "MRR",
+    "full": "Monthly Recurring Revenue",
+    "category": "Revenue",
+    "definition": "Predictable revenue generated each month from subscriptions or recurring transactions.",
+    "example": "500 subscribers at $10/month = $5,000 MRR.",
+    "related": ["arpu", "ltv"]
+  },
+  {
+    "id": "p50",
+    "term": "p50 / Median",
+    "full": "50th Percentile Latency",
+    "category": "Performance",
+    "definition": "The latency value below which 50% of requests fall. A measure of typical response time.",
+    "example": "p50 of 120ms means half of all API calls respond within 120ms.",
+    "related": ["p95", "p99"]
+  },
+  {
+    "id": "p95",
+    "term": "p95",
+    "full": "95th Percentile Latency",
+    "category": "Performance",
+    "definition": "The latency value below which 95% of requests fall. Highlights tail latency issues.",
+    "example": "p95 of 400ms means 95% of requests complete within 400ms.",
+    "related": ["p50", "p99"]
+  },
+  {
+    "id": "p99",
+    "term": "p99",
+    "full": "99th Percentile Latency",
+    "category": "Performance",
+    "definition": "The latency value below which 99% of requests fall. Captures worst-case user experience.",
+    "example": "p99 of 1,200ms flags slow outlier requests affecting 1% of users.",
+    "related": ["p50", "p95"]
+  },
+  {
+    "id": "geofence",
+    "term": "Geofence",
+    "full": "Geographic Boundary",
+    "category": "Geospatial",
+    "definition": "A virtual perimeter around a real-world geographic area used to trigger or filter gist visibility.",
+    "example": "A 500m geofence around a park shows only gists posted within that radius.",
+    "related": ["radius", "heatmap"]
+  },
+  {
+    "id": "heatmap",
+    "term": "Heatmap",
+    "full": "Geographic Heatmap",
+    "category": "Geospatial",
+    "definition": "A visual representation of gist density across a map, using color intensity to show activity clusters.",
+    "example": "A red cluster on the heatmap indicates a high concentration of gists in that area.",
+    "related": ["geofence"]
+  },
+  {
+    "id": "radius",
+    "term": "Radius",
+    "full": "Visibility Radius",
+    "category": "Geospatial",
+    "definition": "The maximum distance from a gist's coordinates within which the gist is discoverable.",
+    "example": "A gist with a 1km radius is visible to users within 1km of its pin location.",
+    "related": ["geofence"]
+  },
+  {
+    "id": "anomaly",
+    "term": "Anomaly",
+    "full": "Statistical Anomaly",
+    "category": "Data Quality",
+    "definition": "A data point that deviates significantly from the expected pattern, potentially indicating an error or unusual event.",
+    "example": "A sudden 10× spike in gist posts may be flagged as an anomaly.",
+    "related": ["z-score"]
+  },
+  {
+    "id": "z-score",
+    "term": "Z-Score",
+    "full": "Standard Score",
+    "category": "Data Quality",
+    "definition": "The number of standard deviations a data point is from the mean. Used to detect anomalies.",
+    "example": "A Z-score above 3 typically flags a data point as a statistical outlier.",
+    "related": ["anomaly"]
+  }
+]
