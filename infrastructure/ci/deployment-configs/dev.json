@@ -1,0 +1,10 @@
+{
+  "environment": "development",
+  "autoDeployBranch": "develop",
+  "requiresApproval": false,
+  "healthCheckPath": "/health",
+  "notifications": {
+    "slack": false,
+    "email": false
+  }
+}

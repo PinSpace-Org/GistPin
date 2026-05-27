@@ -1,0 +1,11 @@
+{
+  "environment": "production",
+  "autoDeployBranch": null,
+  "requiresApproval": true,
+  "requiresManualTrigger": true,
+  "healthCheckPath": "/health",
+  "notifications": {
+    "slack": true,
+    "email": true
+  }
+}

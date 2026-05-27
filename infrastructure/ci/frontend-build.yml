@@ -1,0 +1,62 @@
+name: Frontend Build & Optimization
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'Frontend/**'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'Frontend/**'
+
+jobs:
+  build:
+    name: Build & Optimize Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: Frontend
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: Frontend
+        run: npm run lint
+
+      - name: Run TypeScript checks
+        working-directory: Frontend
+        run: npx tsc --noEmit
+
+      - name: Build Next.js application
+        working-directory: Frontend
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Optimize assets
+        run: bash infrastructure/ci/scripts/optimize-assets.sh
+
+      - name: Generate source maps
+        working-directory: Frontend
+        run: |
+          if [ -d ".next" ]; then
+            find .next -name "*.map" | wc -l | xargs echo "Source maps generated:"
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build-${{ github.sha }}
+          path: Frontend/.next/
+          retention-days: 7

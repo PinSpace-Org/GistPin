@@ -1,0 +1,21 @@
+{
+  "frontend": {
+    "nodeVersion": "20",
+    "buildCommand": "npm run build",
+    "outputDir": ".next",
+    "artifactRetentionDays": 7,
+    "imageOptimization": {
+      "enabled": true,
+      "formats": ["webp", "avif"],
+      "quality": 85
+    },
+    "sourceMaps": {
+      "enabled": true,
+      "uploadToSentry": false
+    },
+    "lint": {
+      "eslint": true,
+      "typescript": true
+    }
+  }
+}

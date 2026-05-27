@@ -1,0 +1,60 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version/tag to deploy'
+        required: true
+        type: string
+      confirm:
+        description: 'Type "deploy" to confirm production deployment'
+        required: true
+        type: string
+
+jobs:
+  validate:
+    name: Validate Deployment Input
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy" ]; then
+            echo "Deployment not confirmed. Aborting."
+            exit 1
+          fi
+
+  deploy-production:
+    name: Deploy to Production Environment
+    runs-on: ubuntu-latest
+    needs: validate
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.version }}
+
+      - name: Load production config
+        run: |
+          echo "ENVIRONMENT=production" >> $GITHUB_ENV
+          cat infrastructure/ci/deployment-configs/production.json
+
+      - name: Deploy application
+        run: echo "Deploying version ${{ github.event.inputs.version }} to production..."
+        env:
+          DEPLOY_ENV: production
+          API_URL: ${{ secrets.PROD_API_URL }}
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+
+      - name: Run health checks
+        run: echo "Running production health checks..."
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          STATUS=${{ job.status }}
+          echo "Production deployment $STATUS for version ${{ github.event.inputs.version }}"

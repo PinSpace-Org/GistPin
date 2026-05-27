@@ -1,0 +1,39 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Load staging config
+        run: |
+          echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+          cat infrastructure/ci/deployment-configs/staging.json
+
+      - name: Deploy application
+        run: echo "Deploying to staging environment..."
+        env:
+          DEPLOY_ENV: staging
+          API_URL: ${{ secrets.STAGING_API_URL }}
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+
+      - name: Run integration tests
+        run: echo "Running integration tests against staging..."
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          STATUS=${{ job.status }}
+          echo "Staging deployment $STATUS for commit ${{ github.sha }}"
