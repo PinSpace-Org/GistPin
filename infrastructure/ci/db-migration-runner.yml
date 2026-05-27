@@ -1,0 +1,74 @@
+name: Database Migration Runner
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+    secrets:
+      DATABASE_URL:
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [development, staging, production]
+
+jobs:
+  migrate:
+    name: Run DB Migrations (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: Backend
+        run: npm ci
+
+      - name: Validate schema changes
+        run: bash infrastructure/scripts/run-migrations.sh validate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENVIRONMENT: ${{ inputs.environment }}
+
+      - name: Run migrations
+        id: run_migrations
+        run: bash infrastructure/scripts/run-migrations.sh run
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENVIRONMENT: ${{ inputs.environment }}
+
+      - name: Generate migration report
+        if: always()
+        run: bash infrastructure/scripts/run-migrations.sh report
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENVIRONMENT: ${{ inputs.environment }}
+
+      - name: Rollback on failure
+        if: failure() && steps.run_migrations.outcome == 'failure'
+        run: bash infrastructure/scripts/rollback-migrations.sh
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ENVIRONMENT: ${{ inputs.environment }}
+
+      - name: Upload migration report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-report-${{ inputs.environment }}-${{ github.sha }}
+          path: migration-report.json
+          retention-days: 30

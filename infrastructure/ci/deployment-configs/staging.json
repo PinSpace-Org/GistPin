@@ -1,0 +1,10 @@
+{
+  "environment": "staging",
+  "autoDeployBranch": "main",
+  "requiresApproval": true,
+  "healthCheckPath": "/health",
+  "notifications": {
+    "slack": true,
+    "email": false
+  }
+}

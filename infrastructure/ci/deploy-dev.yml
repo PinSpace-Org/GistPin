@@ -1,0 +1,36 @@
+name: Deploy to Development
+
+on:
+  push:
+    branches: [develop]
+
+jobs:
+  deploy-dev:
+    name: Deploy to Dev Environment
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Load dev config
+        run: |
+          echo "ENVIRONMENT=development" >> $GITHUB_ENV
+          cat infrastructure/ci/deployment-configs/dev.json
+
+      - name: Deploy application
+        run: echo "Deploying to development environment..."
+        env:
+          DEPLOY_ENV: development
+          API_URL: ${{ secrets.DEV_API_URL }}
+          DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+
+      - name: Run smoke tests
+        run: echo "Running smoke tests against dev..."
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          STATUS=${{ job.status }}
+          echo "Dev deployment $STATUS for commit ${{ github.sha }}"
