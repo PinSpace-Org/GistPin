@@ -1,0 +1,50 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  integration-tests:
+    name: End-to-End Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Backend/package-lock.json
+
+      - name: Setup test environment
+        env:
+          TEST_DB_PASSWORD: ${{ secrets.TEST_DB_PASSWORD }}
+          STELLAR_TESTNET_SECRET: ${{ secrets.STELLAR_TESTNET_SECRET }}
+        run: bash infrastructure/ci/scripts/setup-test-env.sh
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: Backend
+
+      - name: Run e2e tests
+        env:
+          DATABASE_URL: postgresql://gistpin_test:test_password@localhost:5432/gistpin_test
+          NODE_ENV: test
+        run: npm run test:e2e
+        working-directory: Backend
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-report-${{ github.run_id }}
+          path: Backend/test-results/
+
+      - name: Cleanup test environment
+        if: always()
+        run: bash infrastructure/ci/scripts/cleanup-test-env.sh

@@ -1,0 +1,60 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: API Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install k6 -y
+
+      - name: Run benchmarks
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: bash infrastructure/ci/scripts/run-benchmarks.sh
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_id }}
+          path: benchmark-results/
+
+      - name: Check for performance degradation
+        run: |
+          node -e "
+            const results = require('./benchmark-results/summary.json');
+            const baselines = require('./infrastructure/ci/benchmark-baselines.json');
+            let failed = false;
+            for (const [endpoint, metrics] of Object.entries(results)) {
+              const baseline = baselines[endpoint];
+              if (!baseline) continue;
+              const degradation = (metrics.p95 - baseline.p95) / baseline.p95 * 100;
+              if (degradation > 10) {
+                console.error(\`FAIL: \${endpoint} p95 degraded by \${degradation.toFixed(1)}% (baseline: \${baseline.p95}ms, current: \${metrics.p95}ms)\`);
+                failed = true;
+              } else {
+                console.log(\`OK: \${endpoint} p95=\${metrics.p95}ms (baseline: \${baseline.p95}ms)\`);
+              }
+            }
+            if (failed) process.exit(1);
+          "
