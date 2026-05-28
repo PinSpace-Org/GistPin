@@ -1,0 +1,8 @@
+{
+  "schedule": "weekly",
+  "groups": ["major", "minor", "patch"],
+  "exclude": [],
+  "baseBranch": "main",
+  "updateBranchPrefix": "chore/deps",
+  "autoMergeOnGreen": true
+}
