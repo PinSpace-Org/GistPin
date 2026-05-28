@@ -1,0 +1,73 @@
+name: Artifact Caching Strategy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  cache-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            **/node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contracts/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          [ -f Frontend/package.json ] && (cd Frontend && npm ci) || true
+          [ -f Backend/package.json ] && (cd Backend && npm ci) || true
+          [ -f analytics/package.json ] && (cd analytics && npm ci) || true
+
+      - name: Build project artifacts
+        run: |
+          [ -f Frontend/package.json ] && (cd Frontend && npm run build) || true
+          [ -f Backend/package.json ] && (cd Backend && npm run build) || true
+          [ -f analytics/package.json ] && (cd analytics && npm run build) || true
+
+      - name: Save artifact cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            Frontend/dist
+            Backend/dist
+            analytics/dist
+          key: ${{ runner.os }}-artifacts-${{ github.sha }}

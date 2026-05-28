@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "paths": {
+    "npm": [
+      "~/.npm",
+      "**/node_modules"
+    ],
+    "cargo": [
+      "~/.cargo/registry",
+      "~/.cargo/git",
+      "contracts/target"
+    ],
+    "docker": [
+      "/tmp/.buildx-cache"
+    ],
+    "artifacts": [
+      "Frontend/dist",
+      "Backend/dist",
+      "analytics/dist"
+    ]
+  },
+  "invalidation": {
+    "npm": ["**/package-lock.json"],
+    "cargo": ["**/Cargo.lock"],
+    "docker": ["**/Dockerfile", "infrastructure/docker/**"]
+  }
+}
