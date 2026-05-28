@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  namespace: gistpin
+  labels:
+    app: gistpin-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gistpin-frontend
+  template:
+    metadata:
+      labels:
+        app: gistpin-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/pinspace-org/gistpin-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: NEXT_TELEMETRY_DISABLED
+              value: "1"
+            - name: PORT
+              value: "3000"
+            - name: CDN_BASE_URL
+              value: https://cdn.gistpin.app
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
