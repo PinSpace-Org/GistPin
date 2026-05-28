@@ -1,0 +1,34 @@
+name: Changelog Generator
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        run: bash infrastructure/scripts/generate-changelog.sh
+
+      - name: Commit updated changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet CHANGELOG.md; then
+            echo "No changelog changes to commit."
+            exit 0
+          fi
+          git add CHANGELOG.md
+          git commit -m "chore(changelog): update changelog for release"
+          git push
