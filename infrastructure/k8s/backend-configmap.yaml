@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: gistpin
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  LOG_LEVEL: info
+  APP_ENV: production
