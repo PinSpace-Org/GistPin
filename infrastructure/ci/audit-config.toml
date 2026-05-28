@@ -1,0 +1,11 @@
+[audit]
+severity_threshold = "critical"
+output_dir = "infrastructure/ci/reports"
+
+[tools]
+run_cargo_audit = true
+run_clippy = true
+run_fmt_check = true
+
+[paths]
+contracts_dir = "contracts"
