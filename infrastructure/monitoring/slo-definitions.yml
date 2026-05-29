@@ -1,0 +1,36 @@
+slos:
+  - name: API Availability
+    description: The API serves 99.9% of requests successfully
+    target: 99.9
+    window: 30d
+    sli:
+      type: availability
+      good_events: http_requests_total{status!~"5.."}
+      total_events: http_requests_total
+    burn_rate_alerts:
+      - window: 1h
+        burn_rate: 14.4
+        severity: critical
+      - window: 6h
+        burn_rate: 6.0
+        severity: warning
+
+  - name: API Latency p95
+    description: 95% of API requests complete within 500 ms
+    target: 95.0
+    window: 30d
+    sli:
+      type: latency
+      threshold_ms: 500
+      good_events: http_request_duration_seconds_bucket{le="0.5"}
+      total_events: http_request_duration_seconds_count
+    burn_rate_alerts:
+      - window: 1h
+        burn_rate: 14.4
+        severity: critical
+      - window: 6h
+        burn_rate: 6.0
+        severity: warning
+
+error_budget:
+  notify_at_percent_consumed: [50, 75, 90]
