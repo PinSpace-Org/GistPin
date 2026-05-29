@@ -1,0 +1,19 @@
+{
+  "majorPatterns": [
+    "BREAKING CHANGE",
+    "!:"
+  ],
+  "minorTypes": [
+    "feat"
+  ],
+  "patchTypes": [
+    "fix",
+    "perf",
+    "refactor",
+    "build",
+    "ci",
+    "chore"
+  ],
+  "defaultBump": "patch",
+  "tagPrefix": "v"
+}

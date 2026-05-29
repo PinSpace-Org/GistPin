@@ -1,0 +1,56 @@
+name: Semantic Version Bump
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        run: bash infrastructure/scripts/bump-version.sh
+
+      - name: Commit version updates
+        run: |
+          if git diff --quiet -- '**/package.json'; then
+            echo "No package.json version changes."
+            exit 0
+          fi
+          git add '**/package.json'
+          git commit -m "chore(release): bump version"
+          git push
+
+      - name: Create and push tag
+        run: |
+          if [ ! -f ".next-version-tag" ]; then
+            echo "Missing .next-version-tag output."
+            exit 1
+          fi
+          TAG="$(cat .next-version-tag)"
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+            exit 0
+          fi
+          git tag "${TAG}"
+          git push origin "${TAG}"
+
+      - name: Trigger release workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run "Semantic Version Bump" || true
