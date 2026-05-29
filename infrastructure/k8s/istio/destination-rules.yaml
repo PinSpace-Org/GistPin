@@ -1,0 +1,183 @@
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# GistPin — Destination Rules
+#
+# Configures:
+#   - Load balancing algorithm per service
+#   - Connection pool limits (circuit breaker)
+#   - Outlier detection (automatic pod ejection)
+#   - Subsets (stable / canary) matching pod labels
+#   - TLS mode for mTLS between sidecars
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Backend API ───────────────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: backend
+  namespace: gistpin
+spec:
+  host: backend
+  trafficPolicy:
+    loadBalancer:
+      # LEAST_CONN distributes to the pod with fewest active connections;
+      # better than ROUND_ROBIN for variable-latency API handlers.
+      simple: LEAST_CONN
+
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 5s
+        tcpKeepalive:
+          time: 7200s
+          interval: 75s
+      http:
+        http1MaxPendingRequests: 64
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+
+    outlierDetection:
+      # Eject pods returning 5xx errors for increasing intervals
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
+
+    tls:
+      mode: ISTIO_MUTUAL    # Enforce mTLS; pairs with PeerAuthentication STRICT
+
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+      trafficPolicy:
+        loadBalancer:
+          simple: LEAST_CONN
+
+    - name: canary
+      labels:
+        version: canary
+      trafficPolicy:
+        loadBalancer:
+          # During canary, use RANDOM to spread across a small pod set
+          simple: RANDOM
+
+---
+# ── Frontend ──────────────────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: frontend
+  namespace: gistpin
+spec:
+  host: frontend
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN   # Stateless SSR; round-robin is fine
+
+    connectionPool:
+      tcp:
+        maxConnections: 50
+        connectTimeout: 3s
+      http:
+        http1MaxPendingRequests: 32
+        http2MaxRequests: 500
+        maxRequestsPerConnection: 0   # Keep-alive
+
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      interval: 30s
+      baseEjectionTime: 15s
+      maxEjectionPercent: 30
+
+    tls:
+      mode: ISTIO_MUTUAL
+
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+
+    - name: canary
+      labels:
+        version: canary
+
+---
+# ── Analytics ─────────────────────────────────────────────────────────────────
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: analytics
+  namespace: gistpin
+spec:
+  host: analytics
+  trafficPolicy:
+    loadBalancer:
+      # LEAST_CONN suits the mixed workload (fast ingest + slow queries)
+      simple: LEAST_CONN
+
+    connectionPool:
+      tcp:
+        maxConnections: 200
+        connectTimeout: 5s
+      http:
+        http1MaxPendingRequests: 128
+        http2MaxRequests: 2000
+        maxRequestsPerConnection: 0
+
+    outlierDetection:
+      consecutiveGatewayErrors: 10
+      interval: 60s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 25
+
+    tls:
+      mode: ISTIO_MUTUAL
+
+  subsets:
+    - name: stable
+      labels:
+        version: stable
+
+---
+# ── Istio Egress Gateway ──────────────────────────────────────────────────────
+# TLS origination for HTTPS egress to Stellar endpoints.
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: stellar-rpc-egress-tls
+  namespace: gistpin
+spec:
+  host: istio-egressgateway.istio-system.svc.cluster.local
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    portLevelSettings:
+      - port:
+          number: 443
+        tls:
+          mode: ISTIO_MUTUAL
+
+---
+# ── ServiceEntry — allow mesh egress to Stellar RPC hosts ────────────────────
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: stellar-rpc
+  namespace: gistpin
+spec:
+  hosts:
+    - horizon.stellar.org
+    - soroban-testnet.stellar.org
+  ports:
+    - number: 443
+      name: https
+      protocol: HTTPS
+    - number: 80
+      name: http
+      protocol: HTTP
+  location: MESH_EXTERNAL
+  resolution: DNS
