@@ -1,0 +1,17 @@
+{
+  "types": [
+    { "type": "feat", "title": "Features" },
+    { "type": "fix", "title": "Bug Fixes" },
+    { "type": "perf", "title": "Performance Improvements" },
+    { "type": "refactor", "title": "Refactoring" },
+    { "type": "docs", "title": "Documentation" },
+    { "type": "test", "title": "Tests" },
+    { "type": "build", "title": "Build System" },
+    { "type": "ci", "title": "CI/CD" },
+    { "type": "chore", "title": "Chores" }
+  ],
+  "fallbackSection": "Other Changes",
+  "maxCommits": 300,
+  "includeCompareLink": true,
+  "repoUrl": "https://github.com/PinSpace-Org/GistPin"
+}
