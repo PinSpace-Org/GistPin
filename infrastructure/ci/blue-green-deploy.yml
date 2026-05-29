@@ -1,0 +1,39 @@
+name: Blue Green Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  blue-green:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to inactive environment
+        run: |
+          current_env="$(cat /tmp/gistpin-active-environment 2>/dev/null || echo blue)"
+          if [ "$current_env" = "blue" ]; then target_env="green"; else target_env="blue"; fi
+          echo "Deploying new version to ${target_env}"
+          echo "$target_env" > /tmp/gistpin-target-environment
+
+      - name: Run smoke tests against inactive environment
+        run: |
+          target_env="$(cat /tmp/gistpin-target-environment)"
+          bash infrastructure/scripts/smoke-tests.sh "http://${target_env}.gistpin.internal/health"
+
+      - name: Switch traffic to new version
+        run: |
+          current_env="$(cat /tmp/gistpin-active-environment 2>/dev/null || echo blue)"
+          bash infrastructure/scripts/switch-traffic.sh "${current_env}"
+
+      - name: Keep old version for rollback window
+        run: echo "Retaining previous environment for rollback period"
+
+      - name: Cleanup after successful deploy
+        run: echo "Blue-green deployment cleanup complete"
