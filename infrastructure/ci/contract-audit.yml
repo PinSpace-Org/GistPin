@@ -1,0 +1,36 @@
+name: Contract Audit Pipeline
+
+on:
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "infrastructure/ci/contract-audit.yml"
+      - "infrastructure/ci/scripts/audit-contracts.sh"
+      - "infrastructure/ci/audit-config.toml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run contract audit pipeline
+        run: bash infrastructure/ci/scripts/audit-contracts.sh
+
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-audit-reports
+          path: infrastructure/ci/reports
