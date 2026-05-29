@@ -1,0 +1,53 @@
+name: Pipeline Monitoring
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+  issues: write
+
+jobs:
+  collect-metrics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Collect pipeline statistics
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash infrastructure/scripts/collect-pipeline-stats.sh PinSpace-Org GistPin
+
+      - name: Persist latest metrics snapshot
+        run: |
+          if git diff --quiet infrastructure/monitoring/pipeline-stats-latest.json; then
+            echo "No metrics change."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add infrastructure/monitoring/pipeline-stats-latest.json
+          git commit -m "chore(monitoring): update pipeline metrics snapshot"
+          git push
+
+      - name: Alert on high failure rate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rate="$(jq -r '.failure_rate' infrastructure/monitoring/pipeline-stats-latest.json)"
+          threshold="$(jq -r '.alerts.failure_rate_threshold' infrastructure/monitoring/pipeline-metrics.json)"
+          compare="$(jq -n --argjson r "$rate" --argjson t "$threshold" '$r > $t')"
+          if [ "$compare" = "true" ]; then
+            gh issue create \
+              --repo PinSpace-Org/GistPin \
+              --title "CI pipeline alert: elevated failure rate" \
+              --body "Failure rate is ${rate}, above threshold ${threshold}. Please investigate recent workflow runs." \
+              --label monitoring || true
+          fi

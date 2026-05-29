@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "metrics": {
+    "build_time_seconds": {
+      "description": "Pipeline build duration in seconds",
+      "type": "histogram"
+    },
+    "failure_rate": {
+      "description": "Rolling ratio of failed runs",
+      "type": "gauge"
+    },
+    "success_rate": {
+      "description": "Rolling ratio of successful runs",
+      "type": "gauge"
+    }
+  },
+  "dashboard": {
+    "title": "CI/CD Pipeline Health",
+    "panels": [
+      "build_time_seconds_p50",
+      "build_time_seconds_p95",
+      "failure_rate",
+      "success_rate"
+    ]
+  },
+  "alerts": {
+    "failure_rate_threshold": 0.2,
+    "build_time_threshold_seconds": 1800
+  }
+}
