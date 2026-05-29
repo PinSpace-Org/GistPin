@@ -1,0 +1,58 @@
+name: Dependency Update Automation
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          npm install
+          [ -f Frontend/package.json ] && (cd Frontend && npm install) || true
+          [ -f Backend/package.json ] && (cd Backend && npm install) || true
+          [ -f analytics/package.json ] && (cd analytics && npm install) || true
+
+      - name: Check and update dependencies + run tests
+        run: bash infrastructure/scripts/check-deps.sh
+
+      - name: Create dependency update PR
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/deps/weekly-updates
+          commit-message: "chore(deps): weekly dependency updates"
+          title: "chore(deps): weekly dependency updates"
+          body: |
+            Automated weekly dependency updates.
+
+            Grouping:
+            - major updates
+            - minor updates
+            - patch updates
+
+            Includes dependency checks and test execution.
+          labels: |
+            dependencies
+            automation
+
+      - name: Enable auto-merge on green
+        if: ${{ steps.cpr.outputs.pull-request-number != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge --auto --squash "${{ steps.cpr.outputs.pull-request-number }}" || true
