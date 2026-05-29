@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-isolation-policy
+  namespace: gistpin-prod
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: gistpin-backend
+      ports:
+        - protocol: TCP
+          port: 5432
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: gistpin-backend
+      ports:
+        - protocol: TCP
+          port: 10250
+  policyTypes:
+    - Ingress
+    - Egress
