@@ -1,0 +1,52 @@
+name: Backup Verification
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  verify-backup:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gistpin_backup_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download latest backup artifact
+        run: |
+          mkdir -p /tmp/backup
+          cp infrastructure/ci/backup-tests/sample-backup.sql /tmp/backup/latest.sql
+
+      - name: Verify backup restore and integrity
+        env:
+          TEST_DB_URL: postgres://postgres:postgres@localhost:5432/gistpin_backup_test
+        run: bash infrastructure/scripts/verify-backup.sh /tmp/backup/latest.sql
+
+      - name: Alert on verification failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --repo PinSpace-Org/GistPin \
+            --title "Backup verification failed" \
+            --body "Automated backup verification failed in workflow run ${{ github.run_id }}." \
+            --label ci-cd || true
