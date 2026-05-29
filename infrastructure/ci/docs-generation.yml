@@ -1,0 +1,36 @@
+name: API Docs Generation
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-and-publish-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate OpenAPI and static docs
+        run: |
+          version="${{ github.event.release.tag_name }}"
+          if [ -z "$version" ]; then version="$(date +%Y.%m.%d)"; fi
+          bash infrastructure/scripts/generate-api-docs.sh "$version"
+
+      - name: Commit docs artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add infrastructure/docs/openapi.json infrastructure/docs/site infrastructure/docs/version.txt
+          if git diff --cached --quiet; then
+            echo "No docs changes to commit."
+            exit 0
+          fi
+          git commit -m "docs(api): update generated API docs"
+          git push

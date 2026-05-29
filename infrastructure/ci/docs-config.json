@@ -1,0 +1,6 @@
+{
+  "specOutput": "infrastructure/docs/openapi.json",
+  "siteOutput": "infrastructure/docs/site",
+  "versionFile": "infrastructure/docs/version.txt",
+  "publishBranch": "gh-pages"
+}
