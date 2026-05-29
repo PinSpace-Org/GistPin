@@ -1,0 +1,15 @@
+﻿# Elasticsearch configuration for GistPin centralized logging
+cluster.name: gistpin-logs
+node.name: gistpin-node-1
+network.host: 0.0.0.0
+http.port: 9200
+
+# Discovery
+discovery.type: single-node
+
+# Index settings
+indices.memory.index_buffer_size: 20%
+
+# Log retention via ILM (managed separately)
+# Default index: gistpin-logs-*
+# Retention: 30 days hot, 60 days warm, delete after 90 days
