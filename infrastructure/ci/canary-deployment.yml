@@ -1,0 +1,26 @@
+name: Canary Deployment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  canary-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Execute canary rollout
+        run: bash infrastructure/scripts/canary-deploy.sh gistpin-backend
+
+      - name: Upload canary report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-deployment-report
+          path: infrastructure/ci/canary-report.json

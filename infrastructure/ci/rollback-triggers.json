@@ -1,0 +1,12 @@
+{
+  "errorRateThreshold": 0.05,
+  "latencyP95ThresholdMs": 1200,
+  "minRequests": 200,
+  "monitoringWindowSeconds": 300,
+  "stages": [
+    { "trafficPercent": 5, "waitSeconds": 180 },
+    { "trafficPercent": 25, "waitSeconds": 300 },
+    { "trafficPercent": 50, "waitSeconds": 300 },
+    { "trafficPercent": 100, "waitSeconds": 0 }
+  ]
+}
