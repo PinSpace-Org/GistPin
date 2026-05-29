@@ -1,0 +1,19 @@
+{{- if .Values.analytics.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gistpin.fullname" . }}-analytics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gistpin.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics
+spec:
+  type: {{ .Values.analytics.service.type }}
+  ports:
+    - port: {{ .Values.analytics.service.port }}
+      targetPort: {{ .Values.analytics.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "gistpin.componentSelectorLabels" (dict "component" "analytics" "root" .) | nindent 4 }}
+{{- end }}

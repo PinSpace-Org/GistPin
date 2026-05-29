@@ -1,0 +1,64 @@
+{{- if .Values.analytics.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gistpin.fullname" . }}-analytics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gistpin.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics
+  {{- with .Values.analytics.podAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.analytics.autoscaling.enabled }}
+  replicas: {{ .Values.analytics.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "gistpin.componentSelectorLabels" (dict "component" "analytics" "root" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gistpin.componentSelectorLabels" (dict "component" "analytics" "root" .) | nindent 8 }}
+      {{- with .Values.analytics.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with (default .Values.global.imagePullSecrets list) }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "gistpin.serviceAccountName" . }}
+      containers:
+        - name: analytics
+          image: "{{ .Values.analytics.image.repository }}:{{ .Values.analytics.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.analytics.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.analytics.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: {{ .Values.analytics.env.NEXT_PUBLIC_API_URL | quote }}
+          livenessProbe:
+            {{- toYaml .Values.analytics.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.analytics.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.analytics.resources | nindent 12 }}
+      {{- with .Values.analytics.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analytics.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analytics.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

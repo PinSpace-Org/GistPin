@@ -1,0 +1,65 @@
+🎉 GistPin {{ .Chart.AppVersion }} deployed successfully!
+
+Release : {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.backend.enabled }}
+
+Backend API
+───────────
+{{- if .Values.ingress.enabled }}
+  External URL: https://{{ (index .Values.ingress.hosts 0).host }}
+{{- else }}
+  Port-forward to reach the API locally:
+
+    kubectl port-forward svc/{{ include "gistpin.fullname" . }}-backend 3000:80 -n {{ .Release.Namespace }}
+
+  Then: http://localhost:3000
+  Swagger: http://localhost:3000/api/docs
+{{- end }}
+{{- end }}
+
+{{- if .Values.analytics.enabled }}
+
+Analytics Dashboard
+────────────────────
+{{- if .Values.ingress.enabled }}
+  External URL: https://{{ (index .Values.ingress.hosts 1).host }}
+{{- else }}
+  Port-forward:
+
+    kubectl port-forward svc/{{ include "gistpin.fullname" . }}-analytics 3001:80 -n {{ .Release.Namespace }}
+
+  Then: http://localhost:3001
+{{- end }}
+{{- end }}
+
+{{- if .Values.postgresql.enabled }}
+
+PostgreSQL (PostGIS)
+────────────────────
+  Internal host : {{ include "gistpin.postgresHost" . }}:5432
+  Database      : {{ .Values.postgresql.auth.database }}
+  Username      : {{ .Values.postgresql.auth.username }}
+
+  ⚠  Change postgresql.auth.password and backend.secrets.DATABASE_PASSWORD
+     in your values override before going to production.
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Useful commands:
+
+  # Check pod status
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+  # Stream backend logs
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=backend -f
+
+  # Upgrade with new image tag
+  helm upgrade {{ .Release.Name }} ./gistpin --set backend.image.tag=sha-<commit>
+
+  # Rollback
+  helm rollback {{ .Release.Name }} -n {{ .Release.Namespace }}

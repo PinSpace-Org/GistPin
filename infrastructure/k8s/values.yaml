@@ -1,0 +1,237 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GistPin Helm values
+# Override any key with --set or a custom values file:
+#   helm upgrade --install gistpin ./gistpin -f values.prod.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ---------------------------------------------------------------------------
+# Global
+# ---------------------------------------------------------------------------
+global:
+  # Image pull secrets applied to all Deployments
+  imagePullSecrets: []
+  # Override the chart name used in labels
+  nameOverride: ""
+  fullnameOverride: ""
+
+# ---------------------------------------------------------------------------
+# Backend (NestJS API)
+# ---------------------------------------------------------------------------
+backend:
+  enabled: true
+
+  image:
+    repository: ghcr.io/pinspace-org/gistpin
+    tag: ""          # defaults to .Chart.AppVersion when empty
+    pullPolicy: IfNotPresent
+
+  replicaCount: 2
+
+  # Service
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+
+  # Resource requests and limits
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Horizontal Pod Autoscaler
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  # Liveness / readiness probes (NestJS health endpoint from HealthModule)
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 3
+
+  # Non-sensitive environment variables; sensitive values go in `secrets`
+  env:
+    NODE_ENV: production
+    PORT: "3000"
+    SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org"
+    STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+    CONTRACT_ID_GIST_REGISTRY: ""
+    CORS_ORIGINS: ""
+
+  # Reference to an existing Secret for sensitive values.
+  # Keys expected: DATABASE_PASSWORD, PINATA_API_KEY, PINATA_SECRET_KEY,
+  #                STELLAR_SECRET_KEY
+  # Leave empty to have the chart create a Secret from the `secrets` block.
+  existingSecret: ""
+
+  # Sensitive values — only used when existingSecret is empty.
+  # Store real values in a Helm secrets plugin or external-secrets operator.
+  secrets:
+    DATABASE_PASSWORD: "changeme"
+    PINATA_API_KEY: ""
+    PINATA_SECRET_KEY: ""
+    STELLAR_SECRET_KEY: ""
+
+  # Pod scheduling
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  podAnnotations: {}
+  podSecurityContext: {}
+  securityContext: {}
+
+  # Extra environment variables injected verbatim
+  extraEnv: []
+  # - name: MY_EXTRA_VAR
+  #   value: "foo"
+
+# ---------------------------------------------------------------------------
+# Analytics (Next.js dashboard)
+# ---------------------------------------------------------------------------
+analytics:
+  enabled: true
+
+  image:
+    repository: ghcr.io/pinspace-org/gistpin-analytics
+    tag: ""
+    pullPolicy: IfNotPresent
+
+  replicaCount: 1
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3001
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3001
+    initialDelaySeconds: 10
+    periodSeconds: 20
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3001
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+  env:
+    NEXT_PUBLIC_API_URL: ""  # e.g. https://api.gistpin.io
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+  # kubernetes.io/tls-acme: "true"
+  # cert-manager.io/cluster-issuer: letsencrypt-prod
+
+  hosts:
+    - host: api.gistpin.io
+      serviceName: backend
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: analytics.gistpin.io
+      serviceName: analytics
+      paths:
+        - path: /
+          pathType: Prefix
+
+  tls: []
+  # - secretName: gistpin-tls
+  #   hosts:
+  #     - api.gistpin.io
+  #     - analytics.gistpin.io
+
+# ---------------------------------------------------------------------------
+# PostgreSQL (Bitnami sub-chart)
+# ---------------------------------------------------------------------------
+postgresql:
+  # Set to false to use an external database; provide host/port/name via
+  # backend.env.DATABASE_HOST etc.
+  enabled: true
+
+  auth:
+    database: gist
+    username: gist
+    # existingSecret: gistpin-postgresql  # override with an existing secret
+    password: "changeme"     # only used when existingSecret is unset
+    postgresPassword: "changeme"
+
+  primary:
+    initdb:
+      # Enable PostGIS extension on first boot
+      scripts:
+        enable_postgis.sql: |
+          CREATE EXTENSION IF NOT EXISTS postgis;
+          CREATE EXTENSION IF NOT EXISTS postgis_topology;
+
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""   # leave empty to use the cluster default
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# ---------------------------------------------------------------------------
+# ServiceAccount
+# ---------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# ---------------------------------------------------------------------------
+# Network policy (opt-in)
+# ---------------------------------------------------------------------------
+networkPolicy:
+  enabled: false
