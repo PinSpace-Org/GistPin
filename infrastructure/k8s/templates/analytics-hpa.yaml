@@ -1,0 +1,24 @@
+{{- if and .Values.analytics.enabled .Values.analytics.autoscaling.enabled -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "gistpin.fullname" . }}-analytics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gistpin.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "gistpin.fullname" . }}-analytics
+  minReplicas: {{ .Values.analytics.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.analytics.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.analytics.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
