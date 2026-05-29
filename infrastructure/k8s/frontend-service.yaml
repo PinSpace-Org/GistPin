@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: gistpin
+spec:
+  type: LoadBalancer
+  selector:
+    app: gistpin-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
