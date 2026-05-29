@@ -1,0 +1,167 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gistpin-reports
+  namespace: gistpin-prod
+  labels:
+    app: gistpin
+    component: reports
+    managed-by: cronjob
+spec:
+  schedule: "0 6 * * 1"          # Every Monday 06:00 UTC
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 10  # Keep 10 weeks of report job history
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 1800   # 30-minute window to start
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: gistpin
+        component: reports
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600  # 1-hour cap; reports should finish well under this
+
+      template:
+        metadata:
+          labels:
+            app: gistpin
+            component: reports
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: gistpin-reports-sa
+
+          initContainers:
+            # Verify the analytics service is reachable before querying
+            - name: analytics-healthcheck
+              image: curlimages/curl:8.7.1
+              command:
+                - sh
+                - -c
+                - |
+                  echo "[reports] Checking analytics service health..."
+                  curl -sf "http://analytics.gistpin-prod.svc.cluster.local/health" \
+                    || { echo "[reports] Analytics service unavailable"; exit 1; }
+                  echo "[reports] Analytics service is ready."
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+
+          containers:
+            - name: report-generator
+              image: ghcr.io/pinspace-org/gistpin-reports:latest
+              imagePullPolicy: Always
+              command:
+                - sh
+                - -c
+                - |
+                  set -euo pipefail
+
+                  WEEK_START=$(date -d "last monday" +%Y-%m-%d)
+                  WEEK_END=$(date +%Y-%m-%d)
+                  REPORT_ID="weekly_${WEEK_START}"
+                  REPORT_FILE="/reports/${REPORT_ID}.json"
+                  REPORT_PDF="/reports/${REPORT_ID}.pdf"
+
+                  echo "[reports] Generating report for week ${WEEK_START} to ${WEEK_END}..."
+
+                  # ── 1. Fetch metrics from analytics service ───────────────
+                  curl -sf \
+                    -H "Authorization: Bearer ${ANALYTICS_API_KEY}" \
+                    "${ANALYTICS_URL}/query?from=${WEEK_START}&to=${WEEK_END}&metrics=all" \
+                    -o "$REPORT_FILE"
+
+                  echo "[reports] Raw metrics written to ${REPORT_FILE}"
+
+                  # ── 2. Render PDF report (assumes report-generator image has
+                  #       a render-report binary) ─────────────────────────────
+                  render-report \
+                    --input "$REPORT_FILE" \
+                    --output "$REPORT_PDF" \
+                    --template weekly \
+                    --title "GistPin Weekly Report — ${WEEK_START}"
+
+                  echo "[reports] PDF rendered at ${REPORT_PDF}"
+
+                  # ── 3. Upload to S3 ───────────────────────────────────────
+                  aws s3 cp "$REPORT_PDF" \
+                    "s3://${S3_BUCKET}/reports/${REPORT_ID}.pdf" \
+                    --sse aws:kms \
+                    --content-type application/pdf
+
+                  REPORT_URL="https://${S3_BUCKET}.s3.amazonaws.com/reports/${REPORT_ID}.pdf"
+                  echo "[reports] Uploaded to ${REPORT_URL}"
+
+                  # ── 4. Notify Slack ───────────────────────────────────────
+                  curl -sf -X POST \
+                    -H 'Content-type: application/json' \
+                    --data "{
+                      \"text\": \":bar_chart: *GistPin Weekly Report* (${WEEK_START} to ${WEEK_END}) is ready.\",
+                      \"attachments\": [{
+                        \"text\": \"<${REPORT_URL}|Download PDF>\",
+                        \"color\": \"#36a64f\"
+                      }]
+                    }" \
+                    "$SLACK_WEBHOOK_URL"
+
+                  echo "[reports] Slack notification sent. Done."
+              env:
+                - name: ANALYTICS_URL
+                  value: "http://analytics.gistpin-prod.svc.cluster.local"
+                - name: ANALYTICS_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-reports-secrets
+                      key: analytics_api_key
+                - name: S3_BUCKET
+                  valueFrom:
+                    configMapKeyRef:
+                      name: gistpin-reports-config
+                      key: s3_bucket
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-reports-secrets
+                      key: slack_webhook_url
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+
+              volumeMounts:
+                - name: report-workspace
+                  mountPath: /reports
+
+          volumes:
+            - name: report-workspace
+              emptyDir:
+                sizeLimit: 2Gi
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gistpin-reports-sa
+  namespace: gistpin-prod
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/gistpin-reports-role"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gistpin-reports-config
+  namespace: gistpin-prod
+data:
+  s3_bucket: "gistpin-reports-prod"
