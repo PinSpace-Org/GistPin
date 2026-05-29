@@ -1,0 +1,186 @@
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# GistPin — Istio Installation
+#
+# Apply order:
+#   1. kubectl create namespace istio-system
+#   2. kubectl apply -f istio-install.yaml
+#   3. kubectl label namespace gistpin istio-injection=enabled
+# ──────────────────────────────────────────────────────────────────────────────
+
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: gistpin-istio
+  namespace: istio-system
+spec:
+  # Pinned to a stable release; bump in Chart.yaml / renovate as needed
+  # Compatible with Kubernetes 1.28+
+  profile: default
+
+  meshConfig:
+    # Access logging to stdout (captured by the node-level log aggregator)
+    accessLogFile: /dev/stdout
+    accessLogFormat: >
+      {
+        "start_time":         "%START_TIME%",
+        "method":             "%REQ(:METHOD)%",
+        "path":               "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%",
+        "protocol":           "%PROTOCOL%",
+        "response_code":      "%RESPONSE_CODE%",
+        "duration_ms":        "%DURATION%",
+        "upstream_host":      "%UPSTREAM_HOST%",
+        "trace_id":           "%REQ(X-B3-TRACEID)%",
+        "service":            "%REQ(X-FORWARDED-FOR)%"
+      }
+
+    # Enable distributed tracing via Jaeger / Zipkin compatible endpoint
+    defaultConfig:
+      tracing:
+        sampling: 100.0            # 100 % in dev; lower to ~1-5 in production
+        zipkin:
+          address: jaeger-collector.observability.svc.cluster.local:9411
+
+    # Mutual TLS — STRICT enforces mTLS between all sidecars
+    enableAutoMtls: true
+
+  components:
+    pilot:
+      k8s:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        hpaSpec:
+          minReplicas: 1
+          maxReplicas: 3
+
+    ingressGateways:
+      - name: istio-ingressgateway
+        enabled: true
+        k8s:
+          service:
+            type: LoadBalancer
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          hpaSpec:
+            minReplicas: 2
+            maxReplicas: 5
+
+    egressGateways:
+      - name: istio-egressgateway
+        enabled: true    # Required for controlled Stellar RPC egress
+
+  values:
+    global:
+      proxy:
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# Observability namespace + addons (Prometheus, Grafana, Jaeger, Kiali)
+# ──────────────────────────────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    istio-injection: disabled   # Addons don't need sidecars
+
+---
+# Prometheus — metrics scrape config for Istio telemetry
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-scrape-config
+  namespace: observability
+data:
+  scrape_configs.yaml: |
+    scrape_configs:
+      - job_name: 'istio-mesh'
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [istio-system]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: istio-telemetry;prometheus
+
+      - job_name: 'gistpin-services'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names: [gistpin]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+
+---
+# PeerAuthentication — enforce STRICT mTLS across the gistpin namespace
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: gistpin-mtls
+  namespace: gistpin
+spec:
+  mtls:
+    mode: STRICT
+
+---
+# Gateway — single ingress entry point for all GistPin HTTP/HTTPS traffic
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: gistpin-gateway
+  namespace: gistpin
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "gistpin.io"
+        - "*.gistpin.io"
+      # Redirect all HTTP → HTTPS in production
+      tls:
+        httpsRedirect: true
+
+    - port:
+        number: 443
+        name: https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: gistpin-tls   # K8s Secret with TLS cert/key
+      hosts:
+        - "gistpin.io"
+        - "*.gistpin.io"
