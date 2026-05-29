@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: gistpin-prod
+data:
+  NODE_ENV: production
+  APP_ENV: production
+  API_BASE_URL: https://api.gistpin.app
+  LOG_LEVEL: info
+  FEATURE_FLAGS: '{"newDashboard":true,"betaReports":false}'
