@@ -1,0 +1,180 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gistpin-cleanup
+  namespace: gistpin-prod
+  labels:
+    app: gistpin
+    component: cleanup
+    managed-by: cronjob
+spec:
+  schedule: "0 */6 * * *"        # Every 6 hours
+  timeZone: "UTC"
+  concurrencyPolicy: Replace      # Kill stale run and start fresh
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: gistpin
+        component: cleanup
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800   # 30-minute hard cap
+
+      template:
+        metadata:
+          labels:
+            app: gistpin
+            component: cleanup
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: gistpin-cleanup-sa
+
+          containers:
+            # ── Step 1: expired gist purge (SQL) ────────────────────────────
+            - name: purge-expired-gists
+              image: postgres:16-alpine
+              command:
+                - sh
+                - -c
+                - |
+                  set -euo pipefail
+                  echo "[cleanup] Purging expired gists..."
+
+                  PURGED=$(PGPASSWORD="$PGPASSWORD" psql \
+                    -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" \
+                    -t -c "
+                      WITH deleted AS (
+                        DELETE FROM gists
+                        WHERE
+                          (expires_at IS NOT NULL AND expires_at < NOW())
+                          OR (deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '${RETENTION_DAYS} days')
+                        RETURNING id
+                      )
+                      SELECT COUNT(*) FROM deleted;
+                    " | xargs)
+
+                  echo "[cleanup] Purged ${PURGED} expired gist(s)."
+
+                  echo "[cleanup] Purging orphaned blob references..."
+                  BLOBS=$(PGPASSWORD="$PGPASSWORD" psql \
+                    -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" \
+                    -t -c "
+                      WITH deleted AS (
+                        DELETE FROM blob_references br
+                        WHERE NOT EXISTS (
+                          SELECT 1 FROM gists g WHERE g.id = br.gist_id
+                        )
+                        AND br.created_at < NOW() - INTERVAL '1 hour'
+                        RETURNING id
+                      )
+                      SELECT COUNT(*) FROM deleted;
+                    " | xargs)
+
+                  echo "[cleanup] Purged ${BLOBS} orphaned blob reference(s)."
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: host
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: password
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: database
+                - name: RETENTION_DAYS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: gistpin-cleanup-config
+                      key: retention_days
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 300m
+                  memory: 256Mi
+
+            # ── Step 2: Redis session cleanup ────────────────────────────────
+            - name: purge-stale-sessions
+              image: redis:7-alpine
+              command:
+                - sh
+                - -c
+                - |
+                  set -euo pipefail
+                  echo "[cleanup] Scanning for stale session keys in Redis..."
+
+                  # Redis SCAN for session:* keys; delete any where TTL = -1
+                  # (no expiry set — shouldn't happen but defensive cleanup)
+                  redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" \
+                    --no-auth-warning -a "$REDIS_PASSWORD" \
+                    --scan --pattern "session:*" \
+                    | while IFS= read -r key; do
+                        ttl=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" \
+                          --no-auth-warning -a "$REDIS_PASSWORD" TTL "$key")
+                        if [ "$ttl" = "-1" ]; then
+                          redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" \
+                            --no-auth-warning -a "$REDIS_PASSWORD" DEL "$key" > /dev/null
+                          echo "[cleanup] Deleted persistent session key: $key"
+                        fi
+                      done
+
+                  echo "[cleanup] Redis session cleanup complete."
+              env:
+                - name: REDIS_HOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-redis-credentials
+                      key: host
+                - name: REDIS_PORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-redis-credentials
+                      key: port
+                - name: REDIS_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-redis-credentials
+                      key: password
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+
+          volumes: []
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gistpin-cleanup-sa
+  namespace: gistpin-prod
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gistpin-cleanup-config
+  namespace: gistpin-prod
+data:
+  retention_days: "90"

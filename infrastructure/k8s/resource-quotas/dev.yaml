@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gistpin-dev
+  labels:
+    env: dev
+    team: gistpin
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gistpin-dev-quota
+  namespace: gistpin-dev
+  annotations:
+    quota.gistpin.io/alert-threshold: "80"   # Alert at 80 % utilisation
+spec:
+  hard:
+    # Compute
+    requests.cpu: "4"
+    limits.cpu: "8"
+    requests.memory: 8Gi
+    limits.memory: 16Gi
+
+    # Workloads
+    count/pods: "30"
+    count/deployments.apps: "15"
+    count/statefulsets.apps: "5"
+    count/jobs.batch: "10"
+    count/cronjobs.batch: "5"
+
+    # Services & config
+    count/services: "20"
+    count/configmaps: "30"
+    count/secrets: "30"
+    count/serviceaccounts: "10"
+
+    # Storage
+    requests.storage: 50Gi
+    persistentvolumeclaims: "10"
+    count/persistentvolumeclaims: "10"
+
+---
+# LimitRange — sets defaults so pods without explicit requests/limits still
+# get sensible values, and prevents any single container from going unbounded.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: gistpin-dev-limits
+  namespace: gistpin-dev
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      max:
+        cpu: "2"
+        memory: 4Gi
+      min:
+        cpu: 10m
+        memory: 16Mi
+
+    - type: Pod
+      max:
+        cpu: "4"
+        memory: 8Gi
+
+    - type: PersistentVolumeClaim
+      max:
+        storage: 20Gi
+      min:
+        storage: 1Gi
+
+---
+# PrometheusRule — fires when any resource dimension exceeds the threshold.
+# Requires kube-prometheus-stack (or compatible) to be installed.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gistpin-dev-quota-alerts
+  namespace: gistpin-dev
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: gistpin-dev-quota
+      interval: 60s
+      rules:
+        - alert: DevCpuRequestQuotaHigh
+          expr: |
+            kube_resourcequota{namespace="gistpin-dev", resource="requests.cpu", type="used"}
+            / kube_resourcequota{namespace="gistpin-dev", resource="requests.cpu", type="hard"} > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            env: dev
+          annotations:
+            summary: "Dev CPU request quota above 80 %"
+            description: "Namespace gistpin-dev is using {{ $value | humanizePercentage }} of its CPU request quota."
+
+        - alert: DevMemoryRequestQuotaHigh
+          expr: |
+            kube_resourcequota{namespace="gistpin-dev", resource="requests.memory", type="used"}
+            / kube_resourcequota{namespace="gistpin-dev", resource="requests.memory", type="hard"} > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            env: dev
+          annotations:
+            summary: "Dev memory request quota above 80 %"
+            description: "Namespace gistpin-dev is using {{ $value | humanizePercentage }} of its memory request quota."
+
+        - alert: DevPodCountQuotaHigh
+          expr: |
+            kube_resourcequota{namespace="gistpin-dev", resource="count/pods", type="used"}
+            / kube_resourcequota{namespace="gistpin-dev", resource="count/pods", type="hard"} > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            env: dev
+          annotations:
+            summary: "Dev pod count quota above 80 %"
+            description: "{{ $value | humanizePercentage }} of the pod quota is consumed in gistpin-dev."
+
+        - alert: DevStorageQuotaHigh
+          expr: |
+            kube_resourcequota{namespace="gistpin-dev", resource="requests.storage", type="used"}
+            / kube_resourcequota{namespace="gistpin-dev", resource="requests.storage", type="hard"} > 0.8
+          for: 10m
+          labels:
+            severity: warning
+            env: dev
+          annotations:
+            summary: "Dev storage quota above 80 %"
+            description: "Storage quota in gistpin-dev is {{ $value | humanizePercentage }} full."

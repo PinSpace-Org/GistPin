@@ -1,0 +1,174 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gistpin-backup
+  namespace: gistpin-prod
+  labels:
+    app: gistpin
+    component: backup
+    managed-by: cronjob
+spec:
+  schedule: "0 2 * * *"          # Daily at 02:00 UTC
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid       # Never run two backup jobs in parallel
+  successfulJobsHistoryLimit: 7   # Keep the last 7 successful job records
+  failedJobsHistoryLimit: 3       # Keep the last 3 failed job records
+  startingDeadlineSeconds: 900    # Abort if not started within 15 min of schedule
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: gistpin
+        component: backup
+    spec:
+      backoffLimit: 2             # Retry up to 2 times before marking failed
+      activeDeadlineSeconds: 3600 # Kill the job after 1 hour regardless
+
+      template:
+        metadata:
+          labels:
+            app: gistpin
+            component: backup
+          annotations:
+            sidecar.istio.io/inject: "false"   # No mesh sidecar needed for batch
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: gistpin-backup-sa
+
+          # ── Init: verify connectivity before the main backup ──────────────
+          initContainers:
+            - name: preflight
+              image: postgres:16-alpine
+              command:
+                - sh
+                - -c
+                - |
+                  echo "[preflight] Testing DB connectivity..."
+                  pg_isready -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" \
+                    || { echo "[preflight] DB not ready — aborting"; exit 1; }
+                  echo "[preflight] OK"
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: host
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: username
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: database
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+
+          containers:
+            # ── Step 1: PostgreSQL dump ──────────────────────────────────────
+            - name: postgres-backup
+              image: postgres:16-alpine
+              command:
+                - sh
+                - -c
+                - |
+                  set -euo pipefail
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_FILE="/tmp/gistpin_${TIMESTAMP}.sql.gz"
+
+                  echo "[backup] Dumping database to ${BACKUP_FILE}..."
+                  PGPASSWORD="$PGPASSWORD" pg_dump \
+                    -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" \
+                    --no-owner --no-acl --clean --if-exists \
+                    | gzip -9 > "$BACKUP_FILE"
+
+                  echo "[backup] Uploading to s3://${S3_BUCKET}/postgres/${TIMESTAMP}/"
+                  # Uses AWS CLI v2 bundled in the init step; assumes IRSA or env-based creds
+                  aws s3 cp "$BACKUP_FILE" \
+                    "s3://${S3_BUCKET}/postgres/gistpin_${TIMESTAMP}.sql.gz" \
+                    --sse aws:kms \
+                    --storage-class STANDARD_IA
+
+                  echo "[backup] Pruning backups older than ${RETENTION_DAYS} days..."
+                  CUTOFF=$(date -d "-${RETENTION_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
+                  aws s3api list-objects-v2 \
+                    --bucket "$S3_BUCKET" --prefix "postgres/" \
+                    --query "Contents[?LastModified<='${CUTOFF}'].Key" \
+                    --output text \
+                    | xargs -r -I {} aws s3 rm "s3://${S3_BUCKET}/{}"
+
+                  echo "[backup] Done."
+              env:
+                - name: PGHOST
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: host
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: password
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: gistpin-db-credentials
+                      key: database
+                - name: S3_BUCKET
+                  valueFrom:
+                    configMapKeyRef:
+                      name: gistpin-backup-config
+                      key: s3_bucket
+                - name: RETENTION_DAYS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: gistpin-backup-config
+                      key: retention_days
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+
+              volumeMounts:
+                - name: tmp-storage
+                  mountPath: /tmp
+
+          volumes:
+            - name: tmp-storage
+              emptyDir:
+                sizeLimit: 10Gi
+
+---
+# ServiceAccount for the backup job (bind to IRSA role for S3 access)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gistpin-backup-sa
+  namespace: gistpin-prod
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/gistpin-backup-role"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gistpin-backup-config
+  namespace: gistpin-prod
+data:
+  s3_bucket: "gistpin-backups-prod"
+  retention_days: "30"
