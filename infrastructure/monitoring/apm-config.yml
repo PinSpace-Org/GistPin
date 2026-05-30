@@ -1,0 +1,35 @@
+apm:
+  provider: datadog
+  service_name: gistpin-backend
+  environment: ${NODE_ENV:-production}
+  version: ${APP_VERSION:-1.0.0}
+
+tracing:
+  enabled: true
+  sample_rate: 0.1
+  propagation_style: datadog
+
+metrics:
+  enabled: true
+  flush_interval: 10s
+  runtime_metrics: true
+
+logs:
+  enabled: true
+  injection: true
+  level: info
+
+error_tracking:
+  enabled: true
+  capture_unhandled: true
+
+custom_metrics:
+  - name: http.request.duration
+    type: histogram
+    tags: [service, route, status_code]
+  - name: db.query.duration
+    type: histogram
+    tags: [service, query_type]
+  - name: cache.hit_rate
+    type: gauge
+    tags: [service, cache_name]
