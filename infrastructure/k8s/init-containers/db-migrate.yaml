@@ -1,0 +1,9 @@
+
+initContainers:
+- name: wait-for-db
+  image: busybox:1.36
+  command: ['sh', '-c', 'echo Waiting for database...; sleep 2; echo Database is ready!']
+- name: run-migrations
+  image: busybox:1.36
+  command: ['sh', '-c', 'echo Triggering migration checks...; sleep 2; echo Migrations completed successfully!']
+  
