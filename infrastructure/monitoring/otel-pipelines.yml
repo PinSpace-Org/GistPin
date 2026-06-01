@@ -1,0 +1,135 @@
+processors:
+  attributes:
+    actions:
+      - action: insert
+        key: service.namespace
+        value: "gistpin"
+      - action: insert
+        key: deployment.environment
+        value: ${DEPLOY_ENV:-production}
+      - action: upsert
+        key: conf.service_version
+        from_attribute: service.version
+      - action: hash
+        key: user.id
+      - action: delete
+        match_type: regexp
+        regex_keys:
+          - ".*password.*"
+          - ".*secret.*"
+          - ".*token.*"
+
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+    send_batch_max_size: 2048
+
+  probabilistic_sampler:
+    hash_seed: 42
+    sampling_percentage: 10.0
+    attribute_name: sampling.random
+
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 10000
+    expected_new_traces_per_sec: 10
+    policies:
+      - name: gistpin-error-policy
+        type: status_code
+        status_code: { status_codes: [ERROR] }
+      - name: gistpin-latency-policy
+        type: latency
+        latency: { threshold_ms: 1500 }
+      - name: gistpin-random-sampling
+        type: probabilistic
+        probabilistic: { sampling_percentage: 5.0 }
+      - name: gistpin-status-sampling
+        type: status_code
+        status_code: { status_codes: [ERROR, UNSET] }
+
+  transform:
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["service"], "gistpin-backend")
+          - set(resource.attributes["deployment.environment"], ${DEPLOY_ENV:-production})
+
+    log_statements:
+      - context: log
+        statements:
+          - extract_pattern(
+              "trace_id", 
+              "trace_id=(\\w+)", 
+              body
+            ) > 0
+          - extract_pattern(
+              "span_id", 
+              "span_id=(\\w+)", 
+              body
+            ) > 0
+
+pipelines:
+  traces:
+    batches: [tail_sampling, batch]
+    exporters: [logging, jaeger, otlp]
+    sampling_strategy: hybrid
+    tail_sampling_policies:
+      - policy: gistpin-error-policy
+        policy: gistpin-latency-policy
+        policy: gistpin-random-sampling
+        policy: gistpin-status-sampling
+    probabilistic_sample_rate: 0.1
+    max_trace_duration: 30s
+
+  metrics:
+    exporters: [logging, prometheusremotewrite]
+    collection_interval: 10s
+    metrics_filter:
+      include:
+        match_type: regexp
+        regex: "gistpin\\..*"
+        metric_namespace: "gistpin"
+      exclude:
+        match_type: strict
+        metric_names:
+          - process.runtime.gc.collections.total
+      resource_attributes:
+        service.name: "gistpin-backend"
+        service.namespace: "gistpin"
+        deployment.environment: ${DEPLOY_ENV:-production}
+
+  logs:
+    exporters: [logging, loki]
+    batch_size: 1048576
+    timeout: 10s
+    log_retention:
+      max_size: 100MB
+      max_age: 7d
+      max_backups: 3
+    log_filter:
+      include:
+        logs:
+          - severity >= INFO
+      exclude:
+        logs:
+          - match_type: regexp
+            regex: "^.*health\\scheck.*$"
+
+service_instances:
+  gistpin-backend:
+    receivers: [otlp]
+    exporters: [jaeger, prometheusremotewrite, loki]
+    processors: [attributes, batch]
+    pipelines: [traces as primary, metrics as primary, logs]
+
+  gistpin-frontend:
+    receivers: [otlp]
+    exporters: [jaeger]
+    processors: [attributes, probabilistic_sampler]
+    pipelines: [traces]
+
+  gistpin-collector-self-monitoring:
+    receivers: [prometheus]
+    exporters: [prometheusremotewrite]
+    processors: [transform]
+    pipelines: [metrics]
