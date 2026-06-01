@@ -1,6 +1,13 @@
-name: API Docs Generation
+name: Docs Generation
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/terraform/**'
+      - 'infrastructure/k8s/**'
+      - 'infrastructure/scripts/generate-docs.sh'
+      - 'infrastructure/scripts/generate-diagrams.py'
   release:
     types: [published]
   workflow_dispatch:
@@ -9,11 +16,11 @@ permissions:
   contents: write
 
 jobs:
-  generate-and-publish-docs:
+  generate-api-docs:
+    name: API Docs
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -23,14 +30,50 @@ jobs:
           if [ -z "$version" ]; then version="$(date +%Y.%m.%d)"; fi
           bash infrastructure/scripts/generate-api-docs.sh "$version"
 
-      - name: Commit docs artifacts
+      - name: Commit API docs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add infrastructure/docs/openapi.json infrastructure/docs/site infrastructure/docs/version.txt
+          git add infrastructure/docs/openapi.json infrastructure/docs/site infrastructure/docs/version.txt || true
           if git diff --cached --quiet; then
-            echo "No docs changes to commit."
+            echo "No API docs changes to commit."
             exit 0
           fi
           git commit -m "docs(api): update generated API docs"
+          git push
+
+  generate-infra-docs:
+    name: Infrastructure Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install terraform-docs
+        run: |
+          curl -sSLo /tmp/terraform-docs.tar.gz \
+            https://github.com/terraform-docs/terraform-docs/releases/download/v0.17.0/terraform-docs-v0.17.0-linux-amd64.tar.gz
+          tar -xzf /tmp/terraform-docs.tar.gz -C /usr/local/bin terraform-docs
+          chmod +x /usr/local/bin/terraform-docs
+
+      - name: Generate infrastructure docs
+        run: bash infrastructure/scripts/generate-docs.sh
+
+      - name: Generate diagrams
+        run: python3 infrastructure/scripts/generate-diagrams.py
+
+      - name: Commit generated docs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add infrastructure/docs/auto-generated/
+          if git diff --cached --quiet; then
+            echo "No infra docs changes to commit."
+            exit 0
+          fi
+          git commit -m "docs(infra): update auto-generated infrastructure docs [skip ci]"
           git push

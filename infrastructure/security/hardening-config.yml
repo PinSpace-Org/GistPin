@@ -1,0 +1,39 @@
+ssh:
+  permit_root_login: "no"
+  password_authentication: "no"
+  x11_forwarding: "no"
+  max_auth_tries: 3
+  protocol: 2
+
+firewall:
+  default_incoming: deny
+  default_outgoing: allow
+  allowed_ports:
+    - port: 22
+      protocol: tcp
+      comment: SSH
+    - port: 80
+      protocol: tcp
+      comment: HTTP
+    - port: 443
+      protocol: tcp
+      comment: HTTPS
+
+service_accounts:
+  namespace: gistpin
+  audit_only: true
+
+permissions:
+  world_writable_check: true
+  auto_remediate: true
+
+baseline_checks:
+  - id: ssh-root-login
+    description: SSH root login disabled
+    command: "grep -q 'PermitRootLogin no' /etc/ssh/sshd_config"
+  - id: ssh-password-auth
+    description: Password authentication disabled
+    command: "grep -q 'PasswordAuthentication no' /etc/ssh/sshd_config"
+  - id: no-world-writable-etc
+    description: No world-writable files in /etc
+    command: "! find /etc -maxdepth 1 -perm /o+w | grep -q ."
