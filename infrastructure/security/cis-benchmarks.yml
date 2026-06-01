@@ -1,0 +1,89 @@
+---
+# CIS Benchmark definitions for GistPin infrastructure compliance checks.
+# Each entry maps to a check in compliance-checks.sh.
+
+version: "1.0"
+updated: "2026-06-01"
+
+benchmarks:
+  # ── OS / SSH Hardening ──────────────────────────────────────────────────────
+  - id: CIS-1.1
+    title: "Disable SSH root login"
+    framework: CIS
+    section: "1.1"
+    severity: CRITICAL
+    remediation: "Set PermitRootLogin no in /etc/ssh/sshd_config and restart sshd."
+
+  - id: CIS-1.2
+    title: "Disable SSH password authentication"
+    framework: CIS
+    section: "1.2"
+    severity: HIGH
+    remediation: "Set PasswordAuthentication no in /etc/ssh/sshd_config."
+
+  - id: CIS-1.3
+    title: "Enable automatic security updates"
+    framework: CIS
+    section: "1.3"
+    severity: HIGH
+    remediation: "Install and configure unattended-upgrades (Debian/Ubuntu) or dnf-automatic (RHEL/CentOS)."
+
+  # ── Network ─────────────────────────────────────────────────────────────────
+  - id: CIS-2.1
+    title: "Host firewall must be active"
+    framework: CIS
+    section: "2.1"
+    severity: CRITICAL
+    remediation: "Enable ufw (sudo ufw enable) or firewalld (sudo systemctl enable --now firewalld)."
+
+  - id: CIS-2.2
+    title: "Disable IP forwarding unless required"
+    framework: CIS
+    section: "2.2"
+    severity: MEDIUM
+    remediation: "Set net.ipv4.ip_forward=0 in /etc/sysctl.conf and run sysctl -p."
+
+  # ── Kubernetes ──────────────────────────────────────────────────────────────
+  - id: CIS-3.1
+    title: "Deny anonymous Kubernetes API access"
+    framework: CIS
+    section: "3.1"
+    severity: CRITICAL
+    remediation: "Ensure --anonymous-auth=false on kube-apiserver and remove ClusterRoleBindings for system:anonymous."
+
+  - id: CIS-3.2
+    title: "Encrypt Kubernetes secrets at rest"
+    framework: CIS
+    section: "3.2"
+    severity: HIGH
+    remediation: "Configure an EncryptionConfiguration with aescbc or secretbox provider on the API server."
+
+  # ── GDPR ────────────────────────────────────────────────────────────────────
+  - id: GDPR-1
+    title: "Data retention policy must be defined"
+    framework: GDPR
+    article: "Art. 5(1)(e)"
+    severity: HIGH
+    remediation: "Add lifecycle/retention rules to S3 buckets and RDS in Terraform."
+
+  - id: GDPR-2
+    title: "Encryption in transit required"
+    framework: GDPR
+    article: "Art. 32"
+    severity: HIGH
+    remediation: "Enforce TLS on all ALB listeners and RDS connections via ssl_policy in Terraform."
+
+  # ── PCI-DSS ─────────────────────────────────────────────────────────────────
+  - id: PCI-1
+    title: "Audit logging must be enabled"
+    framework: PCI-DSS
+    requirement: "10.2"
+    severity: CRITICAL
+    remediation: "Enable CloudWatch Logs, CloudTrail, and RDS audit logging in Terraform."
+
+  - id: PCI-2
+    title: "MFA required for privileged access"
+    framework: PCI-DSS
+    requirement: "8.3"
+    severity: HIGH
+    remediation: "Enforce MFA via IAM policies and AWS SSO for all privileged roles."
