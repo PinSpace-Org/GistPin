@@ -35,5 +35,5 @@ jobs:
       - name: Notify deployment
         if: always()
         run: |
-          STATUS=${{ job.status }}
-          echo "Staging deployment $STATUS for commit ${{ github.sha }}"
+          STATUS="${{ job.status }}"
+          echo "Staging deployment ${STATUS} for commit ${{ github.sha }}"
