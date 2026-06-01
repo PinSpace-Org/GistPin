@@ -1,0 +1,58 @@
+# Synthetic monitoring configuration for GistPin
+global:
+  base_url: "${BASE_URL:-https://api.gistpin.io}"
+  frontend_url: "${FRONTEND_URL:-https://gistpin.io}"
+  timeout_ms: 10000
+  retry_count: 2
+  retry_delay_ms: 1000
+
+# Geographic distribution of test runners
+locations:
+  - id: us-east
+    name: US East (N. Virginia)
+    enabled: true
+  - id: eu-west
+    name: EU West (Ireland)
+    enabled: true
+  - id: ap-southeast
+    name: AP Southeast (Singapore)
+    enabled: true
+
+# Test schedules
+schedules:
+  critical:
+    interval_seconds: 60    # every minute
+    locations: [us-east, eu-west, ap-southeast]
+  standard:
+    interval_seconds: 300   # every 5 minutes
+    locations: [us-east]
+  extended:
+    interval_seconds: 900   # every 15 minutes
+    locations: [us-east]
+
+# Performance thresholds
+thresholds:
+  response_time_ms:
+    warning: 500
+    critical: 2000
+  availability_pct:
+    warning: 99.5
+    critical: 99.0
+
+# Notification channels
+notifications:
+  on_failure:
+    - type: alertmanager
+      url: "${ALERTMANAGER_URL:-http://alertmanager:9093}/api/v1/alerts"
+  on_recovery:
+    - type: alertmanager
+      url: "${ALERTMANAGER_URL:-http://alertmanager:9093}/api/v1/alerts"
+
+# Test suites to run
+test_suites:
+  - file: synthetic-tests/api-health.yml
+    schedule: critical
+  - file: synthetic-tests/post-gist-flow.yml
+    schedule: standard
+  - file: synthetic-tests/geo-query-flow.yml
+    schedule: standard

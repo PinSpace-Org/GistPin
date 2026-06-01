@@ -1,0 +1,72 @@
+# Database query performance monitoring for GistPin
+slow_query_log:
+  enabled: true
+  threshold_ms: 100
+  log_destination: postgresql
+  log_min_duration_statement: 100  # ms
+
+# Queries to track for performance regression
+tracked_queries:
+  - name: gists-by-location
+    description: Geospatial gist lookup (core query)
+    pattern: "SELECT.*FROM gists.*ST_DWithin"
+    slo_p95_ms: 50
+    slo_p99_ms: 200
+
+  - name: gists-by-user
+    description: User gist history
+    pattern: "SELECT.*FROM gists.*WHERE.*user_id"
+    slo_p95_ms: 20
+    slo_p99_ms: 100
+
+  - name: gist-insert
+    description: New gist creation
+    pattern: "INSERT INTO gists"
+    slo_p95_ms: 30
+    slo_p99_ms: 150
+
+  - name: gist-hash-lookup
+    description: On-chain hash verification
+    pattern: "SELECT.*FROM gists.*WHERE.*tx_hash"
+    slo_p95_ms: 10
+    slo_p99_ms: 50
+
+# pg_stat_statements tracking
+pg_stat_statements:
+  enabled: true
+  track: all
+  max: 1000
+  save: true
+  # Queries to surface in dashboards (by normalized query hash)
+  top_n: 20
+  sort_by: total_exec_time
+
+# Connection pool monitoring (pgBouncer or NestJS TypeORM pool)
+connection_pool:
+  max_connections: 100
+  alert_threshold_pct: 80
+  idle_timeout_s: 600
+  max_lifetime_s: 3600
+
+# Index health checks
+index_checks:
+  - name: unused-indexes
+    query: >
+      SELECT schemaname, relname, indexrelname, idx_scan
+      FROM pg_stat_user_indexes
+      WHERE idx_scan = 0
+        AND indexrelname NOT LIKE '%_pkey'
+    alert_if_count_gt: 5
+
+  - name: bloated-tables
+    query: >
+      SELECT relname,
+        n_dead_tup::float / nullif(n_live_tup + n_dead_tup, 0) as dead_ratio
+      FROM pg_stat_user_tables
+      WHERE n_live_tup > 1000
+    alert_if_dead_ratio_gt: 0.1
+
+# Vacuum / autovacuum monitoring
+vacuum_monitoring:
+  alert_if_not_vacuumed_hours: 24
+  alert_if_not_analyzed_hours: 48

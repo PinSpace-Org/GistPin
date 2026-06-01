@@ -1,0 +1,68 @@
+routes:
+  - name: backend-errors
+    match: "kubernetes.**gistpin-backend**"
+    conditions:
+      - field: level
+        operator: in
+        values: [error, fatal, critical]
+    destinations:
+      - elasticsearch
+      - alertmanager
+    priority: high
+
+  - name: backend-info
+    match: "kubernetes.**gistpin-backend**"
+    conditions:
+      - field: level
+        operator: in
+        values: [info, debug, warn]
+    destinations:
+      - elasticsearch
+    priority: normal
+
+  - name: frontend-logs
+    match: "kubernetes.**gistpin-frontend**"
+    destinations:
+      - elasticsearch
+    priority: normal
+
+  - name: postgres-logs
+    match: "kubernetes.**postgres**"
+    conditions:
+      - field: message
+        operator: contains
+        values: ["slow query", "deadlock", "ERROR"]
+    destinations:
+      - elasticsearch
+      - alertmanager
+    priority: high
+
+  - name: system-logs
+    match: "system.**"
+    destinations:
+      - elasticsearch
+    priority: low
+
+destinations:
+  elasticsearch:
+    type: elasticsearch
+    host: "${ELASTICSEARCH_HOST:-elasticsearch}"
+    port: 9200
+    index_prefix: gistpin
+    retention_days: 30
+
+  alertmanager:
+    type: webhook
+    url: "${ALERTMANAGER_URL:-http://alertmanager:9093}/api/v1/alerts"
+    method: POST
+
+enrichment:
+  fields:
+    - source: kubernetes.namespace_name
+      target: namespace
+    - source: kubernetes.pod_name
+      target: pod
+    - source: kubernetes.container_name
+      target: container
+    - source: kubernetes.labels.app
+      target: app

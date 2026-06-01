@@ -1,0 +1,130 @@
+# postgres_exporter configuration for GistPin database monitoring
+auth_modules:
+  gistpin_db:
+    type: userpass
+    userpass:
+      username: "${POSTGRES_EXPORTER_USER:-postgres_exporter}"
+      password: "${POSTGRES_EXPORTER_PASSWORD}"
+    options:
+      sslmode: disable
+
+connection:
+  host: "${POSTGRES_HOST:-postgres}"
+  port: 5432
+  dbname: "${POSTGRES_DB:-gistpin}"
+
+# Metrics to collect
+metrics:
+  # Connection pool
+  - pg_stat_activity:
+      query: >
+        SELECT state, count(*) as count
+        FROM pg_stat_activity
+        WHERE datname = current_database()
+        GROUP BY state
+      metrics:
+        - state:
+            usage: LABEL
+            description: Connection state
+        - count:
+            usage: GAUGE
+            description: Number of connections in this state
+
+  # Slow queries (> 1s)
+  - pg_slow_queries:
+      query: >
+        SELECT count(*) as count
+        FROM pg_stat_activity
+        WHERE state = 'active'
+          AND query_start < now() - interval '1 second'
+          AND datname = current_database()
+      metrics:
+        - count:
+            usage: GAUGE
+            description: Number of queries running longer than 1 second
+
+  # Table stats
+  - pg_stat_user_tables:
+      query: >
+        SELECT schemaname, relname,
+          seq_scan, seq_tup_read,
+          idx_scan, idx_tup_fetch,
+          n_tup_ins, n_tup_upd, n_tup_del,
+          n_live_tup, n_dead_tup,
+          last_vacuum, last_autovacuum,
+          last_analyze, last_autoanalyze
+        FROM pg_stat_user_tables
+      metrics:
+        - schemaname: { usage: LABEL }
+        - relname: { usage: LABEL }
+        - seq_scan: { usage: COUNTER, description: Sequential scans }
+        - idx_scan: { usage: COUNTER, description: Index scans }
+        - n_live_tup: { usage: GAUGE, description: Live rows }
+        - n_dead_tup: { usage: GAUGE, description: Dead rows (bloat) }
+
+  # Index usage
+  - pg_stat_user_indexes:
+      query: >
+        SELECT schemaname, relname, indexrelname,
+          idx_scan, idx_tup_read, idx_tup_fetch
+        FROM pg_stat_user_indexes
+      metrics:
+        - schemaname: { usage: LABEL }
+        - relname: { usage: LABEL }
+        - indexrelname: { usage: LABEL }
+        - idx_scan: { usage: COUNTER, description: Index scans }
+        - idx_tup_fetch: { usage: COUNTER, description: Rows fetched via index }
+
+  # Replication lag
+  - pg_replication_lag:
+      query: >
+        SELECT CASE
+          WHEN pg_is_in_recovery() THEN
+            EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))
+          ELSE 0
+        END AS lag_seconds
+      metrics:
+        - lag_seconds:
+            usage: GAUGE
+            description: Replication lag in seconds
+
+  # Database size
+  - pg_database_size:
+      query: >
+        SELECT pg_database_size(current_database()) as size_bytes
+      metrics:
+        - size_bytes:
+            usage: GAUGE
+            description: Database size in bytes
+
+  # Cache hit ratio
+  - pg_cache_hit_ratio:
+      query: >
+        SELECT
+          sum(heap_blks_hit) / nullif(sum(heap_blks_hit) + sum(heap_blks_read), 0) as ratio
+        FROM pg_statio_user_tables
+      metrics:
+        - ratio:
+            usage: GAUGE
+            description: Buffer cache hit ratio (target > 0.99)
+
+alert_rules:
+  - name: PostgresSlowQueries
+    expr: pg_slow_queries_count > 5
+    for: 2m
+    severity: warning
+
+  - name: PostgresReplicationLag
+    expr: pg_replication_lag_seconds > 30
+    for: 1m
+    severity: critical
+
+  - name: PostgresConnectionsHigh
+    expr: pg_stat_activity_count{state="active"} > 80
+    for: 5m
+    severity: warning
+
+  - name: PostgresCacheHitLow
+    expr: pg_cache_hit_ratio_ratio < 0.95
+    for: 10m
+    severity: warning
