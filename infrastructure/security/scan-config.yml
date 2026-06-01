@@ -1,0 +1,20 @@
+schedule:
+  dependency_scan: "0 2 * * *"   # daily at 02:00 UTC
+  container_scan:  "0 3 * * *"   # daily at 03:00 UTC
+  infra_scan:      "0 4 * * 1"   # weekly on Monday
+
+severity_threshold: HIGH
+
+tools:
+  dependencies: trivy
+  containers:   trivy
+  infra:        trivy
+
+reports:
+  output_dir: /tmp/security-reports
+  retention_days: 30
+  notify_on_failure: true
+
+notifications:
+  slack_channel: "#security-alerts"
+  email: security@gistpin.io
