@@ -56,5 +56,5 @@ jobs:
       - name: Notify deployment
         if: always()
         run: |
-          STATUS=${{ job.status }}
-          echo "Production deployment $STATUS for version ${{ github.event.inputs.version }}"
+          STATUS="${{ job.status }}"
+          echo "Production deployment ${STATUS} for version ${{ github.event.inputs.version }}"
