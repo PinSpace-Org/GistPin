@@ -1,0 +1,38 @@
+groups:
+  - name: gistpin-cost-alerts
+    rules:
+      - alert: BudgetThresholdWarning
+        expr: aws_cost_budget_utilization_percent > 80
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Monthly budget utilization above 80%"
+          description: "Current utilization: {{ $value }}%"
+
+      - alert: BudgetThresholdCritical
+        expr: aws_cost_budget_utilization_percent > 95
+        for: 30m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Monthly budget utilization above 95%"
+          description: "Current utilization: {{ $value }}%"
+
+      - alert: DailyCostSpike
+        expr: aws_cost_daily_usd > aws_cost_daily_avg_usd * 1.3
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Daily cost spike detected (>30% above average)"
+          description: "Today: ${{ $value }}"
+
+      - alert: UnusedResourcesDetected
+        expr: aws_unused_resources_count > 5
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $value }} unused resources detected"
+          description: "Run cost-optimization.sh to review and clean up"

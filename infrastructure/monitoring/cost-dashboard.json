@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "dashboard": {
+    "title": "GistPin Infrastructure Cost Dashboard",
+    "refresh": "1h",
+    "panels": [
+      {
+        "title": "Total Monthly Cost",
+        "type": "stat",
+        "metric": "aws_cost_total_monthly_usd"
+      },
+      {
+        "title": "Cost by Service",
+        "type": "pie",
+        "metrics": ["aws_cost_eks", "aws_cost_rds", "aws_cost_elasticache", "aws_cost_s3", "aws_cost_cloudfront", "aws_cost_other"]
+      },
+      {
+        "title": "Daily Cost Trend",
+        "type": "timeseries",
+        "metric": "aws_cost_daily_usd",
+        "range": "30d"
+      },
+      {
+        "title": "Cost vs Budget",
+        "type": "gauge",
+        "metric": "aws_cost_budget_utilization_percent",
+        "thresholds": [70, 90]
+      },
+      {
+        "title": "Unused Resources",
+        "type": "table",
+        "metric": "aws_unused_resources_count"
+      },
+      {
+        "title": "Right-sizing Recommendations",
+        "type": "table",
+        "metric": "aws_rightsizing_savings_usd"
+      }
+    ]
+  },
+  "alerts": {
+    "budget_threshold_percent": 80,
+    "anomaly_detection": true,
+    "daily_spike_threshold_percent": 20
+  }
+}
