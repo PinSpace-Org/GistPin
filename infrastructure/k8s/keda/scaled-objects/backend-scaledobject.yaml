@@ -1,0 +1,83 @@
+# KEDA ScaledObject — GistPin Backend
+# Scales backend based on SQS queue depth, Prometheus metrics, and cron schedule
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: backend-scaledobject
+  namespace: gistpin-prod
+  labels:
+    app.kubernetes.io/name: gistpin-backend
+    app.kubernetes.io/part-of: gistpin
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment
+
+  pollingInterval: 15   # Check triggers every 15 seconds
+  cooldownPeriod: 300   # Wait 5 minutes before scaling down
+
+  minReplicaCount: 2
+  maxReplicaCount: 20
+
+  triggers:
+    # Queue-based scaling — SQS gist processing queue
+    - type: aws-sqs-queue
+      metadata:
+        queueURL: https://sqs.us-east-1.amazonaws.com/123456789012/gistpin-gist-processing
+        queueLength: "10"
+        awsRegion: us-east-1
+        identityOwner: operator
+      authenticationRef:
+        name: aws-sqs-auth
+
+    # Metric-based scaling — HTTP request rate from Prometheus
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.gistpin-monitoring.svc.cluster.local:9090
+        metricName: http_requests_per_second
+        query: |
+          sum(rate(http_requests_total{app="gistpin-backend"}[2m]))
+        threshold: "100"
+
+    # Database connection pool scaling
+    - type: postgresql
+      metadata:
+        query: "SELECT count(*) FROM pg_stat_activity WHERE state = 'active' AND datname = 'gistpin'"
+        targetQueryValue: "50"
+        connectionFromEnv: POSTGRES_CONNECTION_STRING
+      authenticationRef:
+        name: postgres-auth
+
+    # Cron-based scaling — business hours boost (Mon–Fri 8AM–8PM UTC)
+    - type: cron
+      metadata:
+        timezone: UTC
+        start: "0 8 * * 1-5"
+        end: "0 20 * * 1-5"
+        desiredReplicas: "4"
+
+  advanced:
+    restoreToOriginalReplicaCount: false
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 25
+              periodSeconds: 60
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+          selectPolicy: Min
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+            - type: Pods
+              value: 4
+              periodSeconds: 15
+          selectPolicy: Max

@@ -1,0 +1,58 @@
+# KEDA ScaledObject — GistPin Frontend
+# Scales frontend based on active user requests and cron schedule
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: frontend-scaledobject
+  namespace: gistpin-prod
+  labels:
+    app.kubernetes.io/name: gistpin-frontend
+    app.kubernetes.io/part-of: gistpin
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-deployment
+
+  pollingInterval: 15
+  cooldownPeriod: 300
+
+  minReplicaCount: 1   # Allow scaling to zero during off-hours
+  maxReplicaCount: 10
+
+  triggers:
+    # Prometheus metric: HTTP requests per second
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.gistpin-monitoring.svc.cluster.local:9090
+        metricName: frontend_http_requests_per_second
+        query: |
+          sum(rate(http_requests_total{app="gistpin-frontend"}[2m]))
+        threshold: "200"
+
+    # Cron-based scaling — business hours
+    - type: cron
+      metadata:
+        timezone: UTC
+        start: "30 7 * * 1-5"
+        end: "0 22 * * 1-5"
+        desiredReplicas: "3"
+
+  advanced:
+    restoreToOriginalReplicaCount: false
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 600
+          policies:
+            - type: Percent
+              value: 30
+              periodSeconds: 60
+          selectPolicy: Min
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+          selectPolicy: Max
