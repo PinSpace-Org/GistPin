@@ -1,0 +1,31 @@
+# Prometheus scrape configs — GistPin custom exporters
+# Append these scrape_configs entries to prometheus.yml
+
+- job_name: "gistpin-gist-exporter"
+  static_configs:
+    - targets: ["gistpin-monitoring:9101"]
+  metrics_path: /metrics
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: "gist-exporter"
+
+- job_name: "gistpin-soroban-exporter"
+  static_configs:
+    - targets: ["gistpin-monitoring:9102"]
+  metrics_path: /metrics
+  scrape_interval: 30s
+  scrape_timeout: 15s
+  relabel_configs:
+    - source_labels: [__address__]
+      target_label: instance
+      replacement: "soroban-exporter"
+
+- job_name: "gistpin-postgres-exporter"
+  static_configs:
+    - targets: ["postgres-exporter:9187"]
+  metrics_path: /metrics
+  scrape_interval: 30s
+  scrape_timeout: 10s

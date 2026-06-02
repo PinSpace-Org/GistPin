@@ -1,0 +1,54 @@
+# Prometheus alert rules — GistPin custom exporters
+# Reference this file in prometheus.yml rule_files section
+groups:
+  - name: gistpin-exporters
+    rules:
+      - alert: GistCreationRateLow
+        expr: rate(gistpin_gists_total[5m]) < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: gist-exporter
+        annotations:
+          summary: "Gist creation rate unusually low"
+          description: "Gist creation rate is {{ $value }} gists/min — may indicate an issue."
+
+      - alert: GistCreationRateHigh
+        expr: rate(gistpin_gists_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: info
+          component: gist-exporter
+        annotations:
+          summary: "Gist creation rate spike"
+          description: "Gist creation rate is {{ $value }} gists/min — verify this is expected traffic."
+
+      - alert: SorobanTxFailureRateHigh
+        expr: rate(gistpin_soroban_transactions_total{status="failed"}[5m]) / rate(gistpin_soroban_transactions_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          component: soroban-exporter
+        annotations:
+          summary: "High Soroban transaction failure rate"
+          description: "Transaction failure rate is {{ $value | humanizePercentage }}."
+
+      - alert: IPFSPinCountIncreaseRapid
+        expr: increase(gistpin_ipfs_total_pins[10m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: soroban-exporter
+        annotations:
+          summary: "Rapid IPFS pin growth"
+          description: "IPFS pins increased by {{ $value }} in the last 10 minutes."
+
+      - alert: DBConnectionPoolExhausted
+        expr: gistpin_db_pool_connections{state="active"} / (gistpin_db_pool_connections{state="active"} + gistpin_db_pool_connections{state="idle"}) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: gist-exporter
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "Connection pool is {{ $value | humanizePercentage }} utilized."
