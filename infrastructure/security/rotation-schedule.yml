@@ -1,0 +1,19 @@
+rotation:
+  database_password:
+    interval_days: 30
+    script: infrastructure/scripts/rotate-secrets.sh db
+    notify: security@gistpin.io
+
+  api_keys:
+    interval_days: 90
+    script: infrastructure/scripts/rotate-secrets.sh api
+    notify: security@gistpin.io
+
+  tls_certificates:
+    interval_days: 60
+    script: infrastructure/scripts/rotate-secrets.sh cert
+    notify: security@gistpin.io
+
+audit:
+  log_path: /var/log/gistpin/secret-rotation.log
+  retention_days: 90
