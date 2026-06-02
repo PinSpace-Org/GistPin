@@ -1,0 +1,58 @@
+# Synthetic test: Geospatial query performance
+name: geo-query-flow
+description: Verify geo-based gist queries return results within SLO
+
+steps:
+  - name: geo-query-sf
+    type: http
+    method: GET
+    url: "{{ base_url }}/api/v1/gists/nearby"
+    params:
+      lat: 37.7749
+      lon: -122.4194
+      radius_km: 5
+      limit: 20
+    expect:
+      status: 200
+      body_path: "$.gists"
+      max_response_ms: 200
+
+  - name: geo-query-london
+    type: http
+    method: GET
+    url: "{{ base_url }}/api/v1/gists/nearby"
+    params:
+      lat: 51.5074
+      lon: -0.1278
+      radius_km: 5
+      limit: 20
+    expect:
+      status: 200
+      body_path: "$.gists"
+      max_response_ms: 200
+
+  - name: geo-query-singapore
+    type: http
+    method: GET
+    url: "{{ base_url }}/api/v1/gists/nearby"
+    params:
+      lat: 1.3521
+      lon: 103.8198
+      radius_km: 5
+      limit: 20
+    expect:
+      status: 200
+      body_path: "$.gists"
+      max_response_ms: 200
+
+  - name: geo-query-invalid-coords
+    type: http
+    method: GET
+    url: "{{ base_url }}/api/v1/gists/nearby"
+    params:
+      lat: 999
+      lon: 999
+      radius_km: 5
+    expect:
+      status: 400
+      max_response_ms: 200

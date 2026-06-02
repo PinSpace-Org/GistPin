@@ -1,0 +1,82 @@
+# Parser rules for GistPin backend application logs
+parsers:
+  - name: nestjs-json
+    type: json
+    fields:
+      timestamp:
+        source: timestamp
+        type: datetime
+        format: "%Y-%m-%dT%H:%M:%S.%LZ"
+      level:
+        source: level
+        type: string
+        normalize: lowercase
+      message:
+        source: message
+        type: string
+      context:
+        source: context
+        type: string
+      request_id:
+        source: req.id
+        type: string
+      method:
+        source: req.method
+        type: string
+      path:
+        source: req.url
+        type: string
+      status_code:
+        source: res.statusCode
+        type: integer
+      response_time_ms:
+        source: responseTime
+        type: float
+      user_id:
+        source: userId
+        type: string
+      error_stack:
+        source: err.stack
+        type: string
+
+  - name: stellar-transaction
+    type: json
+    match_field: context
+    match_value: SorobanService
+    fields:
+      tx_hash:
+        source: txHash
+        type: string
+      operation:
+        source: operation
+        type: string
+      ledger:
+        source: ledger
+        type: integer
+      fee:
+        source: fee
+        type: integer
+      status:
+        source: status
+        type: string
+
+  - name: geo-query
+    type: json
+    match_field: context
+    match_value: GeoService
+    fields:
+      lat:
+        source: latitude
+        type: float
+      lon:
+        source: longitude
+        type: float
+      radius_km:
+        source: radiusKm
+        type: float
+      results_count:
+        source: resultsCount
+        type: integer
+      query_time_ms:
+        source: queryTimeMs
+        type: float

@@ -1,0 +1,51 @@
+# Parser rules for Nginx/ingress access logs
+parsers:
+  - name: nginx-access
+    type: regexp
+    pattern: >
+      ^(?<remote_addr>[^ ]*) - (?<remote_user>[^ ]*) \[(?<time_local>[^\]]*)\]
+      "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<status>[0-9]+)
+      (?<body_bytes_sent>[0-9]+) "(?<http_referer>[^\"]*)"
+      "(?<http_user_agent>[^\"]*)" (?<request_time>[0-9.]+)
+    fields:
+      remote_addr:
+        type: string
+      method:
+        type: string
+      path:
+        type: string
+      status:
+        type: integer
+      body_bytes_sent:
+        type: integer
+      request_time:
+        type: float
+      http_user_agent:
+        type: string
+
+  - name: nginx-error
+    type: regexp
+    pattern: >
+      ^(?<time>[0-9/]+ [0-9:]+) \[(?<level>[^\]]+)\] (?<pid>[0-9]+)#(?<tid>[0-9]+):
+      (?<message>.+)
+    fields:
+      level:
+        type: string
+        normalize: lowercase
+      pid:
+        type: integer
+      message:
+        type: string
+
+extraction_rules:
+  - name: slow-requests
+    condition: "request_time > 1.0"
+    tags:
+      - slow_request
+      - performance_issue
+
+  - name: error-responses
+    condition: "status >= 500"
+    tags:
+      - server_error
+    alert: true

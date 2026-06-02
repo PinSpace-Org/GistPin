@@ -1,0 +1,92 @@
+# Container metrics collection rules for GistPin
+metrics:
+  cpu:
+    - name: container_cpu_usage_seconds_total
+      description: Total CPU time consumed by container
+      labels: [container, pod, namespace]
+      alert_threshold: 0.9  # 90% of limit
+
+    - name: container_cpu_throttled_seconds_total
+      description: Time container was CPU throttled
+      labels: [container, pod, namespace]
+
+  memory:
+    - name: container_memory_usage_bytes
+      description: Current memory usage
+      labels: [container, pod, namespace]
+      alert_threshold_pct: 85
+
+    - name: container_memory_working_set_bytes
+      description: Working set memory (excludes cache)
+      labels: [container, pod, namespace]
+
+    - name: container_memory_oom_events_total
+      description: OOM kill events
+      labels: [container, pod, namespace]
+      alert_on_any: true
+
+  network:
+    - name: container_network_receive_bytes_total
+      description: Bytes received over network
+      labels: [container, pod, namespace, interface]
+
+    - name: container_network_transmit_bytes_total
+      description: Bytes transmitted over network
+      labels: [container, pod, namespace, interface]
+
+    - name: container_network_receive_errors_total
+      description: Network receive errors
+      labels: [container, pod, namespace, interface]
+      alert_on_increase: true
+
+  storage:
+    - name: container_fs_usage_bytes
+      description: Filesystem bytes used by container
+      labels: [container, pod, namespace, device]
+      alert_threshold_pct: 80
+
+    - name: container_fs_reads_bytes_total
+      description: Cumulative bytes read from filesystem
+      labels: [container, pod, namespace, device]
+
+    - name: container_fs_writes_bytes_total
+      description: Cumulative bytes written to filesystem
+      labels: [container, pod, namespace, device]
+
+  health:
+    - name: container_last_seen
+      description: Last time container was seen running
+      labels: [container, pod, namespace]
+
+    - name: container_start_time_seconds
+      description: Container start time (Unix timestamp)
+      labels: [container, pod, namespace]
+
+alert_rules:
+  - name: ContainerHighCPU
+    expr: >
+      rate(container_cpu_usage_seconds_total{namespace="gistpin"}[5m]) /
+      container_spec_cpu_quota * 100 > 90
+    for: 5m
+    severity: warning
+    message: "Container {{ $labels.container }} CPU usage > 90%"
+
+  - name: ContainerHighMemory
+    expr: >
+      container_memory_working_set_bytes{namespace="gistpin"} /
+      container_spec_memory_limit_bytes * 100 > 85
+    for: 5m
+    severity: warning
+    message: "Container {{ $labels.container }} memory usage > 85%"
+
+  - name: ContainerOOMKilled
+    expr: increase(container_memory_oom_events_total{namespace="gistpin"}[5m]) > 0
+    for: 0m
+    severity: critical
+    message: "Container {{ $labels.container }} was OOM killed"
+
+  - name: ContainerRestartLoop
+    expr: increase(kube_pod_container_status_restarts_total{namespace="gistpin"}[15m]) > 3
+    for: 0m
+    severity: critical
+    message: "Container {{ $labels.container }} restarting frequently"

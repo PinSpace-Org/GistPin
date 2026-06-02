@@ -1,0 +1,54 @@
+# cAdvisor configuration for GistPin container resource monitoring
+cadvisor:
+  # Collection interval
+  housekeeping_interval: 10s
+  global_housekeeping_interval: 1m
+
+  # Storage
+  storage_duration: 2m
+
+  # Metrics to collect
+  enabled_metrics:
+    - cpu
+    - cpuLoad
+    - disk
+    - diskIO
+    - memory
+    - network
+    - oom_event
+    - process
+
+  # Containers to monitor (empty = all)
+  docker_only: true
+
+  # HTTP endpoint
+  http_auth_file: ""
+  http_digest_file: ""
+  port: 8080
+  listen_ip: "0.0.0.0"
+
+  # Prometheus metrics endpoint
+  prometheus_endpoint: /metrics
+
+  # Resource limits for cAdvisor itself
+  resources:
+    requests:
+      cpu: 150m
+      memory: 200Mi
+    limits:
+      cpu: 300m
+      memory: 400Mi
+
+  # Label filters — only track GistPin containers
+  store_container_labels: true
+  whitelisted_container_labels:
+    - app
+    - version
+    - component
+
+  # Anomaly detection thresholds
+  anomaly_detection:
+    cpu_spike_threshold: 90       # % — alert if CPU > 90%
+    memory_spike_threshold: 85    # % — alert if memory > 85%
+    network_spike_mbps: 100       # Mbps
+    oom_kill_alert: true

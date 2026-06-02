@@ -1,0 +1,38 @@
+# Synthetic test: API health endpoints
+name: api-health
+description: Verify all critical API endpoints are healthy
+
+steps:
+  - name: health-check
+    type: http
+    method: GET
+    url: "{{ base_url }}/health"
+    expect:
+      status: 200
+      body_contains: '"status":"ok"'
+      max_response_ms: 500
+
+  - name: readiness-check
+    type: http
+    method: GET
+    url: "{{ base_url }}/health/ready"
+    expect:
+      status: 200
+      max_response_ms: 1000
+
+  - name: api-version
+    type: http
+    method: GET
+    url: "{{ base_url }}/api/v1"
+    expect:
+      status: 200
+      max_response_ms: 500
+
+  - name: frontend-home
+    type: http
+    method: GET
+    url: "{{ frontend_url }}"
+    expect:
+      status: 200
+      body_contains: "GistPin"
+      max_response_ms: 2000

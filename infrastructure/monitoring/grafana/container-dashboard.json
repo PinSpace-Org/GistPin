@@ -1,0 +1,125 @@
+{
+  "title": "GistPin Container Resources",
+  "uid": "gistpin-containers",
+  "tags": ["gistpin", "containers", "docker"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "CPU Usage by Container",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{namespace=\"gistpin\",container!=\"\"}[5m]) * 100",
+          "legendFormat": "{{ container }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "max": 100 },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Memory Usage by Container",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "container_memory_working_set_bytes{namespace=\"gistpin\",container!=\"\"}",
+          "legendFormat": "{{ container }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Network I/O",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(container_network_receive_bytes_total{namespace=\"gistpin\"}[5m])",
+          "legendFormat": "rx {{ pod }}"
+        },
+        {
+          "expr": "rate(container_network_transmit_bytes_total{namespace=\"gistpin\"}[5m])",
+          "legendFormat": "tx {{ pod }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "Filesystem Usage",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "container_fs_usage_bytes{namespace=\"gistpin\",container!=\"\"}",
+          "legendFormat": "{{ container }}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Container Restarts",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 16, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"gistpin\"}[1h]))",
+          "legendFormat": "Restarts (1h)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "OOM Events",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 16, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(increase(container_memory_oom_events_total{namespace=\"gistpin\"}[1h]))",
+          "legendFormat": "OOM Kills (1h)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

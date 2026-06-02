@@ -1,0 +1,43 @@
+# Synthetic test: Post a gist end-to-end flow
+name: post-gist-flow
+description: Simulate a user posting a gist and verifying it appears
+
+steps:
+  - name: create-gist
+    type: http
+    method: POST
+    url: "{{ base_url }}/api/v1/gists"
+    headers:
+      Content-Type: application/json
+      X-Synthetic-Test: "true"
+    body:
+      content: "Synthetic test gist - please ignore"
+      latitude: 37.7749
+      longitude: -122.4194
+      radius_km: 1
+    expect:
+      status: 201
+      body_path: "$.id"
+      max_response_ms: 1000
+    extract:
+      gist_id: "$.id"
+
+  - name: fetch-gist
+    type: http
+    method: GET
+    url: "{{ base_url }}/api/v1/gists/{{ gist_id }}"
+    expect:
+      status: 200
+      body_path: "$.content"
+      body_contains: "Synthetic test gist"
+      max_response_ms: 500
+
+  - name: cleanup-gist
+    type: http
+    method: DELETE
+    url: "{{ base_url }}/api/v1/gists/{{ gist_id }}"
+    headers:
+      X-Synthetic-Test: "true"
+    expect:
+      status: 204
+      max_response_ms: 500
