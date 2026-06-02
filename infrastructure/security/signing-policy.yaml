@@ -1,0 +1,47 @@
+# Container Image Signing Policy — GistPin
+# Enforces Cosign-based image verification across environments
+
+signing:
+  provider: cosign
+  key_type: keyless   # Uses OIDC + Fulcio for keyless signing
+  rekor_url: https://rekor.sigstore.dev
+  fulcio_url: https://fulcio.sigstore.dev
+
+images:
+  - registry: ghcr.io
+    repository: pinscape-org/gistpin-backend
+    policy: signed
+  - registry: ghcr.io
+    repository: pinscape-org/gistpin-frontend
+    policy: signed
+
+verification:
+  required_in:
+    - staging
+    - production
+  skip_verification_in:
+    - dev
+
+key_management:
+  rotate_every_days: 90
+  backup_location: s3://gistpin-secrets/cosign-keys/
+  audit_log: /var/log/gistpin/cosign-audit.log
+
+policy_enforcement:
+  block_unsigned: true
+  alert_on_verification_failure: true
+  notification:
+    slack_channel: "#security-alerts"
+    email: security@gistpin.io
+
+exemptions:
+  - image: ghcr.io/pinscape-org/gistpin-contract-builder
+    reason: Ephemeral builder — signed by separate attestation
+    until: 2026-09-01
+
+attestations:
+  required:
+    - type: vuln-scan
+      description: Vulnerability scan passed
+    - type: sbom
+      description: Software bill of materials generated

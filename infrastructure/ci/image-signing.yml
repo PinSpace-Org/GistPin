@@ -1,0 +1,110 @@
+name: Image Signing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Backend/**'
+      - 'Frontend/**'
+      - 'docker/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # Required for keyless signing with OIDC
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BACKEND: pinspace-org/gistpin-backend
+  IMAGE_FRONTEND: pinspace-org/gistpin-frontend
+
+jobs:
+  sign:
+    name: Sign Container Images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image:
+          - name: backend
+            context: ./Backend
+            dockerfile: infrastructure/docker/backend.Dockerfile
+            image-env: IMAGE_BACKEND
+          - name: frontend
+            context: ./Frontend
+            dockerfile: infrastructure/docker/frontend.Dockerfile
+            image-env: IMAGE_FRONTEND
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine image reference
+        id: vars
+        run: |
+          IMAGE_NAME="${{ env[matrix.image.image-env] }}"
+          echo "image=${IMAGE_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.vars.outputs.image }}
+          tags: |
+            type=sha,prefix=sha-
+            type=ref,event=branch
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: v2.2.3
+
+      - name: Sign image with Cosign
+        run: |
+          cosign sign \
+            --yes \
+            --oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${{ env.REGISTRY }}/${{ steps.vars.outputs.image }}@${{ steps.build.outputs.digest }}"
+
+      - name: Verify signed image
+        run: |
+          cosign verify \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            --certificate-identity "https://github.com/${{ github.repository }}/.github/workflows/image-signing.yml@${{ github.ref }}" \
+            "${{ env.REGISTRY }}/${{ steps.vars.outputs.image }}@${{ steps.build.outputs.digest }}"
+
+      - name: Attest SBOM
+        run: |
+          cosign attest \
+            --yes \
+            --predicate <(echo '{"builder":"github-actions","build_type":"docker","repo":"${{ github.repository }}","commit":"${{ github.sha }}"}') \
+            --type custom \
+            "${{ env.REGISTRY }}/${{ steps.vars.outputs.image }}@${{ steps.build.outputs.digest }}"
+
+      - name: Upload signature artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cosign-signatures-${{ matrix.image.name }}
+          path: /tmp/cosign-*.sig
