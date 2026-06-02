@@ -1,0 +1,83 @@
+---
+# Network traffic rules for GistPin.
+# Used by analyze-traffic.sh to validate flow logs against expected behaviour.
+
+version: "1.0"
+updated: "2026-06-01"
+
+# Thresholds for anomaly detection
+thresholds:
+  ddos_packets_per_window: 10000   # packets from a single source in the lookback window
+  port_scan_distinct_ports: 50     # distinct destination ports from a single source
+  reject_spike_count: 500          # total REJECT actions in the lookback window
+
+rules:
+  # Public-facing ports — must be ACCEPT on ALB/ingress
+  - name: "HTTPS public ingress"
+    port: "443"
+    expected_action: "ACCEPT"
+    severity: CRITICAL
+    description: "All HTTPS traffic to the ingress must be accepted."
+
+  - name: "HTTP redirect"
+    port: "80"
+    expected_action: "ACCEPT"
+    severity: HIGH
+    description: "HTTP traffic accepted for redirect to HTTPS."
+
+  # Backend API (internal only — should never be directly accepted from outside)
+  - name: "Backend API internal only"
+    port: "3000"
+    expected_action: "REJECT"
+    severity: CRITICAL
+    description: "Direct access to the backend port must be rejected at the VPC boundary."
+
+  # Database — must never be reachable from outside the private subnet
+  - name: "PostgreSQL not publicly accessible"
+    port: "5432"
+    expected_action: "REJECT"
+    severity: CRITICAL
+    description: "Database port must be rejected for all traffic not originating from private subnets."
+
+  - name: "Redis not publicly accessible"
+    port: "6379"
+    expected_action: "REJECT"
+    severity: CRITICAL
+    description: "Redis port must be rejected for all external traffic."
+
+  # SSH — should be blocked at the VPC level (use SSM Session Manager instead)
+  - name: "SSH blocked"
+    port: "22"
+    expected_action: "REJECT"
+    severity: HIGH
+    description: "SSH must be rejected. Use AWS SSM Session Manager for shell access."
+
+  # Stellar / Soroban RPC
+  - name: "Stellar Horizon API"
+    port: "8000"
+    expected_action: "ACCEPT"
+    severity: MEDIUM
+    description: "Horizon API traffic accepted for Stellar network interaction."
+
+  # Monitoring
+  - name: "Prometheus scrape (internal)"
+    port: "9090"
+    expected_action: "REJECT"
+    severity: MEDIUM
+    description: "Prometheus must not be reachable from outside the cluster."
+
+  - name: "Grafana (internal)"
+    port: "3001"
+    expected_action: "REJECT"
+    severity: MEDIUM
+    description: "Grafana must not be reachable from outside the cluster."
+
+# Known safe CIDR ranges (informational — not enforced by the script directly)
+trusted_cidrs:
+  - cidr: "10.0.0.0/8"
+    description: "Internal VPC / private subnets"
+  - cidr: "172.16.0.0/12"
+    description: "Kubernetes pod CIDR"
+
+# Blocked CIDR ranges (informational)
+blocked_cidrs: []
