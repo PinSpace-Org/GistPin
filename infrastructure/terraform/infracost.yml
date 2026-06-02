@@ -1,0 +1,53 @@
+# Infracost Configuration — GistPin
+# Defines cost estimation settings and budget thresholds
+
+version: 0.1
+
+currency: USD
+
+projects:
+  - path: infrastructure/terraform
+    name: gistpin-infrastructure
+    terraform_workspace: production
+
+budget_thresholds:
+  total_monthly_cost:
+    warn: 500    # Warning at $500/mo
+    error: 1000  # Fail PR at $1000/mo
+
+  per_service:
+    eks:
+      warn: 300
+      error: 500
+    rds:
+      warn: 150
+      error: 300
+    elasticache:
+      warn: 100
+      error: 200
+    cloudfront:
+      warn: 50
+      error: 100
+    alb:
+      warn: 30
+      error: 60
+    s3:
+      warn: 30
+      error: 80
+    sns:
+      warn: 5
+      error: 15
+    cloudwatch:
+      warn: 20
+      error: 50
+
+cost_alerts:
+  slack_channel: "#infra-alerts"
+  email: infra@gistpin.io
+
+# Resources whose cost changes should trigger extra review
+highlight_threshold:
+  percentage_increase: 25   # Flag if cost increases >25%
+  absolute_increase: 50     # Flag if cost increases >$50/mo
+
+

@@ -1,0 +1,84 @@
+name: Terraform Cost Estimation
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/terraform/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+  AWS_REGION: us-east-1
+
+jobs:
+  estimate-costs:
+    name: Estimate Infrastructure Costs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost cost estimate
+        id: infracost
+        run: |
+          infracost breakdown \
+            --path infrastructure/terraform \
+            --format json \
+            --out-file /tmp/infracost.json
+
+          # Generate human-readable summary
+          infracost breakdown \
+            --path infrastructure/terraform \
+            --format table \
+            --out-file /tmp/infracost-table.txt
+
+      - name: Post cost diff as PR comment
+        if: github.event_name == 'pull_request'
+        uses: infracost/actions/comment@v3
+        with:
+          path: /tmp/infracost.json
+          behavior: update
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check budget thresholds
+        run: |
+          bash infrastructure/scripts/estimate-costs.sh \
+            --infracost-json /tmp/infracost.json \
+            --thresholds infrastructure/terraform/infracost.yml \
+            --github-token ${{ secrets.GITHUB_TOKEN }} \
+            --repo ${{ github.repository }} \
+            --pr ${{ github.event.pull_request.number }}
+
+      - name: Upload cost report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cost-estimate
+          path: |
+            /tmp/infracost.json
+            /tmp/infracost-table.txt
+          retention-days: 30
+
+      - name: Archive historical cost data
+        if: success()
+        run: |
+          mkdir -p /tmp/cost-history
+          TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+          cp /tmp/infracost.json "/tmp/cost-history/cost-${TIMESTAMP}.json"
+          echo "Cost data archived for historical tracking"
+
+      - name: Upload historical archive
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cost-history
+          path: /tmp/cost-history/
