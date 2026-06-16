@@ -7,14 +7,15 @@ services:
       dockerfile: ../infrastructure/docker/backend.Dockerfile
     ports: ["3000:3000"]
     environment:
-      NODE_ENV: development
-      DATABASE_URL: postgresql://gistpin:gistpin@postgres:5432/gistpin
+      NODE_ENV: production
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_USER: gistpin
+      DATABASE_PASSWORD: gistpin
+      DATABASE_NAME: gistpin
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ../../Backend:/app
-      - /app/node_modules
 
   frontend:
     build:
@@ -24,19 +25,21 @@ services:
     depends_on: [backend]
 
   postgres:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4-alpine
     environment:
       POSTGRES_USER: gistpin
       POSTGRES_PASSWORD: gistpin
       POSTGRES_DB: gistpin
     ports: ["5432:5432"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gistpin"]
+      test: ["CMD-SHELL", "pg_isready -U gistpin -d gistpin"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
 
 volumes:
   postgres_data:
