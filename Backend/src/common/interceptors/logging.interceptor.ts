@@ -1,6 +1,7 @@
 import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
 import { Request, Response } from 'express';
+import { getCorrelationId } from '../logger/correlation-id.store';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -11,7 +12,6 @@ export class LoggingInterceptor implements NestInterceptor {
     const res = context.switchToHttp().getResponse<Response>();
     const { method, url, ip } = req;
 
-    // Skip health checks to avoid log noise
     if (url.startsWith('/health')) {
       return next.handle();
     }
@@ -23,7 +23,8 @@ export class LoggingInterceptor implements NestInterceptor {
         next: () => {
           const ms = Date.now() - start;
           const status = res.statusCode;
-          const log = `${method} ${url} ${status} ${ms}ms — ${ip}`;
+          const correlationId = getCorrelationId();
+          const log = `${method} ${url} ${status} ${ms}ms — ${ip} [${correlationId}]`;
 
           if (status >= 500) this.logger.error(log);
           else if (status >= 400) this.logger.warn(log);
@@ -31,7 +32,8 @@ export class LoggingInterceptor implements NestInterceptor {
         },
         error: (err: Error) => {
           const ms = Date.now() - start;
-          this.logger.error(`${method} ${url} ERROR ${ms}ms — ${err.message}`);
+          const correlationId = getCorrelationId();
+          this.logger.error(`${method} ${url} ERROR ${ms}ms [${correlationId}] — ${err.message}`);
         },
       }),
     );
