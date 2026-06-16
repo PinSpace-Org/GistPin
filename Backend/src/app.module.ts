@@ -8,10 +8,15 @@ import { IpfsModule } from './ipfs/ipfs.module';
 import { SorobanModule } from './soroban/soroban.module';
 import { GistsModule } from './gists/gists.module';
 import { HealthModule } from './health/health.module';
+import { envValidationSchema } from './config/env.validation';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema: envValidationSchema,
+      validationOptions: { abortEarly: false },
+    }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
