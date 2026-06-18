@@ -25,7 +25,10 @@ import { buildWinstonOptions } from './common/logger/winston.config';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) =>
-        buildWinstonOptions(config.get<string>('NODE_ENV', 'development')),
+        buildWinstonOptions(
+          config.get<string>('NODE_ENV', 'development'),
+          config.get<string>('LOG_DIR', 'logs'),
+        ),
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],

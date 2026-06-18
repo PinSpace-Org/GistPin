@@ -1,5 +1,6 @@
 import { utilities as nestWinstonUtilities, WinstonModuleOptions } from 'nest-winston';
 import * as winston from 'winston';
+import 'winston-daily-rotate-file';
 import { getCorrelationId } from './correlation-id.store';
 
 const correlationFormat = winston.format((info) => {
@@ -21,12 +22,45 @@ const prettyFormat = winston.format.combine(
   nestWinstonUtilities.format.nestLike('GistPin', { prettyPrint: true, colors: true }),
 );
 
-export function buildWinstonOptions(nodeEnv: string): WinstonModuleOptions {
+function buildFileTransports(logDir: string): winston.transport[] {
+  const sharedOptions = {
+    dirname: logDir,
+    datePattern: 'YYYY-MM-DD',
+    zippedArchive: true,
+    maxSize: '20m',
+    maxFiles: '14d',
+    format: jsonFormat,
+  };
+
+  return [
+    new winston.transports.DailyRotateFile({
+      ...sharedOptions,
+      filename: 'combined-%DATE%.log',
+      level: 'info',
+    }),
+    new winston.transports.DailyRotateFile({
+      ...sharedOptions,
+      filename: 'error-%DATE%.log',
+      level: 'error',
+    }),
+  ];
+}
+
+export function buildWinstonOptions(nodeEnv: string, logDir = 'logs'): WinstonModuleOptions {
   const isProd = nodeEnv === 'production';
+
+  const transports: winston.transport[] = [
+    new winston.transports.Console({
+      format: isProd ? jsonFormat : prettyFormat,
+    }),
+  ];
+
+  if (isProd) {
+    transports.push(...buildFileTransports(logDir));
+  }
 
   return {
     level: isProd ? 'info' : 'debug',
-    format: isProd ? jsonFormat : prettyFormat,
-    transports: [new winston.transports.Console()],
+    transports,
   };
 }
