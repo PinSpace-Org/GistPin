@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { IndexerService } from './indexer.service';
 import { SorobanModule } from '../soroban/soroban.module';
+import { GistsModule } from '../gists/gists.module';
 
 @Module({
-  imports: [SorobanModule],
+  imports: [SorobanModule, GistsModule],
   providers: [IndexerService],
 })
 export class IndexerModule {}

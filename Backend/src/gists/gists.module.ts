@@ -12,6 +12,6 @@ import { SorobanModule } from '../soroban/soroban.module';
   imports: [TypeOrmModule.forFeature([Gist]), GeoModule, IpfsModule, SorobanModule],
   controllers: [GistsController],
   providers: [GistRepository, GistsService],
-  exports: [GistsService],
+  exports: [GistsService, GistRepository],
 })
 export class GistsModule {}

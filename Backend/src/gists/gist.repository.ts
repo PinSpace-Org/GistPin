@@ -121,4 +121,21 @@ export class GistRepository {
     );
     return rows[0] ?? null;
   }
+
+  async findByStellarGistId(stellarGistId: string): Promise<Gist | null> {
+    const rows = await this.dataSource.query<Gist[]>(
+      `
+      SELECT
+        id, content, location_cell, content_hash,
+        stellar_gist_id, tx_hash, created_at,
+        ST_X(location::geometry) AS lon,
+        ST_Y(location::geometry) AS lat
+      FROM gists
+      WHERE stellar_gist_id = $1
+      LIMIT 1
+      `,
+      [stellarGistId],
+    );
+    return rows[0] ?? null;
+  }
 }

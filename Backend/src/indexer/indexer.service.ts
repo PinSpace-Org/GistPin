@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SorobanService } from '../soroban/soroban.service';
+import { GistRepository } from '../gists/gist.repository';
 
 @Injectable()
 export class IndexerService implements OnModuleInit {
@@ -7,7 +8,10 @@ export class IndexerService implements OnModuleInit {
   private lastProcessedLedger = 0;
   private pollInterval: NodeJS.Timeout | null = null;
 
-  constructor(private readonly soroban: SorobanService) {}
+  constructor(
+    private readonly soroban: SorobanService,
+    private readonly gistRepository: GistRepository,
+  ) {}
 
   onModuleInit() {
     this.logger.log('Indexer starting — polling Soroban for GistRegistry events');
@@ -31,7 +35,13 @@ export class IndexerService implements OnModuleInit {
       );
 
       for (const event of events) {
-        // TODO: upsert each event into the gists table via GistsService / TypeORM
+        const existing = await this.gistRepository.findByStellarGistId(event.gistId);
+        if (existing) {
+          this.logger.debug(`Skipping already-indexed gist ${event.gistId}`);
+          this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.createdAt);
+          continue;
+        }
+
         this.logger.debug(`Indexed gist ${event.gistId} @ cell ${event.locationCell}`);
         this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.createdAt);
       }
