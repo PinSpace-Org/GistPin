@@ -38,4 +38,7 @@ export const envValidationSchema = Joi.object({
   // Throttling
   THROTTLE_TTL_MS: Joi.number().integer().min(0).default(60000),
   THROTTLE_LIMIT: Joi.number().integer().min(1).default(10),
+
+  // Logging
+  LOG_DIR: Joi.string().default('logs'),
 });
