@@ -139,4 +139,37 @@ describe('GistRepository (integration)', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('findByStellarGistId', () => {
+    it('should retrieve a gist by its stellar_gist_id', async () => {
+      const created = await repository.create({
+        content: 'stellar gist id test',
+        lat: 9.0579,
+        lon: 7.4951,
+        stellar_gist_id: 'stellar-abc-123',
+      });
+
+      const found = await repository.findByStellarGistId('stellar-abc-123');
+      expect(found).not.toBeNull();
+      expect(found!.id).toBe(created.id);
+      expect(found!.stellar_gist_id).toBe('stellar-abc-123');
+    });
+
+    it('should return null when stellar_gist_id does not exist', async () => {
+      const result = await repository.findByStellarGistId('non-existent-stellar-id');
+      expect(result).toBeNull();
+    });
+
+    it('should return null when stellar_gist_id is not set on any gist', async () => {
+      await repository.create({
+        content: 'no stellar id gist',
+        lat: 9.0579,
+        lon: 7.4951,
+        // stellar_gist_id intentionally omitted
+      });
+
+      const result = await repository.findByStellarGistId('non-existent-stellar-id');
+      expect(result).toBeNull();
+    });
+  });
 });
