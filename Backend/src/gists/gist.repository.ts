@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { Gist } from './entities/gist.entity';
 import { PaginationHelper, PaginatedResponse } from '../common/utils/pagination.helper';
+
+/** Postgres unique-violation SQLSTATE. */
+export const PG_UNIQUE_VIOLATION = '23505';
 
 export interface NearbyQuery {
   lat: number;
@@ -28,7 +31,14 @@ export interface CreateGistData {
 export class GistRepository {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
-  async create(data: CreateGistData): Promise<Gist> {
+  /**
+   * Persist a new gist row. When a transactional `EntityManager` is supplied
+   * (e.g. from `GistsService.create`), the INSERT joins the caller's
+   * transaction so the write can be rolled back atomically. When no manager
+   * is provided (e.g. from `IndexerService` on the connection pool), the
+   * INSERT runs in its own implicit transaction.
+   */
+  async create(data: CreateGistData, manager?: EntityManager): Promise<Gist> {
     const {
       content,
       lat,
@@ -40,7 +50,9 @@ export class GistRepository {
       author_address = null,
     } = data;
 
-    const result = await this.dataSource.query<Gist[]>(
+    const queryRunner = manager ?? this.dataSource;
+
+    const result = await queryRunner.query<Gist[]>(
       `
       INSERT INTO gists (
         content, location, location_cell,
