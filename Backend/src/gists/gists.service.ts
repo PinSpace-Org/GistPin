@@ -46,6 +46,7 @@ export class GistsService {
       content_hash: cid,
       stellar_gist_id: gistId,
       tx_hash: txHash,
+      author_address: dto.author,
     });
   }
 
@@ -56,6 +57,7 @@ export class GistsService {
       radiusMeters: query.radius,
       limit: query.limit,
       cursor: query.cursor,
+      authorAddress: query.authorAddress,
     });
   }
 

@@ -10,6 +10,7 @@ export interface NearbyQuery {
   radiusMeters?: number;
   limit?: number;
   cursor?: string; // base64 encoded cursor or raw ISO date string
+  authorAddress?: string;
 }
 
 export interface CreateGistData {
@@ -20,6 +21,7 @@ export interface CreateGistData {
   content_hash?: string;
   stellar_gist_id?: string;
   tx_hash?: string;
+  author_address?: string;
 }
 
 @Injectable()
@@ -35,43 +37,52 @@ export class GistRepository {
       content_hash = null,
       stellar_gist_id = null,
       tx_hash = null,
+      author_address = null,
     } = data;
 
     const result = await this.dataSource.query<Gist[]>(
       `
       INSERT INTO gists (
         content, location, location_cell,
-        content_hash, stellar_gist_id, tx_hash
+        content_hash, stellar_gist_id, tx_hash, author_address
       )
       VALUES (
         $1,
         ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
-        $4, $5, $6, $7
+        $4, $5, $6, $7, $8
       )
       RETURNING
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, created_at,
+        stellar_gist_id, tx_hash, author_address, created_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       `,
-      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash],
+      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash, author_address],
     );
 
     return result[0];
   }
 
   async findNearby(query: NearbyQuery): Promise<PaginatedResponse<Gist>> {
-    const { lat, lon, radiusMeters = 500, limit = 20, cursor } = query;
+    const { lat, lon, radiusMeters = 500, limit = 20, cursor, authorAddress } = query;
 
     const params: unknown[] = [lon, lat, radiusMeters, limit];
-    let cursorClause = '';
+    const clauses: string[] = [];
 
     if (cursor) {
       // Support both base64 encoded cursors and raw ISO strings
       const decoded = PaginationHelper.decodeCursor(cursor) ?? cursor;
       params.push(decoded);
-      cursorClause = `AND g.created_at < $${params.length}`;
+      clauses.push(`g.created_at < $${params.length}`);
     }
+
+    if (authorAddress) {
+      // Case-sensitive exact match — Stellar addresses are encoded payloads
+      params.push(authorAddress);
+      clauses.push(`g.author_address = $${params.length}`);
+    }
+
+    const extraWhere = clauses.length > 0 ? `AND ${clauses.join(' AND ')}` : '';
 
     const items = await this.dataSource.query<Gist[]>(
       `
@@ -82,6 +93,7 @@ export class GistRepository {
         g.content_hash,
         g.stellar_gist_id,
         g.tx_hash,
+        g.author_address,
         g.created_at,
         ST_X(g.location::geometry)                              AS lon,
         ST_Y(g.location::geometry)                              AS lat,
@@ -95,7 +107,7 @@ export class GistRepository {
         ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
         $3
       )
-      ${cursorClause}
+      ${extraWhere}
       ORDER BY g.created_at DESC
       LIMIT $4
       `,
@@ -110,7 +122,7 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, created_at,
+        stellar_gist_id, tx_hash, author_address, created_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists
@@ -127,7 +139,7 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, created_at,
+        stellar_gist_id, tx_hash, author_address, created_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists

@@ -40,4 +40,14 @@ export class QueryGistsDto {
   @IsOptional()
   @IsString()
   cursor?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Filter by Stellar address of the author. Case-sensitive exact match against `author_address`.',
+    example: 'GABC...XYZ',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  authorAddress?: string;
 }

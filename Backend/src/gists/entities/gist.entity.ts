@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 
 
 @Entity('gists')
 @Index('idx_gists_location_cell')
+@Index('idx_gists_author_address')
 export class Gist {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -20,6 +21,9 @@ export class Gist {
 
   @Column({ type: 'varchar', length: 80, nullable: true })
   tx_hash: string | null;
+
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  author_address: string | null;
 
   /**
    * PostGIS geography(Point, 4326) column.
