@@ -10,8 +10,10 @@ import { SorobanModule } from './soroban/soroban.module';
 import { GistsModule } from './gists/gists.module';
 import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { ShutdownModule } from './common/shutdown/shutdown.module';
 import { envValidationSchema } from './config/env.validation';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { InFlightRequestMiddleware } from './common/shutdown/in-flight.middleware';
 import { buildWinstonOptions } from './common/logger/winston.config';
 
 @Module({
@@ -47,6 +49,7 @@ import { buildWinstonOptions } from './common/logger/winston.config';
     GistsModule,
     HealthModule,
     MetricsModule,
+    ShutdownModule,
   ],
   providers: [
     {
@@ -57,6 +60,10 @@ import { buildWinstonOptions } from './common/logger/winston.config';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+    // In-flight-request middleware must run before correlation-id so that
+    // every response (including 404s) is counted toward the drain window.
+    consumer
+      .apply(InFlightRequestMiddleware, CorrelationIdMiddleware)
+      .forRoutes('*');
   }
 }

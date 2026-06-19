@@ -41,4 +41,7 @@ export const envValidationSchema = Joi.object({
 
   // Logging
   LOG_DIR: Joi.string().default('logs'),
+
+  // Graceful shutdown — bound for in-flight request drain
+  SHUTDOWN_TIMEOUT_MS: Joi.number().integer().min(0).default(25000),
 });
