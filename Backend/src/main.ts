@@ -5,6 +5,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { InFlightRequestTracker } from './common/shutdown/in-flight-tracker.service';
 import { ShutdownService } from './common/shutdown/shutdown.service';
@@ -12,6 +13,7 @@ import { ShutdownService } from './common/shutdown/shutdown.service';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
+  app.enableVersioning({ type: VersioningType.URI });
 
   // Issue 78 — CORS
   const allowedOrigins = process.env.CORS_ORIGINS
@@ -36,15 +38,15 @@ async function bootstrap() {
   // Logging
   app.useGlobalInterceptors(new LoggingInterceptor());
 
-  // Issue 77 — Swagger
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Gist API')
-    .setDescription('Anonymous hyperlocal messaging on Stellar')
-    .setVersion('0.1.0')
-    .build();
+  .setTitle('Gist API')
+  .setDescription('Anonymous hyperlocal messaging on Stellar')
+  .setVersion('1.0')
+  .addServer('/v1', 'Version 1')
+  .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+const document = SwaggerModule.createDocument(app, swaggerConfig);
+SwaggerModule.setup('v1/docs', app, document);
 
   // Issue 99 — graceful shutdown handling.
   // ShutdownService depends on the running INestApplication so it cannot

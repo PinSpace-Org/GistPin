@@ -16,7 +16,7 @@ interface HealthResponse {
   };
 }
 
-@Controller('health')
+@Controller({ path: 'health', version: '1' })
 export class HealthController {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
