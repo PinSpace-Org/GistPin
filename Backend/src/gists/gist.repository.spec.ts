@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import { GistRepository } from './gist.repository';
 import { Gist } from './entities/gist.entity';
 import { DatabaseModule } from '../database/database.module';
@@ -9,6 +10,7 @@ type GistWithCoords = Gist & { lat: number; lon: number; distance_meters?: numbe
 
 describe('GistRepository (integration)', () => {
   let repository: GistRepository;
+  let dataSource: DataSource;
   let module: TestingModule;
 
   beforeAll(async () => {
@@ -22,9 +24,13 @@ describe('GistRepository (integration)', () => {
     }).compile();
 
     repository = module.get<GistRepository>(GistRepository);
+    dataSource = module.get<DataSource>(DataSource);
   });
 
   afterAll(async () => {
+    // Issue #98 — clean up sentinel rows created by the commit test so they
+    // do not accumulate across CI runs and slow down subsequent test suites.
+    await dataSource.query(`DELETE FROM gists WHERE stellar_gist_id LIKE 'tx-%'`);
     await module.close();
   });
 
@@ -170,6 +176,63 @@ describe('GistRepository (integration)', () => {
 
       const result = await repository.findByStellarGistId('non-existent-stellar-id');
       expect(result).toBeNull();
+    });
+  });
+
+  // Issue #98 — transaction rollback semantics for gist creation.
+  describe('transaction', () => {
+    it('rolls back the INSERT when the transaction body throws', async () => {
+      // Use a unique sentinel content so we can scope our assertion without
+      // depending on row counts (which would race with parallel tests).
+      const sentinel = `tx-rollback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      await expect(
+        dataSource.transaction(async (manager) => {
+          await repository.create(
+            {
+              content: sentinel,
+              lat: 9.0579,
+              lon: 7.4951,
+              stellar_gist_id: `tx-rollback-${Date.now()}`,
+            },
+            manager,
+          );
+          throw new Error('Simulated failure inside transaction');
+        }),
+      ).rejects.toThrow('Simulated failure inside transaction');
+
+      // The sentinel content must not be persisted after a rollback.
+      const nearby = await repository.findNearby({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 50_000,
+        limit: 200,
+      });
+      const leaked = nearby.data.find((g) => g.content === sentinel);
+      expect(leaked).toBeUndefined();
+    });
+
+    it('commits the INSERT when the transaction body completes normally (manager arg)', async () => {
+      const sentinel = `tx-commit-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const stellarId = `tx-commit-${Date.now()}`;
+
+      const result = await dataSource.transaction(async (manager) => {
+        return repository.create(
+          {
+            content: sentinel,
+            lat: 9.0579,
+            lon: 7.4951,
+            stellar_gist_id: stellarId,
+          },
+          manager,
+        );
+      });
+
+      expect(result.content).toBe(sentinel);
+
+      const found = await repository.findByStellarGistId(stellarId);
+      expect(found).not.toBeNull();
+      expect(found!.content).toBe(sentinel);
     });
   });
 });
