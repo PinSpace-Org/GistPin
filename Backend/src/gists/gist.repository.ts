@@ -137,6 +137,8 @@ export class GistRepository {
       [stellarGistId],
     );
     return rows[0] ?? null;
+  }
+
   async existsByStellarGistId(stellarGistId: string): Promise<boolean> {
     const [row] = await this.dataSource.query<Array<{ cnt: string }>>(
       `SELECT COUNT(*) AS cnt FROM gists WHERE stellar_gist_id = $1`,

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGistDto } from './dto/create-gist.dto';
 import { QueryGistsDto } from './dto/query-gists.dto';
 import { GistRepository } from './gist.repository';
@@ -59,7 +59,12 @@ export class GistsService {
     });
   }
 
-  async findOne(id: string): Promise<Gist | null> {
-    return this.gistRepository.findByGistId(id);
+  async findOne(id: string): Promise<Gist> {
+    // Issue 96 — return 404 when no gist matches the UUID
+    const gist = await this.gistRepository.findByGistId(id);
+    if (!gist) {
+      throw new NotFoundException(`Gist with ID ${id} not found`);
+    }
+    return gist;
   }
 }
