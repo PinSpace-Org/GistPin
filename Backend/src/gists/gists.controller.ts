@@ -6,7 +6,7 @@ import { CreateGistDto } from './dto/create-gist.dto';
 import { QueryGistsDto } from './dto/query-gists.dto';
 
 @ApiTags('gists')
-@Controller('gists')
+@Controller({ path: 'gists', version: '1' })
 export class GistsController {
   constructor(private readonly gistsService: GistsService) {}
 
