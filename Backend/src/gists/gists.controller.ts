@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags, ApiParam } from '@nestjs/swagger';
 import { GistsService } from './gists.service';
@@ -28,7 +36,7 @@ export class GistsController {
   @SkipThrottle()
   @ApiOperation({ summary: 'Get a single gist by ID' })
   @ApiParam({ name: 'id', description: 'Gist UUID' })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.gistsService.findOne(id);
   }
 }

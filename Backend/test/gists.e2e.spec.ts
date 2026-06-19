@@ -112,6 +112,59 @@ describe('Gists (e2e)', () => {
 
       expect(res.body.data.length).toBeLessThanOrEqual(2);
     });
+  });  describe('GET /gists/:id', () => {
+    it('should return the gist when it exists', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/gists')
+        .send({ content: 'find me by id', lat: 9.0579, lon: 7.4951 })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get(`/gists/${created.body.id}`)
+        .expect(200);
+
+      expect(res.body).toMatchObject({
+        id: created.body.id,
+        content: 'find me by id',
+        location_cell: expect.any(String),
+        content_hash: expect.any(String),
+        stellar_gist_id: expect.any(String),
+        tx_hash: expect.any(String),
+        lat: 9.0579,
+        lon: 7.4951,
+      });
+      expect(res.body.created_at).toEqual(expect.any(String));
+    });
+
+    it('should return 404 when no gist matches the UUID', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/gists/00000000-0000-0000-0000-000000000000')
+        .expect(404);
+
+      expect(res.body.statusCode).toBe(404);
+      expect(res.body.message).toEqual(expect.stringContaining('not found'));
+    });
+
+    it('should return 400 when id is not a valid UUID', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/gists/not-a-uuid')
+        .expect(400);
+
+      expect(res.body.statusCode).toBe(400);
+    });
+
+    it('should return 400 when id contains dangerous characters', async () => {
+      // Raw SQL would reject this anyway, but ParseUUIDPipe catches it first.
+      const res = await request(app.getHttpServer())
+        .get("/gists/'; DROP TABLE gists; --")
+        .expect(400);
+
+      expect(res.body.statusCode).toBe(400);
+      // Confirm the failure came from UUID validation rather than URL parsing
+      expect(res.body.message).toEqual(
+        expect.arrayContaining([expect.stringMatching(/UUID|validation/i)]),
+      );
+    });
   });
 
   describe('GET /health', () => {
@@ -123,4 +176,5 @@ describe('Gists (e2e)', () => {
       expect(res.body.services.postgis.status).toBe('ok');
     });
   });
+
 });

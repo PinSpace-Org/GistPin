@@ -6,7 +6,12 @@ import { GistRepository } from './gist.repository';
 import { Gist } from './entities/gist.entity';
 import { DatabaseModule } from '../database/database.module';
 
-type GistWithCoords = Gist & { lat: number; lon: number; distance_meters?: number };
+type GistWithCoords = Gist & {
+  lat: number;
+  lon: number;
+  distance_meters?: number;
+  author_address?: string | null;
+};
 
 describe('GistRepository (integration)', () => {
   let repository: GistRepository;
@@ -233,6 +238,159 @@ describe('GistRepository (integration)', () => {
       const found = await repository.findByStellarGistId(stellarId);
       expect(found).not.toBeNull();
       expect(found!.content).toBe(sentinel);
+  describe('author_address persistence and filter', () => {
+    it('should persist author_address on create', async () => {
+      const gist = await repository.create({
+        content: 'authored gist',
+        lat: 9.0579,
+        lon: 7.4951,
+        author_address: 'GABC123',
+      });
+
+      expect(gist.author_address).toBe('GABC123');
+    });
+
+    it('should default author_address to null when not provided', async () => {
+      const gist = await repository.create({
+        content: 'anonymous gist',
+        lat: 9.0579,
+        lon: 7.4951,
+      });
+
+      expect(gist.author_address).toBeNull();
+    });
+
+    it('should filter by authorAddress and return only matching gists', async () => {
+      await repository.create({
+        content: 'alice nearby',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        author_address: 'GALICE',
+      });
+      await repository.create({
+        content: 'bob nearby',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        author_address: 'GBOB',
+      });
+
+      const result = await repository.findNearby({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+        limit: 50,
+        authorAddress: 'GALICE',
+      });
+
+      expect(result.data.length).toBeGreaterThan(0);
+      for (const gist of result.data as GistWithCoords[]) {
+        expect(gist.author_address).toBe('GALICE');
+      }
+      // Bob's gist must never be returned when filtering by GALICE.
+      const bobMarker = 'bob-filter-author-marker';
+      for (const gist of result.data as GistWithCoords[]) {
+        expect(gist.content).not.toBe(bobMarker);
+      }
+    });
+
+    it('should return empty result when authorAddress matches no gists in radius', async () => {
+      await repository.create({
+        content: 'far-away alice',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        author_address: 'GALICE_FAR',
+      });
+
+      const result = await repository.findNearby({
+        lat: 51.5074, // London
+        lon: -0.1278,
+        radiusMeters: 100,
+        limit: 50,
+        authorAddress: 'GALICE_FAR',
+      });
+
+      expect(result.data).toHaveLength(0);
+      expect(result.pagination.hasMore).toBe(false);
+    });
+
+    it('should combine authorAddress filter with cursor pagination', async () => {
+      await repository.create({
+        content: 'paged alice 1',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        author_address: 'GALICE_PAGED',
+      });
+      await repository.create({
+        content: 'paged alice 2',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        author_address: 'GALICE_PAGED',
+      });
+      await repository.create({
+        content: 'paged alice 3',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        author_address: 'GALICE_PAGED',
+      });
+
+      const page1 = await repository.findNearby({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 5000,
+        limit: 1,
+        authorAddress: 'GALICE_PAGED',
+      });
+
+      expect(page1.data.length).toBeLessThanOrEqual(1);
+      for (const gist of page1.data as GistWithCoords[]) {
+        expect(gist.author_address).toBe('GALICE_PAGED');
+      }
+
+      if (page1.pagination.hasMore && page1.pagination.cursor) {
+        const page2 = await repository.findNearby({
+          lat: 9.0579,
+          lon: 7.4951,
+          radiusMeters: 5000,
+          limit: 1,
+          authorAddress: 'GALICE_PAGED',
+          cursor: page1.pagination.cursor,
+        });
+
+        for (const gist of page2.data as GistWithCoords[]) {
+          expect(gist.author_address).toBe('GALICE_PAGED');
+        }
+
+        if (page1.data[0] && page2.data[0]) {
+          expect(page2.data[0].id).not.toBe(page1.data[0].id);
+        }
+      }
+    });
+
+    it('should not regress: omitting authorAddress still returns all gists in radius', async () => {
+      await repository.create({
+        content: 'unauthored regression check',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+      });
+
+      const result = await repository.findNearby({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+        limit: 50,
+      });
+
+      expect(result.data.length).toBeGreaterThan(0);
+      // Should include both authored and anonymous gists
+      const hasNullAuthor = result.data.some((g) => (g as GistWithCoords).author_address === null);
+      expect(hasNullAuthor).toBe(true);
     });
   });
 });

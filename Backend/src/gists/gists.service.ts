@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGistDto } from './dto/create-gist.dto';
 import { QueryGistsDto } from './dto/query-gists.dto';
 import { GistRepository, PG_UNIQUE_VIOLATION } from './gist.repository';
@@ -85,6 +86,16 @@ export class GistsService {
       }
       throw err;
     }
+    return this.gistRepository.create({
+      content,
+      lat: dto.lat,
+      lon: dto.lon,
+      location_cell: locationCell,
+      content_hash: cid,
+      stellar_gist_id: gistId,
+      tx_hash: txHash,
+      author_address: dto.author,
+    });
   }
 
   async findNearby(query: QueryGistsDto): Promise<PaginatedResponse<Gist>> {
@@ -94,10 +105,16 @@ export class GistsService {
       radiusMeters: query.radius,
       limit: query.limit,
       cursor: query.cursor,
+      authorAddress: query.authorAddress,
     });
   }
 
-  async findOne(id: string): Promise<Gist | null> {
-    return this.gistRepository.findByGistId(id);
+  async findOne(id: string): Promise<Gist> {
+    // Issue 96 — return 404 when no gist matches the UUID
+    const gist = await this.gistRepository.findByGistId(id);
+    if (!gist) {
+      throw new NotFoundException(`Gist with ID ${id} not found`);
+    }
+    return gist;
   }
 }
