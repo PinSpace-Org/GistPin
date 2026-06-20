@@ -25,6 +25,7 @@ export interface CreateGistData {
   stellar_gist_id?: string;
   tx_hash?: string;
   author_address?: string;
+  expires_at?: Date;
 }
 
 @Injectable()
@@ -48,7 +49,11 @@ export class GistRepository {
       stellar_gist_id = null,
       tx_hash = null,
       author_address = null,
+      expires_at,
     } = data;
+
+    // Default expiry: 24 hours from now
+    const expiresAt = expires_at ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const queryRunner = manager ?? this.dataSource;
 
@@ -56,20 +61,20 @@ export class GistRepository {
       `
       INSERT INTO gists (
         content, location, location_cell,
-        content_hash, stellar_gist_id, tx_hash, author_address
+        content_hash, stellar_gist_id, tx_hash, author_address, expires_at
       )
       VALUES (
         $1,
         ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
-        $4, $5, $6, $7, $8
+        $4, $5, $6, $7, $8, $9
       )
       RETURNING
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       `,
-      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash, author_address],
+      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash, author_address, expiresAt],
     );
 
     return result[0];
@@ -80,6 +85,9 @@ export class GistRepository {
 
     const params: unknown[] = [lon, lat, radiusMeters, limit];
     const clauses: string[] = [];
+
+    // Issue #604 — exclude expired gists
+    clauses.push(`g.expires_at > NOW()`);
 
     if (cursor) {
       // Support both base64 encoded cursors and raw ISO strings
@@ -94,7 +102,7 @@ export class GistRepository {
       clauses.push(`g.author_address = $${params.length}`);
     }
 
-    const extraWhere = clauses.length > 0 ? `AND ${clauses.join(' AND ')}` : '';
+    const extraWhere = `AND ${clauses.join(' AND ')}`;
 
     const items = await this.dataSource.query<Gist[]>(
       `
@@ -107,6 +115,7 @@ export class GistRepository {
         g.tx_hash,
         g.author_address,
         g.created_at,
+        g.expires_at,
         ST_X(g.location::geometry)                              AS lon,
         ST_Y(g.location::geometry)                              AS lat,
         ST_Distance(
@@ -134,11 +143,12 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists
       WHERE id = $1
+        AND expires_at > NOW()
       LIMIT 1
       `,
       [id],
@@ -151,7 +161,7 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists
@@ -169,5 +179,14 @@ export class GistRepository {
       [stellarGistId],
     );
     return parseInt(row.cnt, 10) > 0;
+  }
+
+  /** Issue #604 — delete rows whose expiry has passed (called by cron job). */
+  async deleteExpired(): Promise<number> {
+    const result = await this.dataSource.query<Array<{ count: string }>>(
+      `WITH deleted AS (DELETE FROM gists WHERE expires_at <= NOW() RETURNING id)
+       SELECT COUNT(*) AS count FROM deleted`,
+    );
+    return parseInt(result[0].count, 10);
   }
 }

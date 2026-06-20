@@ -36,4 +36,7 @@ export class Gist {
 
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
+
+  @Column({ type: 'timestamptz' })
+  expires_at: Date;
 }
