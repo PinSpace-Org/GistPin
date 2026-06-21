@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsLatitude, IsLongitude, IsString, MaxLength, IsOptional } from 'class-validator';
+import { IsStellarAddress } from '../../common/validators';
 
 export class CreateGistDto {
   @ApiProperty({
@@ -20,11 +21,10 @@ export class CreateGistDto {
   lon: number;
 
   @ApiPropertyOptional({
-    description: 'Optional Stellar address of the author',
-    example: 'GABC...XYZ',
+    description: 'Optional Stellar public key of the author (Ed25519, starts with G, 56 chars)',
+    example: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  author?: string;
+  @IsStellarAddress()
+  authorAddress?: string;
 }
