@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsLatitude, IsLongitude, IsOptional, IsNumber, Min, Max, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsLatitude, IsLongitude, IsOptional, IsNumber, Min, Max, IsString, IsBoolean, MaxLength } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 
 export class QueryGistsDto {
   @ApiProperty({ description: 'Latitude to search from', example: 9.0579 })
@@ -50,4 +50,13 @@ export class QueryGistsDto {
   @IsString()
   @MaxLength(80)
   authorAddress?: string;
+
+  @ApiPropertyOptional({
+    description: 'When true, count endpoint returns breakdown by location_cell',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  breakdown?: boolean;
 }
