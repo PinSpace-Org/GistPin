@@ -170,4 +170,35 @@ export class GistRepository {
     );
     return parseInt(row.cnt, 10) > 0;
   }
+
+  async countNearby(query: Pick<NearbyQuery, 'lat' | 'lon' | 'radiusMeters'>): Promise<number> {
+    const { lat, lon, radiusMeters = 500 } = query;
+    const [row] = await this.dataSource.query<Array<{ count: string }>>(
+      `SELECT COUNT(*) AS count FROM gists
+       WHERE ST_DWithin(
+         location::geography,
+         ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+         $3
+       ) AND expires_at > NOW()`,
+      [lon, lat, radiusMeters],
+    );
+    return parseInt(row.count, 10);
+  }
+
+  async countNearbyByCell(
+    query: Pick<NearbyQuery, 'lat' | 'lon' | 'radiusMeters'>,
+  ): Promise<Array<{ cell: string; count: number }>> {
+    const { lat, lon, radiusMeters = 500 } = query;
+    const rows = await this.dataSource.query<Array<{ location_cell: string; count: string }>>(
+      `SELECT location_cell, COUNT(*) AS count FROM gists
+       WHERE ST_DWithin(
+         location::geography,
+         ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+         $3
+       ) AND expires_at > NOW()
+       GROUP BY location_cell ORDER BY count DESC`,
+      [lon, lat, radiusMeters],
+    );
+    return rows.map((r) => ({ cell: r.location_cell, count: parseInt(r.count, 10) }));
+  }
 }

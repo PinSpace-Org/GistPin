@@ -1,22 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { GistsService } from './gists.service';
 import { GistRepository, PG_UNIQUE_VIOLATION } from './gist.repository';
-import { NotFoundException } from '@nestjs/common';
-import { GistsService } from './gists.service';
-import { GistRepository } from './gist.repository';
 import { GeoService } from '../geo/geo.service';
 import { IpfsService } from '../ipfs/ipfs.service';
 import { SorobanService } from '../soroban/soroban.service';
 import { Gist } from './entities/gist.entity';
 
 /**
- * Issue #98 — unit tests for transactional gist creation.
- *
- * These are pure unit tests: real TypeORM / Postgres is not required.
- * We mock the dataSource.transaction() call to simulate the
- * atomic-rollback contract and assert SQLSTATE 23505 idempotency.
+ * Unit tests for GistsService.
+ * All dependencies are mocked — no real TypeORM / Postgres required.
  */
 describe('GistsService', () => {
   let service: GistsService;
@@ -30,6 +24,7 @@ describe('GistsService', () => {
     content_hash: 'mock_cid',
     stellar_gist_id: 'gist-1',
     tx_hash: 'mock_tx',
+    author_address: null,
     location: null,
     created_at: new Date('2026-01-01T00:00:00Z'),
     ...overrides,
@@ -51,6 +46,8 @@ describe('GistsService', () => {
       findByStellarGistId: jest.fn(),
       existsByStellarGistId: jest.fn(),
       findNearby: jest.fn(),
+      countNearby: jest.fn(),
+      countNearbyByCell: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -82,7 +79,6 @@ describe('GistsService', () => {
     service = module.get(GistsService);
     gistRepository = module.get(GistRepository) as jest.Mocked<GistRepository>;
 
-    // Silence noisy logger output during the test run.
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
@@ -100,7 +96,6 @@ describe('GistsService', () => {
 
       const result = await service.create(buildDto());
 
-      // Wrapped in a TypeORM-style dataSource.transaction() boundary
       expect(transactionMock).toHaveBeenCalledTimes(1);
       expect(gistRepository.create).toHaveBeenCalledTimes(1);
       const writeArgs = gistRepository.create.mock.calls[0];
@@ -113,9 +108,7 @@ describe('GistsService', () => {
         stellar_gist_id: 'gist-1',
         tx_hash: 'mock_tx',
       });
-      // Second arg must be the manager handed back by the transaction callback
       expect(writeArgs[1]).toEqual({});
-
       expect(result).toBe(created);
     });
 
@@ -137,7 +130,7 @@ describe('GistsService', () => {
 
     it('throws when the INSERT fails with a non-23505 error', async () => {
       const driverError: Error & { code?: string } = new Error('connection lost');
-      driverError.code = '08006'; // connection failure
+      driverError.code = '08006';
 
       gistRepository.create.mockRejectedValue(driverError);
 
@@ -152,56 +145,19 @@ describe('GistsService', () => {
       driverError.code = PG_UNIQUE_VIOLATION;
 
       gistRepository.create.mockRejectedValue(driverError);
-      // Stranger scenario: 23505 raised but the row cannot be found afterwards
       gistRepository.findByStellarGistId.mockResolvedValue(null);
 
       await expect(service.create(buildDto())).rejects.toBe(driverError);
-describe('GistsService', () => {
-  let service: GistsService;
-  let gistRepository: jest.Mocked<GistRepository>;
-
-  const fakeGist: Gist = {
-    id: '11111111-1111-4111-8111-111111111111',
-    content: 'hello world',
-    location_cell: 's1t7d8c',
-    content_hash: 'mock_cid',
-    stellar_gist_id: 'stellar-abc-123',
-    tx_hash: 'mock_tx',
-    location: null,
-    created_at: new Date('2026-01-01T00:00:00Z'),
-  };
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        GistsService,
-        {
-          provide: GistRepository,
-          useValue: {
-            findByGistId: jest.fn(),
-            create: jest.fn(),
-            findNearby: jest.fn(),
-          },
-        },
-        // `findOne` does not touch these dependencies, but the constructor
-        // requires them. Use minimal stubs to satisfy DI.
-        { provide: GeoService, useValue: {} },
-        { provide: IpfsService, useValue: {} },
-        { provide: SorobanService, useValue: {} },
-      ],
-    }).compile();
-
-    service = module.get<GistsService>(GistsService);
-    gistRepository = module.get(GistRepository);
+    });
   });
 
   describe('findOne', () => {
-    // Issue 96 — return 404 when no gist matches the UUID
     it('should return the gist when the repository finds it', async () => {
-      gistRepository.findByGistId.mockResolvedValue(fakeGist);
+      const gist = buildGist({ id: '11111111-1111-4111-8111-111111111111' });
+      gistRepository.findByGistId.mockResolvedValue(gist);
 
-      await expect(service.findOne(fakeGist.id)).resolves.toEqual(fakeGist);
-      expect(gistRepository.findByGistId).toHaveBeenCalledWith(fakeGist.id);
+      await expect(service.findOne(gist.id)).resolves.toEqual(gist);
+      expect(gistRepository.findByGistId).toHaveBeenCalledWith(gist.id);
     });
 
     it('should throw NotFoundException when the repository returns null', async () => {
@@ -209,10 +165,57 @@ describe('GistsService', () => {
       gistRepository.findByGistId.mockResolvedValue(null);
 
       await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundException);
-      await expect(service.findOne(id)).rejects.toThrow(
-        `Gist with ID ${id} not found`,
-      );
+      await expect(service.findOne(id)).rejects.toThrow(`Gist with ID ${id} not found`);
       expect(gistRepository.findByGistId).toHaveBeenCalledWith(id);
+    });
+  });
+
+  describe('countNearby', () => {
+    const baseQuery = { lat: 9.0579, lon: 7.4951, radius: 500 };
+
+    it('returns count, radius, lat, lon when breakdown is false', async () => {
+      gistRepository.countNearby.mockResolvedValue(12);
+
+      const result = await service.countNearby(baseQuery as any);
+
+      expect(gistRepository.countNearby).toHaveBeenCalledWith({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+      });
+      expect(result).toEqual({ count: 12, radius: 500, lat: 9.0579, lon: 7.4951 });
+    });
+
+    it('returns breakdown array when breakdown is true', async () => {
+      const cells = [
+        { cell: 's1t7d8c', count: 7 },
+        { cell: 's1t7d8d', count: 5 },
+      ];
+      gistRepository.countNearbyByCell.mockResolvedValue(cells);
+
+      const result = await service.countNearby({ ...baseQuery, breakdown: true } as any);
+
+      expect(gistRepository.countNearbyByCell).toHaveBeenCalledWith({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+      });
+      expect(result).toEqual({
+        count: 12,
+        radius: 500,
+        lat: 9.0579,
+        lon: 7.4951,
+        breakdown: cells,
+      });
+    });
+
+    it('returns count: 0 and empty breakdown when no gists in radius', async () => {
+      gistRepository.countNearbyByCell.mockResolvedValue([]);
+
+      const result = await service.countNearby({ ...baseQuery, breakdown: true } as any);
+
+      expect(result.count).toBe(0);
+      expect(result.breakdown).toHaveLength(0);
     });
   });
 });
