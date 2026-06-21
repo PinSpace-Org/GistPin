@@ -37,6 +37,9 @@ export class GistsController {
   @Get('count')
   @SkipThrottle()
   @ApiOperation({ summary: 'Count gists near a location (optionally broken down by cell)' })
+  @Get('count')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Count active gists within a radius' })
   countNearby(@Query() query: QueryGistsDto) {
     return this.gistsService.countNearby(query);
   }

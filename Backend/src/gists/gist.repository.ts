@@ -173,6 +173,7 @@ export class GistRepository {
 
   async countNearby(query: Pick<NearbyQuery, 'lat' | 'lon' | 'radiusMeters'>): Promise<number> {
     const { lat, lon, radiusMeters = 500 } = query;
+  async countNearby(lat: number, lon: number, radiusMeters: number): Promise<number> {
     const [row] = await this.dataSource.query<Array<{ count: string }>>(
       `SELECT COUNT(*) AS count FROM gists
        WHERE ST_DWithin(
@@ -189,6 +190,10 @@ export class GistRepository {
     query: Pick<NearbyQuery, 'lat' | 'lon' | 'radiusMeters'>,
   ): Promise<Array<{ cell: string; count: number }>> {
     const { lat, lon, radiusMeters = 500 } = query;
+    lat: number,
+    lon: number,
+    radiusMeters: number,
+  ): Promise<Array<{ cell: string; count: number }>> {
     const rows = await this.dataSource.query<Array<{ location_cell: string; count: string }>>(
       `SELECT location_cell, COUNT(*) AS count FROM gists
        WHERE ST_DWithin(
