@@ -27,9 +27,11 @@ export class GistsController {
     return this.decoratePaginatedResponse(response);
   }
 
+  // IMPORTANT: must be registered before @Get(':id') so NestJS does not
+  // match the literal string "count" as a UUID parameter.
   @Get('count')
   @SkipThrottle()
-  @ApiOperation({ summary: 'Count active gists within a radius' })
+  @ApiOperation({ summary: 'Count gists near a location (optionally broken down by cell)' })
   countNearby(@Query() query: QueryGistsDto) {
     return this.gistsService.countNearby(query);
   }

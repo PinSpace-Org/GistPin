@@ -33,24 +33,8 @@ export class GistsService {
     private readonly sorobanService: SorobanService,
   ) {}
 
-  /**
-   * Create a gist end-to-end.
-   *
-   * Issue #98 — atomicity:
-   *   - External side-effects (sanitize, geo-encode, IPFS pin, Soroban post)
-   *     happen OUTSIDE the database transaction because they cannot be
-   *     rolled back from Postgres and would just block a connection slot.
-   *   - The actual database INSERT runs inside `dataSource.transaction()` so
-   *     any error thrown during the write rolls back the row atomically and
-   *     future related writes (audit log, related tables) join the same tx.
-   *   - A duplicate `stellar_gist_id` (e.g. retried Soroban post) raises a
-   *     Postgres unique-violation (SQLSTATE 23505); we catch it and return
-   *     the existing row so the API becomes safely idempotent.
-   */
   async create(dto: CreateGistDto): Promise<Gist> {
-    // Issue 87 — sanitize content before storing
     const content = stripHtml(dto.content);
-
     const locationCell = this.geoService.encode(dto.lat, dto.lon);
 
     const { cid } = await this.ipfsService.pinJson({
@@ -66,7 +50,6 @@ export class GistsService {
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
 
-    // Issue #604 — compute expiry from ttlHours (default 24 h)
     const ttlHours = dto.ttlHours ?? DEFAULT_TTL_HOURS;
     const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
 
@@ -90,9 +73,6 @@ export class GistsService {
     } catch (err) {
       const code = (err as { code?: string })?.code;
       if (code === PG_UNIQUE_VIOLATION) {
-        // Concurrent or retried create with the same on-chain gist ID — the
-        // winning transaction already persisted the row. Return it so the
-        // caller observes a logically idempotent success.
         this.logger.debug(
           `Gist ${gistId} already indexed — returning existing row (SQLSTATE ${PG_UNIQUE_VIOLATION})`,
         );
