@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadGatewayException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGistDto } from './dto/create-gist.dto';
 import { QueryGistsDto } from './dto/query-gists.dto';
 import { GistRepository, PG_UNIQUE_VIOLATION } from './gist.repository';
@@ -10,11 +9,18 @@ import { IpfsService } from '../ipfs/ipfs.service';
 import { SorobanService } from '../soroban/soroban.service';
 import { Gist } from './entities/gist.entity';
 import { PaginatedResponse } from '../common/utils/pagination.helper';
-import { stripHtml } from 'src/common/utils/sanitize';
+import { stripHtml } from '../common/utils/sanitize';
+
+interface CacheEntry {
+  data: Record<string, unknown>;
+  expiresAt: number;
+}
 
 @Injectable()
 export class GistsService {
   private readonly logger = new Logger(GistsService.name);
+  private readonly contentCache = new Map<string, CacheEntry>();
+  private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -86,16 +92,6 @@ export class GistsService {
       }
       throw err;
     }
-    return this.gistRepository.create({
-      content,
-      lat: dto.lat,
-      lon: dto.lon,
-      location_cell: locationCell,
-      content_hash: cid,
-      stellar_gist_id: gistId,
-      tx_hash: txHash,
-      author_address: dto.author,
-    });
   }
 
   async findNearby(query: QueryGistsDto): Promise<PaginatedResponse<Gist>> {
@@ -116,6 +112,31 @@ export class GistsService {
       throw new NotFoundException(`Gist with ID ${id} not found`);
     }
     return gist;
+  }
+
+  /** Issue #606 — fetch IPFS content for a gist, cached for 5 minutes. */
+  async getGistContent(id: string): Promise<Record<string, unknown>> {
+    const gist = await this.findOne(id); // throws 404 if not found
+
+    const cid = gist.content_hash;
+    if (!cid) {
+      throw new NotFoundException(`Gist ${id} has no IPFS content`);
+    }
+
+    const cached = this.contentCache.get(cid);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
+    try {
+      const data = await this.ipfsService.getJson(cid);
+      this.contentCache.set(cid, { data, expiresAt: Date.now() + GistsService.CACHE_TTL_MS });
+      return data;
+    } catch (err) {
+      throw new BadGatewayException(
+        `IPFS gateway unreachable for CID ${cid}: ${(err as Error).message}`,
+      );
+    }
   }
 
   async countNearby(

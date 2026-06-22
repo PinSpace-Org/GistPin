@@ -39,6 +39,14 @@ export class GistsController {
     return this.gistsService.countNearby(query);
   }
 
+  @Get(':id/content')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Get the full IPFS content of a gist' })
+  @ApiParam({ name: 'id', description: 'Gist UUID' })
+  getContent(@Param('id', ParseUUIDPipe) id: string) {
+    return this.gistsService.getGistContent(id);
+  }
+
   @Get(':id')
   @SkipThrottle()
   @ApiOperation({ summary: 'Get a single gist by ID' })

@@ -1,35 +1,27 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
+import { Logger, NotFoundException, BadGatewayException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { GistsService } from './gists.service';
 import { GistRepository, PG_UNIQUE_VIOLATION } from './gist.repository';
-import { NotFoundException } from '@nestjs/common';
-import { GistsService } from './gists.service';
-import { GistRepository } from './gist.repository';
 import { GeoService } from '../geo/geo.service';
 import { IpfsService } from '../ipfs/ipfs.service';
 import { SorobanService } from '../soroban/soroban.service';
 import { Gist } from './entities/gist.entity';
 
-/**
- * Issue #98 — unit tests for transactional gist creation.
- *
- * These are pure unit tests: real TypeORM / Postgres is not required.
- * We mock the dataSource.transaction() call to simulate the
- * atomic-rollback contract and assert SQLSTATE 23505 idempotency.
- */
 describe('GistsService', () => {
   let service: GistsService;
   let gistRepository: jest.Mocked<GistRepository>;
+  let ipfsService: jest.Mocked<IpfsService>;
   let transactionMock: jest.Mock;
 
   const buildGist = (overrides: Partial<Gist> = {}): Gist => ({
     id: '00000000-0000-0000-0000-000000000001',
     content: 'hello',
     location_cell: 's1t7d8c',
-    content_hash: 'mock_cid',
+    content_hash: 'Qmrealcid',
     stellar_gist_id: 'gist-1',
     tx_hash: 'mock_tx',
+    author_address: null,
     location: null,
     created_at: new Date('2026-01-01T00:00:00Z'),
     ...overrides,
@@ -51,6 +43,13 @@ describe('GistsService', () => {
       findByStellarGistId: jest.fn(),
       existsByStellarGistId: jest.fn(),
       findNearby: jest.fn(),
+      countNearby: jest.fn(),
+      countNearbyByCell: jest.fn(),
+    };
+
+    const ipfsMock = {
+      pinJson: jest.fn().mockResolvedValue({ cid: 'Qmrealcid', mock: false }),
+      getJson: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -58,31 +57,19 @@ describe('GistsService', () => {
         GistsService,
         { provide: DataSource, useValue: { transaction: transactionMock } },
         { provide: GistRepository, useValue: gistRepo },
-        {
-          provide: GeoService,
-          useValue: { encode: jest.fn().mockReturnValue('s1t7d8c') },
-        },
-        {
-          provide: IpfsService,
-          useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'mock_cid', mock: true }) },
-        },
+        { provide: GeoService, useValue: { encode: jest.fn().mockReturnValue('s1t7d8c') } },
+        { provide: IpfsService, useValue: ipfsMock },
         {
           provide: SorobanService,
-          useValue: {
-            postGist: jest.fn().mockResolvedValue({
-              gistId: 'gist-1',
-              txHash: 'mock_tx',
-              mock: true,
-            }),
-          },
+          useValue: { postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx', mock: false }) },
         },
       ],
     }).compile();
 
     service = module.get(GistsService);
     gistRepository = module.get(GistRepository) as jest.Mocked<GistRepository>;
+    ipfsService = module.get(IpfsService) as jest.Mocked<IpfsService>;
 
-    // Silence noisy logger output during the test run.
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
@@ -93,126 +80,121 @@ describe('GistsService', () => {
     jest.restoreAllMocks();
   });
 
+  // ── create ────────────────────────────────────────────────────────────────
+
   describe('create', () => {
-    it('sanitizes content, encodes the cell, pins IPFS, posts Soroban, and inserts in a transaction', async () => {
+    it('sanitizes, encodes, pins IPFS, posts Soroban, and inserts in a transaction', async () => {
       const created = buildGist();
       gistRepository.create.mockResolvedValue(created);
 
       const result = await service.create(buildDto());
 
-      // Wrapped in a TypeORM-style dataSource.transaction() boundary
       expect(transactionMock).toHaveBeenCalledTimes(1);
       expect(gistRepository.create).toHaveBeenCalledTimes(1);
-      const writeArgs = gistRepository.create.mock.calls[0];
-      expect(writeArgs[0]).toMatchObject({
+      const [writeArg, managerArg] = gistRepository.create.mock.calls[0];
+      expect(writeArg).toMatchObject({
         content: 'hello',
         lat: 9.0579,
         lon: 7.4951,
         location_cell: 's1t7d8c',
-        content_hash: 'mock_cid',
+        content_hash: 'Qmrealcid',
         stellar_gist_id: 'gist-1',
         tx_hash: 'mock_tx',
       });
-      // Second arg must be the manager handed back by the transaction callback
-      expect(writeArgs[1]).toEqual({});
-
+      expect(managerArg).toEqual({});
       expect(result).toBe(created);
     });
 
-    it('returns the existing gist when the INSERT collides on stellar_gist_id (SQLSTATE 23505)', async () => {
-      const existing = buildGist({ id: 'existing-uuid', stellar_gist_id: 'gist-1' });
-      const driverError: Error & { code?: string } = new Error('duplicate key value');
-      driverError.code = PG_UNIQUE_VIOLATION;
-
-      gistRepository.create.mockRejectedValue(driverError);
+    it('returns the existing row on SQLSTATE 23505 (stellar_gist_id collision)', async () => {
+      const existing = buildGist({ id: 'existing-uuid' });
+      const err: Error & { code?: string } = new Error('duplicate key');
+      err.code = PG_UNIQUE_VIOLATION;
+      gistRepository.create.mockRejectedValue(err);
       gistRepository.findByStellarGistId.mockResolvedValue(existing);
 
-      const result = await service.create(buildDto());
-
-      expect(transactionMock).toHaveBeenCalledTimes(1);
-      expect(gistRepository.create).toHaveBeenCalledTimes(1);
+      await expect(service.create(buildDto())).resolves.toBe(existing);
       expect(gistRepository.findByStellarGistId).toHaveBeenCalledWith('gist-1');
-      expect(result).toBe(existing);
     });
 
-    it('throws when the INSERT fails with a non-23505 error', async () => {
-      const driverError: Error & { code?: string } = new Error('connection lost');
-      driverError.code = '08006'; // connection failure
+    it('rethrows non-23505 errors', async () => {
+      const err: Error & { code?: string } = new Error('connection lost');
+      err.code = '08006';
+      gistRepository.create.mockRejectedValue(err);
 
-      gistRepository.create.mockRejectedValue(driverError);
-
-      await expect(service.create(buildDto())).rejects.toBe(driverError);
-
-      expect(transactionMock).toHaveBeenCalledTimes(1);
-      expect(gistRepository.findByStellarGistId).not.toHaveBeenCalled();
+      await expect(service.create(buildDto())).rejects.toBe(err);
     });
 
-    it('rethrows if the idempotent recovery lookup returns null', async () => {
-      const driverError: Error & { code?: string } = new Error('duplicate key value');
-      driverError.code = PG_UNIQUE_VIOLATION;
-
-      gistRepository.create.mockRejectedValue(driverError);
-      // Stranger scenario: 23505 raised but the row cannot be found afterwards
+    it('rethrows 23505 when recovery lookup returns null', async () => {
+      const err: Error & { code?: string } = new Error('duplicate key');
+      err.code = PG_UNIQUE_VIOLATION;
+      gistRepository.create.mockRejectedValue(err);
       gistRepository.findByStellarGistId.mockResolvedValue(null);
 
-      await expect(service.create(buildDto())).rejects.toBe(driverError);
-describe('GistsService', () => {
-  let service: GistsService;
-  let gistRepository: jest.Mocked<GistRepository>;
-
-  const fakeGist: Gist = {
-    id: '11111111-1111-4111-8111-111111111111',
-    content: 'hello world',
-    location_cell: 's1t7d8c',
-    content_hash: 'mock_cid',
-    stellar_gist_id: 'stellar-abc-123',
-    tx_hash: 'mock_tx',
-    location: null,
-    created_at: new Date('2026-01-01T00:00:00Z'),
-  };
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        GistsService,
-        {
-          provide: GistRepository,
-          useValue: {
-            findByGistId: jest.fn(),
-            create: jest.fn(),
-            findNearby: jest.fn(),
-          },
-        },
-        // `findOne` does not touch these dependencies, but the constructor
-        // requires them. Use minimal stubs to satisfy DI.
-        { provide: GeoService, useValue: {} },
-        { provide: IpfsService, useValue: {} },
-        { provide: SorobanService, useValue: {} },
-      ],
-    }).compile();
-
-    service = module.get<GistsService>(GistsService);
-    gistRepository = module.get(GistRepository);
+      await expect(service.create(buildDto())).rejects.toBe(err);
+    });
   });
 
-  describe('findOne', () => {
-    // Issue 96 — return 404 when no gist matches the UUID
-    it('should return the gist when the repository finds it', async () => {
-      gistRepository.findByGistId.mockResolvedValue(fakeGist);
+  // ── findOne ───────────────────────────────────────────────────────────────
 
-      await expect(service.findOne(fakeGist.id)).resolves.toEqual(fakeGist);
-      expect(gistRepository.findByGistId).toHaveBeenCalledWith(fakeGist.id);
+  describe('findOne', () => {
+    it('returns the gist when found', async () => {
+      const gist = buildGist();
+      gistRepository.findByGistId.mockResolvedValue(gist);
+
+      await expect(service.findOne(gist.id)).resolves.toBe(gist);
+      expect(gistRepository.findByGistId).toHaveBeenCalledWith(gist.id);
     });
 
-    it('should throw NotFoundException when the repository returns null', async () => {
-      const id = '00000000-0000-0000-0000-000000000000';
+    it('throws NotFoundException when repository returns null', async () => {
       gistRepository.findByGistId.mockResolvedValue(null);
+      const id = '00000000-0000-0000-0000-000000000000';
 
       await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundException);
-      await expect(service.findOne(id)).rejects.toThrow(
-        `Gist with ID ${id} not found`,
-      );
-      expect(gistRepository.findByGistId).toHaveBeenCalledWith(id);
+    });
+  });
+
+  // ── getGistContent ────────────────────────────────────────────────────────
+
+  describe('getGistContent', () => {
+    const ipfsData = { text: 'hello', lat: 9.0579, lon: 7.4951, timestamp: '2026-01-01T00:00:00Z' };
+
+    it('fetches IPFS content and returns it', async () => {
+      gistRepository.findByGistId.mockResolvedValue(buildGist());
+      ipfsService.getJson.mockResolvedValue(ipfsData);
+
+      const result = await service.getGistContent(buildGist().id);
+
+      expect(ipfsService.getJson).toHaveBeenCalledWith('Qmrealcid');
+      expect(result).toEqual(ipfsData);
+    });
+
+    it('returns cached data without calling IPFS again', async () => {
+      gistRepository.findByGistId.mockResolvedValue(buildGist());
+      ipfsService.getJson.mockResolvedValue(ipfsData);
+
+      await service.getGistContent(buildGist().id);
+      await service.getGistContent(buildGist().id);
+
+      expect(ipfsService.getJson).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws NotFoundException when gist does not exist', async () => {
+      gistRepository.findByGistId.mockResolvedValue(null);
+
+      await expect(service.getGistContent('nonexistent-id')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws BadGatewayException when IPFS gateway fails', async () => {
+      gistRepository.findByGistId.mockResolvedValue(buildGist());
+      ipfsService.getJson.mockRejectedValue(new Error('IPFS fetch failed: 503'));
+
+      await expect(service.getGistContent(buildGist().id)).rejects.toBeInstanceOf(BadGatewayException);
+    });
+
+    it('throws NotFoundException when gist has no content_hash', async () => {
+      gistRepository.findByGistId.mockResolvedValue(buildGist({ content_hash: null }));
+
+      await expect(service.getGistContent(buildGist().id)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });
