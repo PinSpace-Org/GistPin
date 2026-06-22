@@ -96,7 +96,7 @@ export class GistRepository {
 
     const extraWhere = clauses.length > 0 ? `AND ${clauses.join(' AND ')}` : '';
 
-    const items = await this.dataSource.query<Gist[]>(
+    const rows = await this.dataSource.query<Array<Gist & { distance_meters: string }>>(
       `
       SELECT
         g.id,
@@ -110,21 +110,27 @@ export class GistRepository {
         ST_X(g.location::geometry)                              AS lon,
         ST_Y(g.location::geometry)                              AS lat,
         ST_Distance(
-          g.location,
+          g.location::geography,
           ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
         )                                                        AS distance_meters
       FROM gists g
       WHERE ST_DWithin(
-        g.location,
+        g.location::geography,
         ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
         $3
       )
+      AND g.expires_at > NOW()
       ${extraWhere}
-      ORDER BY g.created_at DESC
+      ORDER BY distance_meters ASC, g.created_at DESC
       LIMIT $4
       `,
       params,
     );
+
+    const items: Gist[] = rows.map((r) => ({
+      ...r,
+      distanceMeters: parseFloat(r.distance_meters),
+    }));
 
     return PaginationHelper.buildResponse(items, limit);
   }
