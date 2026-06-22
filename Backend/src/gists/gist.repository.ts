@@ -189,6 +189,7 @@ export class GistRepository {
     );
     return parseInt(result[0].count, 10);
   }
+
   async countNearby(lat: number, lon: number, radiusMeters: number): Promise<number> {
     const [row] = await this.dataSource.query<Array<{ count: string }>>(
       `SELECT COUNT(*) AS count FROM gists
@@ -206,10 +207,6 @@ export class GistRepository {
     query: Pick<NearbyQuery, 'lat' | 'lon' | 'radiusMeters'>,
   ): Promise<Array<{ cell: string; count: number }>> {
     const { lat, lon, radiusMeters = 500 } = query;
-    lat: number,
-    lon: number,
-    radiusMeters: number,
-  ): Promise<Array<{ cell: string; count: number }>> {
     const rows = await this.dataSource.query<Array<{ location_cell: string; count: string }>>(
       `SELECT location_cell, COUNT(*) AS count FROM gists
        WHERE ST_DWithin(
