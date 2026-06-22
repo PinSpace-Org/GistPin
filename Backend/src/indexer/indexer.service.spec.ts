@@ -5,6 +5,10 @@ import { GistRepository } from '../gists/gist.repository';
 import { GeoService } from '../geo/geo.service';
 import { GistEvent } from '../soroban/soroban.service';
 
+jest.mock('../soroban/soroban.service', () => ({
+  SorobanService: class SorobanService {},
+}));
+
 function makeEvent(overrides: Partial<GistEvent> = {}): GistEvent {
   return {
     gistId: 'gist-1',
@@ -31,6 +35,7 @@ describe('IndexerService', () => {
     } as unknown as jest.Mocked<SorobanService>;
 
     gistRepo = {
+      findByStellarGistId: jest.fn(),
       existsByStellarGistId: jest.fn(),
       create: jest.fn(),
     } as unknown as jest.Mocked<GistRepository>;
@@ -58,6 +63,7 @@ describe('IndexerService', () => {
 
     it('persists a new event to the DB', async () => {
       soroban.getEventsSince.mockResolvedValue([makeEvent()]);
+      gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(false);
       gistRepo.create.mockResolvedValue({} as never);
 
@@ -76,6 +82,7 @@ describe('IndexerService', () => {
 
     it('decodes the locationCell via GeoService', async () => {
       soroban.getEventsSince.mockResolvedValue([makeEvent({ locationCell: 'u4pruyd' })]);
+      gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(false);
       gistRepo.create.mockResolvedValue({} as never);
 
@@ -86,6 +93,7 @@ describe('IndexerService', () => {
 
     it('skips an event that is already indexed', async () => {
       soroban.getEventsSince.mockResolvedValue([makeEvent()]);
+      gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(true);
 
       await service.poll();
@@ -100,6 +108,7 @@ describe('IndexerService', () => {
         makeEvent({ gistId: 'g3', ledger: 275 }),
       ];
       soroban.getEventsSince.mockResolvedValue(events);
+      gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(false);
       gistRepo.create.mockResolvedValue({} as never);
 
@@ -113,6 +122,7 @@ describe('IndexerService', () => {
 
     it('also advances lastProcessedLedger for already-indexed events', async () => {
       soroban.getEventsSince.mockResolvedValue([makeEvent({ ledger: 500 })]);
+      gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(true);
 
       await service.poll();
@@ -124,6 +134,7 @@ describe('IndexerService', () => {
 
     it('logs the number of events fetched', async () => {
       soroban.getEventsSince.mockResolvedValue([makeEvent(), makeEvent({ gistId: 'g2' })]);
+      gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(false);
       gistRepo.create.mockResolvedValue({} as never);
 

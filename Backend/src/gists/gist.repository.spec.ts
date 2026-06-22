@@ -187,8 +187,6 @@ describe('GistRepository (integration)', () => {
   // Issue #98 — transaction rollback semantics for gist creation.
   describe('transaction', () => {
     it('rolls back the INSERT when the transaction body throws', async () => {
-      // Use a unique sentinel content so we can scope our assertion without
-      // depending on row counts (which would race with parallel tests).
       const sentinel = `tx-rollback-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
       await expect(
@@ -206,7 +204,6 @@ describe('GistRepository (integration)', () => {
         }),
       ).rejects.toThrow('Simulated failure inside transaction');
 
-      // The sentinel content must not be persisted after a rollback.
       const nearby = await repository.findNearby({
         lat: 9.0579,
         lon: 7.4951,
@@ -238,6 +235,9 @@ describe('GistRepository (integration)', () => {
       const found = await repository.findByStellarGistId(stellarId);
       expect(found).not.toBeNull();
       expect(found!.content).toBe(sentinel);
+    });
+  });
+
   describe('author_address persistence and filter', () => {
     it('should persist author_address on create', async () => {
       const gist = await repository.create({
@@ -288,7 +288,6 @@ describe('GistRepository (integration)', () => {
       for (const gist of result.data as GistWithCoords[]) {
         expect(gist.author_address).toBe('GALICE');
       }
-      // Bob's gist must never be returned when filtering by GALICE.
       const bobMarker = 'bob-filter-author-marker';
       for (const gist of result.data as GistWithCoords[]) {
         expect(gist.content).not.toBe(bobMarker);
@@ -388,9 +387,64 @@ describe('GistRepository (integration)', () => {
       });
 
       expect(result.data.length).toBeGreaterThan(0);
-      // Should include both authored and anonymous gists
       const hasNullAuthor = result.data.some((g) => (g as GistWithCoords).author_address === null);
       expect(hasNullAuthor).toBe(true);
+    });
+  });
+
+  describe('countNearby', () => {
+    it('should return a numeric count of non-expired gists in radius', async () => {
+      await repository.create({
+        content: 'count test gist',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+      });
+
+      const count = await repository.countNearby({ lat: 9.0579, lon: 7.4951, radiusMeters: 500 });
+      expect(typeof count).toBe('number');
+      expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should return 0 when no gists are in radius', async () => {
+      const count = await repository.countNearby({
+        lat: 51.5074, // London
+        lon: -0.1278,
+        radiusMeters: 100,
+      });
+      expect(count).toBe(0);
+    });
+  });
+
+  describe('countNearbyByCell', () => {
+    it('should return cell breakdown array', async () => {
+      await repository.create({
+        content: 'cell breakdown test',
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+      });
+
+      const rows = await repository.countNearbyByCell({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+      });
+
+      expect(Array.isArray(rows)).toBe(true);
+      for (const row of rows) {
+        expect(typeof row.cell).toBe('string');
+        expect(typeof row.count).toBe('number');
+      }
+    });
+
+    it('should return empty array when no gists are in radius', async () => {
+      const rows = await repository.countNearbyByCell({
+        lat: 51.5074,
+        lon: -0.1278,
+        radiusMeters: 100,
+      });
+      expect(rows).toHaveLength(0);
     });
   });
 });

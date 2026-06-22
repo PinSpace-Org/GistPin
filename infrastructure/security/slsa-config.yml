@@ -1,0 +1,82 @@
+# SLSA Compliance Configuration — GistPin
+# https://slsa.dev/spec/v1.0/levels
+
+slsa:
+  target_level: 3   # SLSA Build Level 3
+
+  # ── Builder ───────────────────────────────────────────────────────────────
+  builder:
+    id: "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml"
+    trusted: true
+    ephemeral_environment: true   # Fresh runner per build — no persistent state
+    isolated: true
+
+  # ── Source ────────────────────────────────────────────────────────────────
+  source:
+    repository: "https://github.com/PinSpace-Org/GistPin"
+    branch_protection:
+      require_pull_request: true
+      require_signed_commits: true
+      enforce_admins: true
+
+  # ── Build Process ─────────────────────────────────────────────────────────
+  build:
+    trigger: workflow_dispatch_or_push_to_main
+    parameterless: false          # Parameters are declared & pinned
+    hermetic: false               # Network access needed for npm/cargo installs
+    reproducible: false           # Not yet enforced — future goal
+
+  # ── Provenance ────────────────────────────────────────────────────────────
+  provenance:
+    attestation_format: in-toto
+    distribution: oci_manifest   # Attached to container image as OCI referrer
+    sigstore:
+      rekor_url: "https://rekor.sigstore.dev"
+      fulcio_url: "https://fulcio.sigstore.dev"
+      oidc_issuer: "https://token.actions.githubusercontent.com"
+
+  # ── Artifact Subjects ─────────────────────────────────────────────────────
+  subjects:
+    - name: gistpin-backend
+      type: container
+      registry: ghcr.io
+      image: pinspace-org/gistpin-backend
+    - name: gistpin-frontend
+      type: container
+      registry: ghcr.io
+      image: pinspace-org/gistpin-frontend
+    - name: gistpin-sbom
+      type: file
+      pattern: "sbom-*.spdx.json"
+
+  # ── Verification Policy ───────────────────────────────────────────────────
+  verification:
+    required_in:
+      - staging
+      - production
+    tool: cosign
+    certificate_oidc_issuer: "https://token.actions.githubusercontent.com"
+    certificate_identity_regexp: "https://github.com/PinSpace-Org/GistPin/.*"
+    block_on_failure: true
+
+  # ── SBOM Requirements ─────────────────────────────────────────────────────
+  sbom:
+    required: true
+    formats:
+      - spdx-json
+      - cyclonedx-json
+    attached_as_attestation: true
+    retention_days: 90
+
+  # ── Compliance Mapping ────────────────────────────────────────────────────
+  compliance:
+    frameworks:
+      - name: SLSA
+        version: "1.0"
+        level: 3
+      - name: NIST SSDF
+        version: "1.1"
+        controls: [PW.4, RV.1, RV.2]
+      - name: EO 14028
+        section: "Section 4(e) - SBOM"
+    review_schedule: quarterly
