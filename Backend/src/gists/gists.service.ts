@@ -45,7 +45,8 @@ export class GistsService {
       created_at: new Date().toISOString(),
     });
 
-    const { gistId, txHash } = await this.sorobanService.postGist(locationCell, cid, dto.author);
+    const author = dto.authorAddress ?? dto.author;
+    const { gistId, txHash } = await this.sorobanService.postGist(locationCell, cid, author);
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
 
@@ -63,7 +64,7 @@ export class GistsService {
             content_hash: cid,
             stellar_gist_id: gistId,
             tx_hash: txHash,
-            author_address: dto.author,
+            author_address: author,
             expires_at: expiresAt,
           },
           manager,
@@ -99,6 +100,19 @@ export class GistsService {
       throw new NotFoundException(`Gist with ID ${id} not found`);
     }
     return gist;
+  }
+
+  async getContent(id: string): Promise<Record<string, unknown>> {
+    const gist = await this.gistRepository.findByGistId(id);
+    if (!gist) {
+      throw new NotFoundException(`Gist with ID ${id} not found`);
+    }
+
+    if (!gist.content_hash) {
+      throw new NotFoundException(`Content for gist ${id} not found`);
+    }
+
+    return this.ipfsService.getJson(gist.content_hash);
   }
 
   async countNearby(query: QueryGistsDto): Promise<CountNearbyResult> {
