@@ -13,6 +13,14 @@ import { stripHtml } from '../common/utils/sanitize';
 
 const DEFAULT_TTL_HOURS = 24;
 
+export interface CountNearbyResult {
+  count: number;
+  radius: number;
+  lat: number;
+  lon: number;
+  breakdown?: Array<{ cell: string; count: number }>;
+}
+
 @Injectable()
 export class GistsService {
   private readonly logger = new Logger(GistsService.name);
@@ -53,7 +61,8 @@ export class GistsService {
       created_at: new Date().toISOString(),
     });
 
-    const { gistId, txHash } = await this.sorobanService.postGist(locationCell, cid, dto.author);
+    const author = dto.authorAddress ?? dto.author;
+    const { gistId, txHash } = await this.sorobanService.postGist(locationCell, cid, author);
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
 
@@ -72,7 +81,7 @@ export class GistsService {
             content_hash: cid,
             stellar_gist_id: gistId,
             tx_hash: txHash,
-            author_address: dto.author,
+            author_address: author,
             expires_at: expiresAt,
           },
           manager,
@@ -113,6 +122,19 @@ export class GistsService {
     return gist;
   }
 
+  async getContent(id: string): Promise<Record<string, unknown>> {
+    const gist = await this.gistRepository.findByGistId(id);
+    if (!gist) {
+      throw new NotFoundException(`Gist with ID ${id} not found`);
+    }
+
+    if (!gist.content_hash) {
+      throw new NotFoundException(`Content for gist ${id} not found`);
+    }
+
+    return this.ipfsService.getJson(gist.content_hash);
+  }
+
   async countNearby(query: QueryGistsDto): Promise<CountNearbyResult> {
     const { lat, lon, radius = 500, breakdown } = query;
 
@@ -122,16 +144,7 @@ export class GistsService {
       return { count: total, radius, lat, lon, breakdown: rows };
     }
 
-    const count = await this.gistRepository.countNearby({ lat, lon, radiusMeters: radius });
-  async countNearby(
-    query: QueryGistsDto,
-  ): Promise<{ count: number; radius: number; lat: number; lon: number; breakdown?: Array<{ cell: string; count: number }> }> {
-    const { lat, lon, radius = 500, breakdown } = query;
     const count = await this.gistRepository.countNearby(lat, lon, radius);
-    if (breakdown) {
-      const cells = await this.gistRepository.countNearbyByCell(lat, lon, radius);
-      return { count, radius, lat, lon, breakdown: cells };
-    }
     return { count, radius, lat, lon };
   }
 }
