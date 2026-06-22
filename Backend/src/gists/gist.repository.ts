@@ -12,7 +12,7 @@ export interface NearbyQuery {
   lon: number;
   radiusMeters?: number;
   limit?: number;
-  cursor?: string; // base64 encoded cursor or raw ISO date string
+  cursor?: string;
   authorAddress?: string;
 }
 
@@ -32,13 +32,6 @@ export interface CreateGistData {
 export class GistRepository {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
-  /**
-   * Persist a new gist row. When a transactional `EntityManager` is supplied
-   * (e.g. from `GistsService.create`), the INSERT joins the caller's
-   * transaction so the write can be rolled back atomically. When no manager
-   * is provided (e.g. from `IndexerService` on the connection pool), the
-   * INSERT runs in its own implicit transaction.
-   */
   async create(data: CreateGistData, manager?: EntityManager): Promise<Gist> {
     const {
       content,
@@ -52,9 +45,7 @@ export class GistRepository {
       expires_at,
     } = data;
 
-    // Default expiry: 24 hours from now
     const expiresAt = expires_at ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
-
     const queryRunner = manager ?? this.dataSource;
 
     const result = await queryRunner.query<Gist[]>(
@@ -86,18 +77,15 @@ export class GistRepository {
     const params: unknown[] = [lon, lat, radiusMeters, limit];
     const clauses: string[] = [];
 
-    // Issue #604 — exclude expired gists
     clauses.push(`g.expires_at > NOW()`);
 
     if (cursor) {
-      // Support both base64 encoded cursors and raw ISO strings
       const decoded = PaginationHelper.decodeCursor(cursor) ?? cursor;
       params.push(decoded);
       clauses.push(`g.created_at < $${params.length}`);
     }
 
     if (authorAddress) {
-      // Case-sensitive exact match — Stellar addresses are encoded payloads
       params.push(authorAddress);
       clauses.push(`g.author_address = $${params.length}`);
     }
@@ -129,7 +117,7 @@ export class GistRepository {
         $3
       )
       ${extraWhere}
-      ORDER BY g.created_at DESC
+      ORDER BY distance_meters ASC, g.created_at DESC
       LIMIT $4
       `,
       params,
@@ -181,7 +169,6 @@ export class GistRepository {
     return parseInt(row.cnt, 10) > 0;
   }
 
-  /** Issue #604 — delete rows whose expiry has passed (called by cron job). */
   async deleteExpired(): Promise<number> {
     const result = await this.dataSource.query<Array<{ count: string }>>(
       `WITH deleted AS (DELETE FROM gists WHERE expires_at <= NOW() RETURNING id)
