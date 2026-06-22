@@ -24,6 +24,8 @@ export interface CountNearbyResult {
 @Injectable()
 export class GistsService {
   private readonly logger = new Logger(GistsService.name);
+  private readonly contentCache = new Map<string, CacheEntry>();
+  private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,

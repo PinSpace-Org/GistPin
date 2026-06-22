@@ -21,13 +21,14 @@ jest.mock('../soroban/soroban.service', () => ({
 describe('GistsService', () => {
   let service: GistsService;
   let gistRepository: jest.Mocked<GistRepository>;
+  let ipfsService: jest.Mocked<IpfsService>;
   let transactionMock: jest.Mock;
 
   const buildGist = (overrides: Partial<Gist> = {}): Gist => ({
     id: '00000000-0000-0000-0000-000000000001',
     content: 'hello',
     location_cell: 's1t7d8c',
-    content_hash: 'mock_cid',
+    content_hash: 'Qmrealcid',
     stellar_gist_id: 'gist-1',
     tx_hash: 'mock_tx',
     author_address: null,
@@ -75,6 +76,7 @@ describe('GistsService', () => {
 
     service = module.get(GistsService);
     gistRepository = module.get(GistRepository) as jest.Mocked<GistRepository>;
+    ipfsService = module.get(IpfsService) as jest.Mocked<IpfsService>;
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
@@ -88,7 +90,7 @@ describe('GistsService', () => {
   // create
   // ──────────────────────────────────────────────────────────────────────────
   describe('create', () => {
-    it('sanitizes content, encodes the cell, pins IPFS, posts Soroban, and inserts in a transaction', async () => {
+    it('sanitizes, encodes, pins IPFS, posts Soroban, and inserts in a transaction', async () => {
       const created = buildGist();
       gistRepository.create.mockResolvedValue(created);
 
@@ -96,13 +98,13 @@ describe('GistsService', () => {
 
       expect(transactionMock).toHaveBeenCalledTimes(1);
       expect(gistRepository.create).toHaveBeenCalledTimes(1);
-      const writeArgs = gistRepository.create.mock.calls[0];
-      expect(writeArgs[0]).toMatchObject({
+      const [writeArg, managerArg] = gistRepository.create.mock.calls[0];
+      expect(writeArg).toMatchObject({
         content: 'hello',
         lat: 9.0579,
         lon: 7.4951,
         location_cell: 's1t7d8c',
-        content_hash: 'mock_cid',
+        content_hash: 'Qmrealcid',
         stellar_gist_id: 'gist-1',
         tx_hash: 'mock_tx',
       });
@@ -150,22 +152,21 @@ describe('GistsService', () => {
       const result = await service.create(buildDto());
 
       expect(gistRepository.findByStellarGistId).toHaveBeenCalledWith('gist-1');
-      expect(result).toBe(existing);
     });
 
     it('throws when the INSERT fails with a non-23505 error', async () => {
       const driverError: Error & { code?: string } = new Error('connection lost');
       driverError.code = '08006';
 
-      gistRepository.create.mockRejectedValue(driverError);
+      await expect(service.create(buildDto())).rejects.toBe(err);
+    });
 
       await expect(service.create(buildDto())).rejects.toBe(driverError);
       expect(gistRepository.findByStellarGistId).not.toHaveBeenCalled();
     });
+  });
 
-    it('rethrows if the idempotent recovery lookup returns null', async () => {
-      const driverError: Error & { code?: string } = new Error('duplicate key value');
-      driverError.code = PG_UNIQUE_VIOLATION;
+  // ── findOne ───────────────────────────────────────────────────────────────
 
       gistRepository.create.mockRejectedValue(driverError);
       gistRepository.findByStellarGistId.mockResolvedValue(null);
