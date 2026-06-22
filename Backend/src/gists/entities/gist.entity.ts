@@ -38,6 +38,6 @@ export class Gist {
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
-  /** Populated by findNearby() — not a persisted column. */
-  distanceMeters?: number;
+  @Column({ type: 'timestamptz' })
+  expires_at: Date;
 }
