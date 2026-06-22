@@ -8,6 +8,10 @@ import { IpfsService } from '../ipfs/ipfs.service';
 import { SorobanService } from '../soroban/soroban.service';
 import { Gist } from './entities/gist.entity';
 
+jest.mock('../soroban/soroban.service', () => ({
+  SorobanService: class SorobanService {},
+}));
+
 /**
  * Unit tests for GistsService.
  *
@@ -50,6 +54,8 @@ describe('GistsService', () => {
       findByStellarGistId: jest.fn(),
       existsByStellarGistId: jest.fn(),
       findNearby: jest.fn(),
+      countNearby: jest.fn(),
+      countNearbyByCell: jest.fn(),
       deleteExpired: jest.fn(),
     };
 
@@ -197,11 +203,7 @@ describe('GistsService', () => {
 
       const result = await service.countNearby(baseQuery as any);
 
-      expect(gistRepository.countNearby).toHaveBeenCalledWith({
-        lat: 9.0579,
-        lon: 7.4951,
-        radiusMeters: 500,
-      });
+      expect(gistRepository.countNearby).toHaveBeenCalledWith(9.0579, 7.4951, 500);
       expect(result).toEqual({ count: 12, radius: 500, lat: 9.0579, lon: 7.4951 });
     });
 
