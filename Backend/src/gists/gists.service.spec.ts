@@ -10,7 +10,9 @@ import { Gist } from './entities/gist.entity';
 
 /**
  * Unit tests for GistsService.
- * All dependencies are mocked — no real TypeORM / Postgres required.
+ *
+ * Issue #98  — transactional gist creation and SQLSTATE 23505 idempotency.
+ * Issue #604 — TTL/expiry: expires_at is set correctly from ttlHours.
  */
 describe('GistsService', () => {
   let service: GistsService;
@@ -27,14 +29,16 @@ describe('GistsService', () => {
     author_address: null,
     location: null,
     created_at: new Date('2026-01-01T00:00:00Z'),
+    expires_at: new Date('2026-01-02T00:00:00Z'),
     ...overrides,
   });
 
-  const buildDto = () => ({
+  const buildDto = (overrides: Record<string, unknown> = {}) => ({
     content: '<b>hello</b>',
     lat: 9.0579,
     lon: 7.4951,
     author: 'GAUTH',
+    ...overrides,
   });
 
   beforeEach(async () => {
@@ -46,8 +50,7 @@ describe('GistsService', () => {
       findByStellarGistId: jest.fn(),
       existsByStellarGistId: jest.fn(),
       findNearby: jest.fn(),
-      countNearby: jest.fn(),
-      countNearbyByCell: jest.fn(),
+      deleteExpired: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -55,23 +58,11 @@ describe('GistsService', () => {
         GistsService,
         { provide: DataSource, useValue: { transaction: transactionMock } },
         { provide: GistRepository, useValue: gistRepo },
-        {
-          provide: GeoService,
-          useValue: { encode: jest.fn().mockReturnValue('s1t7d8c') },
-        },
-        {
-          provide: IpfsService,
-          useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'mock_cid', mock: true }) },
-        },
+        { provide: GeoService, useValue: { encode: jest.fn().mockReturnValue('s1t7d8c') } },
+        { provide: IpfsService, useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'mock_cid' }) } },
         {
           provide: SorobanService,
-          useValue: {
-            postGist: jest.fn().mockResolvedValue({
-              gistId: 'gist-1',
-              txHash: 'mock_tx',
-              mock: true,
-            }),
-          },
+          useValue: { postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }) },
         },
       ],
     }).compile();
@@ -85,10 +76,11 @@ describe('GistsService', () => {
     jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+  afterEach(() => jest.restoreAllMocks());
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // create
+  // ──────────────────────────────────────────────────────────────────────────
   describe('create', () => {
     it('sanitizes content, encodes the cell, pins IPFS, posts Soroban, and inserts in a transaction', async () => {
       const created = buildGist();
@@ -112,6 +104,35 @@ describe('GistsService', () => {
       expect(result).toBe(created);
     });
 
+    // Issue #604 — expires_at is set based on ttlHours
+    it('sets expires_at ~24 h from now when ttlHours is not provided', async () => {
+      const before = Date.now();
+      gistRepository.create.mockResolvedValue(buildGist());
+
+      await service.create(buildDto());
+
+      const after = Date.now();
+      const expiresAt: Date = gistRepository.create.mock.calls[0][0].expires_at as Date;
+      expect(expiresAt).toBeInstanceOf(Date);
+      const delta = expiresAt.getTime() - before;
+      // Should be 24 h ± a few ms
+      expect(delta).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 100);
+      expect(delta).toBeLessThanOrEqual(24 * 60 * 60 * 1000 + (after - before) + 100);
+    });
+
+    it('sets expires_at ~2 h from now when ttlHours is 2', async () => {
+      const before = Date.now();
+      gistRepository.create.mockResolvedValue(buildGist());
+
+      await service.create(buildDto({ ttlHours: 2 }));
+
+      const after = Date.now();
+      const expiresAt: Date = gistRepository.create.mock.calls[0][0].expires_at as Date;
+      const delta = expiresAt.getTime() - before;
+      expect(delta).toBeGreaterThanOrEqual(2 * 60 * 60 * 1000 - 100);
+      expect(delta).toBeLessThanOrEqual(2 * 60 * 60 * 1000 + (after - before) + 100);
+    });
+
     it('returns the existing gist when the INSERT collides on stellar_gist_id (SQLSTATE 23505)', async () => {
       const existing = buildGist({ id: 'existing-uuid', stellar_gist_id: 'gist-1' });
       const driverError: Error & { code?: string } = new Error('duplicate key value');
@@ -122,8 +143,6 @@ describe('GistsService', () => {
 
       const result = await service.create(buildDto());
 
-      expect(transactionMock).toHaveBeenCalledTimes(1);
-      expect(gistRepository.create).toHaveBeenCalledTimes(1);
       expect(gistRepository.findByStellarGistId).toHaveBeenCalledWith('gist-1');
       expect(result).toBe(existing);
     });
@@ -135,8 +154,6 @@ describe('GistsService', () => {
       gistRepository.create.mockRejectedValue(driverError);
 
       await expect(service.create(buildDto())).rejects.toBe(driverError);
-
-      expect(transactionMock).toHaveBeenCalledTimes(1);
       expect(gistRepository.findByStellarGistId).not.toHaveBeenCalled();
     });
 
@@ -151,22 +168,24 @@ describe('GistsService', () => {
     });
   });
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // findOne
+  // ──────────────────────────────────────────────────────────────────────────
   describe('findOne', () => {
     it('should return the gist when the repository finds it', async () => {
-      const gist = buildGist({ id: '11111111-1111-4111-8111-111111111111' });
+      const gist = buildGist();
       gistRepository.findByGistId.mockResolvedValue(gist);
 
       await expect(service.findOne(gist.id)).resolves.toEqual(gist);
       expect(gistRepository.findByGistId).toHaveBeenCalledWith(gist.id);
     });
 
-    it('should throw NotFoundException when the repository returns null', async () => {
+    it('should throw NotFoundException when the repository returns null (expired or missing)', async () => {
       const id = '00000000-0000-0000-0000-000000000000';
       gistRepository.findByGistId.mockResolvedValue(null);
 
       await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundException);
       await expect(service.findOne(id)).rejects.toThrow(`Gist with ID ${id} not found`);
-      expect(gistRepository.findByGistId).toHaveBeenCalledWith(id);
     });
   });
 

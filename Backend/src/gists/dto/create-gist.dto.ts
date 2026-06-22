@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsLatitude, IsLongitude, IsString, MaxLength, IsOptional } from 'class-validator';
+import { IsLatitude, IsLongitude, IsString, MaxLength, IsOptional, IsInt, Min, Max } from 'class-validator';
 
 export class CreateGistDto {
   @ApiProperty({
@@ -27,4 +27,16 @@ export class CreateGistDto {
   @IsString()
   @MaxLength(80)
   author?: string;
+
+  @ApiPropertyOptional({
+    description: 'Time-to-live in hours (default: 24, max: 168)',
+    example: 24,
+    minimum: 1,
+    maximum: 168,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(168)
+  ttlHours?: number;
 }

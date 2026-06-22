@@ -11,13 +11,7 @@ import { Gist } from './entities/gist.entity';
 import { PaginatedResponse } from '../common/utils/pagination.helper';
 import { stripHtml } from '../common/utils/sanitize';
 
-export interface CountNearbyResult {
-  count: number;
-  radius: number;
-  lat: number;
-  lon: number;
-  breakdown?: Array<{ cell: string; count: number }>;
-}
+const DEFAULT_TTL_HOURS = 24;
 
 @Injectable()
 export class GistsService {
@@ -63,6 +57,10 @@ export class GistsService {
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
 
+    // Issue #604 — compute expiry from ttlHours (default 24 h)
+    const ttlHours = dto.ttlHours ?? DEFAULT_TTL_HOURS;
+    const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
+
     try {
       return await this.dataSource.transaction(async (manager) => {
         return this.gistRepository.create(
@@ -74,6 +72,8 @@ export class GistsService {
             content_hash: cid,
             stellar_gist_id: gistId,
             tx_hash: txHash,
+            author_address: dto.author,
+            expires_at: expiresAt,
           },
           manager,
         );
