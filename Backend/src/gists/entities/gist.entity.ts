@@ -3,6 +3,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 
 @Entity('gists')
 @Index('idx_gists_location_cell')
 @Index('idx_gists_author_address')
+@Index('idx_gists_location_geography', { synchronize: false })
 export class Gist {
   @PrimaryGeneratedColumn('uuid')
   id: string;
