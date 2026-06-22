@@ -83,8 +83,7 @@ export class GistsService {
       if (code === PG_UNIQUE_VIOLATION) {
         // Concurrent or retried create with the same on-chain gist ID — the
         // winning transaction already persisted the row. Return it so the
-        // caller observes a logically idempotent success. Demoted to debug
-        // because this path is the expected happy-path outcome under retries.
+        // caller observes a logically idempotent success.
         this.logger.debug(
           `Gist ${gistId} already indexed — returning existing row (SQLSTATE ${PG_UNIQUE_VIOLATION})`,
         );
@@ -107,7 +106,6 @@ export class GistsService {
   }
 
   async findOne(id: string): Promise<Gist> {
-    // Issue 96 — return 404 when no gist matches the UUID
     const gist = await this.gistRepository.findByGistId(id);
     if (!gist) {
       throw new NotFoundException(`Gist with ID ${id} not found`);
@@ -115,6 +113,16 @@ export class GistsService {
     return gist;
   }
 
+  async countNearby(query: QueryGistsDto): Promise<CountNearbyResult> {
+    const { lat, lon, radius = 500, breakdown } = query;
+
+    if (breakdown) {
+      const rows = await this.gistRepository.countNearbyByCell({ lat, lon, radiusMeters: radius });
+      const total = rows.reduce((sum, r) => sum + r.count, 0);
+      return { count: total, radius, lat, lon, breakdown: rows };
+    }
+
+    const count = await this.gistRepository.countNearby({ lat, lon, radiusMeters: radius });
   async countNearby(
     query: QueryGistsDto,
   ): Promise<{ count: number; radius: number; lat: number; lon: number; breakdown?: Array<{ cell: string; count: number }> }> {

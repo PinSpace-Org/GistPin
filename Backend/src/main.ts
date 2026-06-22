@@ -1,11 +1,10 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { InFlightRequestTracker } from './common/shutdown/in-flight-tracker.service';
 import { ShutdownService } from './common/shutdown/shutdown.service';
@@ -39,22 +38,16 @@ async function bootstrap() {
   app.useGlobalInterceptors(new LoggingInterceptor());
 
   const swaggerConfig = new DocumentBuilder()
-  .setTitle('Gist API')
-  .setDescription('Anonymous hyperlocal messaging on Stellar')
-  .setVersion('1.0')
-  .addServer('/v1', 'Version 1')
-  .build();
+    .setTitle('Gist API')
+    .setDescription('Anonymous hyperlocal messaging on Stellar')
+    .setVersion('1.0')
+    .addServer('/v1', 'Version 1')
+    .build();
 
-const document = SwaggerModule.createDocument(app, swaggerConfig);
-SwaggerModule.setup('v1/docs', app, document);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('v1/docs', app, document);
 
   // Issue 99 — graceful shutdown handling.
-  // ShutdownService depends on the running INestApplication so it cannot
-  // be resolved through DI; instantiate it explicitly with refs fetched
-  // from the container, then register signal handlers.
-  // NOTE: we deliberately do NOT call `app.enableShutdownHooks()` here —
-  // it would register its own SIGTERM/SIGINT handlers that call
-  // `app.close()`, duplicating the work ShutdownService already does.
   const tracker = app.get(InFlightRequestTracker);
   const configService = app.get(ConfigService);
   const shutdownService = new ShutdownService(app, tracker, configService);

@@ -188,4 +188,53 @@ describe('GistsService', () => {
       await expect(service.findOne(id)).rejects.toThrow(`Gist with ID ${id} not found`);
     });
   });
+
+  describe('countNearby', () => {
+    const baseQuery = { lat: 9.0579, lon: 7.4951, radius: 500 };
+
+    it('returns count, radius, lat, lon when breakdown is false', async () => {
+      gistRepository.countNearby.mockResolvedValue(12);
+
+      const result = await service.countNearby(baseQuery as any);
+
+      expect(gistRepository.countNearby).toHaveBeenCalledWith({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+      });
+      expect(result).toEqual({ count: 12, radius: 500, lat: 9.0579, lon: 7.4951 });
+    });
+
+    it('returns breakdown array when breakdown is true', async () => {
+      const cells = [
+        { cell: 's1t7d8c', count: 7 },
+        { cell: 's1t7d8d', count: 5 },
+      ];
+      gistRepository.countNearbyByCell.mockResolvedValue(cells);
+
+      const result = await service.countNearby({ ...baseQuery, breakdown: true } as any);
+
+      expect(gistRepository.countNearbyByCell).toHaveBeenCalledWith({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+      });
+      expect(result).toEqual({
+        count: 12,
+        radius: 500,
+        lat: 9.0579,
+        lon: 7.4951,
+        breakdown: cells,
+      });
+    });
+
+    it('returns count: 0 and empty breakdown when no gists in radius', async () => {
+      gistRepository.countNearbyByCell.mockResolvedValue([]);
+
+      const result = await service.countNearby({ ...baseQuery, breakdown: true } as any);
+
+      expect(result.count).toBe(0);
+      expect(result.breakdown).toHaveLength(0);
+    });
+  });
 });

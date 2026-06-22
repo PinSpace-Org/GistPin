@@ -203,6 +203,9 @@ export class GistRepository {
   }
 
   async countNearbyByCell(
+    query: Pick<NearbyQuery, 'lat' | 'lon' | 'radiusMeters'>,
+  ): Promise<Array<{ cell: string; count: number }>> {
+    const { lat, lon, radiusMeters = 500 } = query;
     lat: number,
     lon: number,
     radiusMeters: number,

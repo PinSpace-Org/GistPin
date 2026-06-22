@@ -32,6 +32,11 @@ export class GistsController {
     return this.gistsService.findNearby(query);
   }
 
+  // IMPORTANT: must be registered before @Get(':id') so NestJS does not
+  // match the literal string "count" as a UUID parameter.
+  @Get('count')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Count gists near a location (optionally broken down by cell)' })
   @Get('count')
   @SkipThrottle()
   @ApiOperation({ summary: 'Count active gists within a radius' })
