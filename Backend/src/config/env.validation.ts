@@ -31,6 +31,7 @@ export const envValidationSchema = Joi.object({
   // IPFS (Pinata) — optional; empty means mock CIDs in dev
   PINATA_API_KEY: Joi.string().allow('').default(''),
   PINATA_SECRET_KEY: Joi.string().allow('').default(''),
+  IPFS_GATEWAY: Joi.string().uri().default('https://gateway.pinata.cloud/ipfs'),
 
   // CORS
   CORS_ORIGINS: Joi.string().allow('').default(''),

@@ -1,6 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsLatitude, IsLongitude, IsOptional, IsNumber, Min, Max, IsString, IsBoolean, MaxLength } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsLatitude,
+  IsLongitude,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class QueryGistsDto {
   @ApiProperty({ description: 'Latitude to search from', example: 9.0579 })

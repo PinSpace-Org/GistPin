@@ -22,7 +22,7 @@ async function withRetry<T>(
     } catch (err) {
       lastError = err as Error;
       logger?.warn(`${label} attempt ${attempt}/${maxAttempts} failed: ${lastError.message}`);
-      if (attempt < maxAttempts) await sleep(200 * attempt);
+      if (attempt < maxAttempts) await sleep(500);
     }
   }
   throw lastError;
@@ -33,6 +33,7 @@ export class IpfsService {
   private readonly logger = new Logger(IpfsService.name);
   private readonly devMode: boolean;
   private readonly maxRetries: number;
+  private readonly gateway: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private pinata: any;
 
@@ -40,6 +41,10 @@ export class IpfsService {
     const apiKey = this.config.get<string>('PINATA_API_KEY');
     const secretKey = this.config.get<string>('PINATA_SECRET_KEY');
     this.maxRetries = this.config.get<number>('IPFS_RETRY_ATTEMPTS', 3);
+    this.gateway = this.config.get<string>(
+      'ipfs.gateway',
+      'https://gateway.pinata.cloud/ipfs',
+    );
     this.devMode = !apiKey || !secretKey;
 
     if (this.devMode) {
@@ -74,7 +79,7 @@ export class IpfsService {
 
     return withRetry(
       async () => {
-        const url = `https://gateway.pinata.cloud/ipfs/${cid}`;
+        const url = `${this.gateway}/${cid}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`IPFS fetch failed: ${res.status}`);
         return res.json() as Promise<Record<string, unknown>>;

@@ -40,12 +40,11 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         const existing = await this.gistRepository.findByStellarGistId(event.gistId);
         if (existing) {
           this.logger.debug(`Skipping already-indexed gist ${event.gistId}`);
-          this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.createdAt);
+          this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.ledger);
           continue;
         }
 
         this.logger.debug(`Indexed gist ${event.gistId} @ cell ${event.locationCell}`);
-        this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.createdAt);
         const alreadyIndexed = await this.gistRepository.existsByStellarGistId(event.gistId);
 
         if (alreadyIndexed) {
