@@ -1,17 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsLatitude,
   IsLongitude,
-  IsOptional,
   IsNumber,
-  Min,
-  Max,
+  IsOptional,
   IsString,
+  Max,
   MaxLength,
-  IsBoolean,
+  Min,
 } from 'class-validator';
-import { IsLatitude, IsLongitude, IsOptional, IsNumber, Min, Max, IsString, IsBoolean, MaxLength } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
 
 export class QueryGistsDto {
   @ApiProperty({ description: 'Latitude to search from', example: 9.0579 })
@@ -63,8 +62,6 @@ export class QueryGistsDto {
   authorAddress?: string;
 
   @ApiPropertyOptional({
-    description: 'Return count grouped by location_cell for heatmap data',
-    example: true,
     description: 'When true, count endpoint returns breakdown by location_cell',
     example: false,
   })
