@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CreateGistDto } from './dto/create-gist.dto';
 import { QueryGistsDto } from './dto/query-gists.dto';
 import { GistRepository, PG_UNIQUE_VIOLATION } from './gist.repository';
@@ -10,7 +9,9 @@ import { IpfsService } from '../ipfs/ipfs.service';
 import { SorobanService } from '../soroban/soroban.service';
 import { Gist } from './entities/gist.entity';
 import { PaginatedResponse } from '../common/utils/pagination.helper';
-import { stripHtml } from 'src/common/utils/sanitize';
+import { stripHtml } from '../common/utils/sanitize';
+
+const DEFAULT_TTL_HOURS = 24;
 
 @Injectable()
 export class GistsService {
@@ -56,6 +57,10 @@ export class GistsService {
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
 
+    // Issue #604 — compute expiry from ttlHours (default 24 h)
+    const ttlHours = dto.ttlHours ?? DEFAULT_TTL_HOURS;
+    const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
+
     try {
       return await this.dataSource.transaction(async (manager) => {
         return this.gistRepository.create(
@@ -67,6 +72,8 @@ export class GistsService {
             content_hash: cid,
             stellar_gist_id: gistId,
             tx_hash: txHash,
+            author_address: dto.author,
+            expires_at: expiresAt,
           },
           manager,
         );
@@ -86,16 +93,6 @@ export class GistsService {
       }
       throw err;
     }
-    return this.gistRepository.create({
-      content,
-      lat: dto.lat,
-      lon: dto.lon,
-      location_cell: locationCell,
-      content_hash: cid,
-      stellar_gist_id: gistId,
-      tx_hash: txHash,
-      author_address: dto.author,
-    });
   }
 
   async findNearby(query: QueryGistsDto): Promise<PaginatedResponse<Gist>> {

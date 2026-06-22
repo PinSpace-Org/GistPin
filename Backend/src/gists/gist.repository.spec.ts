@@ -238,6 +238,9 @@ describe('GistRepository (integration)', () => {
       const found = await repository.findByStellarGistId(stellarId);
       expect(found).not.toBeNull();
       expect(found!.content).toBe(sentinel);
+    });
+  });
+
   describe('author_address persistence and filter', () => {
     it('should persist author_address on create', async () => {
       const gist = await repository.create({
