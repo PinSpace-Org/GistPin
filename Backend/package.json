@@ -87,6 +87,12 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(@stellar/stellar-sdk|@noble)/)"
+    ],
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/$1"
+    },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

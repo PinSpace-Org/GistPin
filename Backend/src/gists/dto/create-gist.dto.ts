@@ -20,10 +20,12 @@ export class CreateGistDto {
   lon: number;
 
   @ApiPropertyOptional({
-    description: 'Optional Stellar address of the author',
-    example: 'GABC...XYZ',
+    description: 'Optional Stellar public key of the author (Ed25519, starts with G, 56 chars)',
+    example: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
   })
   @IsOptional()
+  @IsStellarAddress()
+  authorAddress?: string;
   @IsString()
   @MaxLength(80)
   author?: string;
