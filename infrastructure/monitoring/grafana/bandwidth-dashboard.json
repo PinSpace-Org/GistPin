@@ -1,0 +1,111 @@
+{
+  "title": "Network Bandwidth",
+  "uid": "gistpin-bandwidth",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["gistpin", "network", "bandwidth"],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(container_network_receive_bytes_total, namespace)",
+        "current": { "value": "gistpin" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Ingress Bandwidth (bytes/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "gistpin:network_ingress_bytes_per_second",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps" }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Egress Bandwidth (bytes/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "gistpin:network_egress_bytes_per_second",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps" }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Top Bandwidth Consumers",
+      "type": "bargauge",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "gistpin:top_bandwidth_consumers",
+          "legendFormat": "{{pod}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps" }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Estimated Daily Egress Cost (USD)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 8, "w": 6, "h": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(gistpin:estimated_egress_cost_usd_daily)",
+          "legendFormat": "Daily cost"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "currencyUSD", "thresholds": {
+          "steps": [
+            { "color": "green", "value": 0 },
+            { "color": "yellow", "value": 25 },
+            { "color": "red", "value": 50 }
+          ]
+        }}
+      }
+    },
+    {
+      "id": 5,
+      "title": "Hourly Bandwidth Trend",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "gistpin:network_ingress_bytes_hourly",
+          "legendFormat": "ingress {{service}}"
+        },
+        {
+          "expr": "gistpin:network_egress_bytes_hourly",
+          "legendFormat": "egress {{service}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    }
+  ]
+}
