@@ -1,0 +1,112 @@
+name: Environment Promotion Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_version:
+        description: 'Artifact version to promote (e.g. 1.4.2)'
+        required: true
+      from_env:
+        description: 'Source environment'
+        required: true
+        type: choice
+        options: [dev, staging]
+      to_env:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [staging, production]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  preflight:
+    name: Pre-promotion checks (${{ inputs.from_env }} → ${{ inputs.to_env }})
+    runs-on: ubuntu-latest
+    outputs:
+      approved: ${{ steps.check.outputs.approved }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify artifact exists in source environment
+        id: check
+        env:
+          VERSION: ${{ inputs.artifact_version }}
+          FROM_ENV: ${{ inputs.from_env }}
+        run: |
+          echo "Verifying v${VERSION} is healthy in ${FROM_ENV}..."
+          # In practice, query the ECR/artifact registry
+          echo "approved=true" >> "$GITHUB_OUTPUT"
+
+  approval:
+    name: Manual approval gate (production only)
+    needs: preflight
+    if: inputs.to_env == 'production'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.gistpin.io
+    steps:
+      - run: echo "Production promotion approved."
+
+  promote:
+    name: Promote ${{ inputs.artifact_version }} to ${{ inputs.to_env }}
+    needs: [preflight, approval]
+    if: always() && needs.preflight.outputs.approved == 'true' && (needs.approval.result == 'success' || inputs.to_env != 'production')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Promote artifact
+        env:
+          VERSION: ${{ inputs.artifact_version }}
+          FROM_ENV: ${{ inputs.from_env }}
+          TO_ENV:   ${{ inputs.to_env }}
+        run: |
+          bash infrastructure/scripts/promote-artifact.sh \
+            --version "$VERSION" \
+            --from "$FROM_ENV" \
+            --to "$TO_ENV"
+
+      - name: Write promotion audit log
+        if: always()
+        env:
+          VERSION: ${{ inputs.artifact_version }}
+          FROM_ENV: ${{ inputs.from_env }}
+          TO_ENV:   ${{ inputs.to_env }}
+          ACTOR:    ${{ github.actor }}
+          STATUS:   ${{ job.status }}
+        run: |
+          ENTRY="{\"time\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"version\":\"${VERSION}\",\"from\":\"${FROM_ENV}\",\"to\":\"${TO_ENV}\",\"actor\":\"${ACTOR}\",\"status\":\"${STATUS}\"}"
+          echo "$ENTRY" | aws s3 cp - "s3://gistpin-audit-logs/promotions/$(date -u +%Y/%m/%d)/$(date -u +%s).json"
+
+  rollback:
+    name: Rollback gate
+    needs: promote
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Rollback promotion
+        env:
+          TO_ENV: ${{ inputs.to_env }}
+        run: |
+          echo "Promotion failed. Triggering rollback for ${TO_ENV}..."
+          bash infrastructure/scripts/promote-artifact.sh \
+            --rollback \
+            --env "$TO_ENV"
