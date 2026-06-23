@@ -1,0 +1,53 @@
+# Falco Alertmanager routing — receives events from falcosidekick
+# Merged into alertmanager.yml routing tree
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: falco-routing
+  namespace: monitoring
+  labels:
+    alertmanagerConfig: falco
+spec:
+  route:
+    receiver: falco-default
+    groupBy: [alertname, container_name]
+    groupWait: 10s
+    groupInterval: 5m
+    repeatInterval: 1h
+    matchers:
+      - name: source
+        value: falco
+    routes:
+      - receiver: falco-critical
+        matchers:
+          - name: priority
+            value: CRITICAL
+        groupWait: 0s
+        repeatInterval: 15m
+      - receiver: falco-warning
+        matchers:
+          - name: priority
+            value: WARNING
+
+  receivers:
+    - name: falco-default
+      webhookConfigs:
+        - url: "http://falcosidekick.falco:2801/"
+          sendResolved: false
+
+    - name: falco-critical
+      webhookConfigs:
+        - url: "http://falcosidekick.falco:2801/"
+          sendResolved: false
+      # PagerDuty integration for critical findings
+      pagerdutyConfigs:
+        - routingKey:
+            name: pagerduty-secret
+            key: falco-routing-key
+          description: "Falco CRITICAL: {{ .CommonAnnotations.output }}"
+          severity: critical
+
+    - name: falco-warning
+      webhookConfigs:
+        - url: "http://falcosidekick.falco:2801/"
+          sendResolved: false
