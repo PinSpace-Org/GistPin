@@ -1,0 +1,52 @@
+---
+# Falco Runtime Security — Helm-based installation manifest
+# Applied via: helm install falco falcosecurity/falco -f k8s/falco/install.yaml -n falco --create-namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: falco
+  labels:
+    app.kubernetes.io/managed-by: helm
+---
+# Falco DaemonSet (installed via Helm chart falcosecurity/falco)
+# This file captures the key configuration values for the chart deployment.
+# Apply: helm upgrade --install falco falcosecurity/falco \
+#          --namespace falco --create-namespace \
+#          --set driver.kind=ebpf \
+#          --set falcosidekick.enabled=true \
+#          --set falcosidekick.config.alertmanager.hostport="http://alertmanager.monitoring:9093" \
+#          -f k8s/falco/install.yaml
+falco:
+  rules_files:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/k8s_audit_rules.yaml
+    - /etc/falco/custom_rules.yaml
+
+driver:
+  kind: ebpf
+
+falcosidekick:
+  enabled: true
+  replicaCount: 2
+  config:
+    alertmanager:
+      hostport: "http://alertmanager.monitoring:9093"
+      minimumpriority: "warning"
+    slack:
+      webhookurl: ""  # Set via Kubernetes Secret
+      minimumpriority: "critical"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+tolerations:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
+
+priorityClassName: system-node-critical

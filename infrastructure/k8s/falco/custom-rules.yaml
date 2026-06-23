@@ -1,0 +1,74 @@
+# Falco Custom Rules for GistPin
+# Applied as a custom_rules.yaml file alongside the default Falco ruleset
+- list: gistpin_containers
+  items:
+    - backend
+    - frontend
+    - analytics
+
+- list: allowed_shell_binaries
+  items:
+    - sh
+    - bash
+    - node
+    - python3
+
+# Alert when a shell is spawned in any GistPin container (should never happen in prod)
+- rule: Shell Spawned in GistPin Container
+  desc: Detects a shell process in a GistPin application container
+  condition: >
+    spawned_process
+    and container.name in (gistpin_containers)
+    and proc.name in (allowed_shell_binaries)
+    and not proc.pname in (node, python3)
+  output: >
+    Shell spawned in GistPin container
+    (user=%user.name container=%container.name image=%container.image.repository
+     command=%proc.cmdline parent=%proc.pname)
+  priority: WARNING
+  tags: [container, shell, gistpin]
+
+# Alert on any write to /etc inside a container
+- rule: Write to /etc in Container
+  desc: Detects file writes under /etc in any container
+  condition: >
+    open_write
+    and container
+    and fd.name startswith "/etc"
+    and not proc.name in (falco)
+  output: >
+    File written under /etc in container
+    (user=%user.name file=%fd.name container=%container.name image=%container.image.repository)
+  priority: ERROR
+  tags: [container, filesystem, gistpin]
+
+# Alert on unexpected outbound connections from backend
+- rule: Unexpected Outbound Connection from Backend
+  desc: Backend should only connect to database, Redis, and known external APIs
+  condition: >
+    outbound
+    and container.name = "backend"
+    and not fd.sip in (
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16"
+    )
+    and not fd.sport in (443, 5432, 6379)
+  output: >
+    Unexpected outbound connection from backend
+    (user=%user.name dst=%fd.rip:%fd.rport command=%proc.cmdline)
+  priority: WARNING
+  tags: [network, backend, gistpin]
+
+# Privilege escalation detection
+- rule: Privilege Escalation in GistPin
+  desc: Detects setuid/setgid executions in GistPin containers
+  condition: >
+    spawned_process
+    and container.name in (gistpin_containers)
+    and (proc.is_suid_exe or proc.is_sgid_exe)
+  output: >
+    Privilege escalation detected in GistPin
+    (user=%user.name exe=%proc.exe container=%container.name)
+  priority: CRITICAL
+  tags: [privilege_escalation, gistpin]
