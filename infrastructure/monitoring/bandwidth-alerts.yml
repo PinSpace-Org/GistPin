@@ -1,0 +1,63 @@
+# Network Bandwidth Alerting Rules
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: bandwidth-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: bandwidth.alerts
+      rules:
+        # Sustained high ingress on any single pod
+        - alert: HighIngressBandwidth
+          expr: |
+            gistpin:network_ingress_bytes_per_second > 104857600
+          for: 5m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "High ingress bandwidth on {{ $labels.pod }}"
+            description: "Pod {{ $labels.pod }} ingress exceeds 100 MiB/s for 5 minutes (current: {{ $value | humanizeBytes }}/s)."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/blob/main/infrastructure/docs/RUNBOOKS.md#bandwidth"
+
+        # Sustained high egress — cost concern
+        - alert: HighEgressBandwidth
+          expr: |
+            gistpin:network_egress_bytes_per_second > 52428800
+          for: 5m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "High egress bandwidth on {{ $labels.pod }}"
+            description: "Pod {{ $labels.pod }} egress exceeds 50 MiB/s for 5 minutes (current: {{ $value | humanizeBytes }}/s). Check for data exfil or misconfigured clients."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/blob/main/infrastructure/docs/RUNBOOKS.md#bandwidth"
+
+        # Anomalous spike — 3× normal baseline
+        - alert: BandwidthAnomalyDetected
+          expr: |
+            gistpin:network_total_bytes_per_second
+            > 3 * avg_over_time(gistpin:network_total_bytes_per_second[1h] offset 1h)
+          for: 3m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "Bandwidth anomaly on {{ $labels.pod }}"
+            description: "Bandwidth is 3× the 1-hour baseline on pod {{ $labels.pod }}."
+
+        # Daily egress cost exceeds budget threshold
+        - alert: EgressCostExceedsBudget
+          expr: |
+            sum(gistpin:estimated_egress_cost_usd_daily) > 50
+          for: 0m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "Estimated daily egress cost exceeds $50"
+            description: "Projected 24-hour egress cost is ${{ $value | printf \"%.2f\" }}. Review top consumers in the bandwidth dashboard."

@@ -1,0 +1,67 @@
+# Network Bandwidth Metrics — Prometheus recording rules
+# Computes per-service ingress/egress bandwidth, top consumers, and cost attribution
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: bandwidth-metrics
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: bandwidth.recording
+      interval: 60s
+      rules:
+        # Ingress bytes per second per service (5m rate)
+        - record: gistpin:network_ingress_bytes_per_second
+          expr: |
+            sum by (namespace, pod, service) (
+              rate(container_network_receive_bytes_total{namespace="gistpin"}[5m])
+            )
+
+        # Egress bytes per second per service (5m rate)
+        - record: gistpin:network_egress_bytes_per_second
+          expr: |
+            sum by (namespace, pod, service) (
+              rate(container_network_transmit_bytes_total{namespace="gistpin"}[5m])
+            )
+
+        # Total bandwidth (ingress + egress) per service
+        - record: gistpin:network_total_bytes_per_second
+          expr: |
+            gistpin:network_ingress_bytes_per_second
+            +
+            gistpin:network_egress_bytes_per_second
+
+        # Hourly bandwidth totals for trend analysis
+        - record: gistpin:network_ingress_bytes_hourly
+          expr: |
+            sum by (namespace, service) (
+              increase(container_network_receive_bytes_total{namespace="gistpin"}[1h])
+            )
+
+        - record: gistpin:network_egress_bytes_hourly
+          expr: |
+            sum by (namespace, service) (
+              increase(container_network_transmit_bytes_total{namespace="gistpin"}[1h])
+            )
+
+        # Top 5 bandwidth consumers (for dashboard use)
+        - record: gistpin:top_bandwidth_consumers
+          expr: |
+            topk(5,
+              sum by (pod) (
+                rate(container_network_receive_bytes_total{namespace="gistpin"}[5m])
+                +
+                rate(container_network_transmit_bytes_total{namespace="gistpin"}[5m])
+              )
+            )
+
+        # Cost attribution: estimated GB transferred per service per day
+        # Assumes $0.09/GB egress (AWS us-east-1 baseline)
+        - record: gistpin:estimated_egress_cost_usd_daily
+          expr: |
+            sum by (service) (
+              increase(container_network_transmit_bytes_total{namespace="gistpin"}[24h])
+            ) / 1e9 * 0.09
