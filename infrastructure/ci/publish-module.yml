@@ -1,0 +1,83 @@
+name: Publish Terraform Module
+
+on:
+  push:
+    tags:
+      - 'tf-module/v*'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    name: Publish to Registry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_INFRA_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.7.5'
+
+      - name: Extract module name and version from tag
+        id: meta
+        run: |
+          TAG="${GITHUB_REF_NAME}"           # tf-module/v1.2.3
+          MODULE=$(echo "$TAG" | cut -d/ -f2 | sed 's|v.*||' | sed 's|-$||')
+          VERSION=$(echo "$TAG" | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+')
+          echo "module=${MODULE}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate module
+        run: |
+          MODULE_DIR="infrastructure/terraform/modules/${{ steps.meta.outputs.module }}"
+          if [[ ! -d "$MODULE_DIR" ]]; then
+            echo "Module directory not found: $MODULE_DIR"
+            exit 1
+          fi
+          cd "$MODULE_DIR"
+          terraform init -backend=false
+          terraform validate
+
+      - name: Generate module docs
+        uses: terraform-docs/gh-actions@v1
+        with:
+          working-dir: infrastructure/terraform/modules/${{ steps.meta.outputs.module }}
+          output-file: README.md
+          output-method: inject
+          fail-on-diff: false
+
+      - name: Package and publish module
+        env:
+          MODULE:  ${{ steps.meta.outputs.module }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          ENDPOINT=$(aws codeartifact get-repository-endpoint \
+            --domain gistpin \
+            --repository terraform-modules \
+            --format generic \
+            --query repositoryEndpoint \
+            --output text)
+
+          TOKEN=$(aws codeartifact get-authorization-token \
+            --domain gistpin \
+            --query authorizationToken \
+            --output text)
+
+          tar -czf "${MODULE}-${VERSION}.tar.gz" \
+            -C "infrastructure/terraform/modules/${MODULE}" .
+
+          curl -f \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -T "${MODULE}-${VERSION}.tar.gz" \
+            "${ENDPOINT}generic/terraform-modules/${MODULE}/${VERSION}/${MODULE}-${VERSION}.tar.gz"
+
+          echo "Published ${MODULE} v${VERSION} to private registry"
