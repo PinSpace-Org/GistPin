@@ -1,0 +1,98 @@
+---
+# Anti-affinity rules (issue #558)
+# Prevents multiple replicas from being scheduled on the same node for high availability
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: gistpin
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        workload-type: cpu-workload
+    spec:
+      # Required anti-affinity: backend replicas cannot run on the same node
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - backend
+            topologyKey: kubernetes.io/hostname
+            namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: gistpin
+
+---
+# Frontend deployment with similar anti-affinity rules
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  namespace: gistpin
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        workload-type: cpu-workload
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - frontend
+            topologyKey: kubernetes.io/hostname
+            namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: gistpin
+
+---
+# Database deployment - single instance with no anti-affinity needed,
+# but ensure it's the only database on any node
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: gistpin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        workload-type: database
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - postgres
+            topologyKey: kubernetes.io/hostname
+            namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: gistpin
