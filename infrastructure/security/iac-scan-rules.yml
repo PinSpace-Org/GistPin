@@ -1,0 +1,64 @@
+# Checkov IaC scan configuration for GistPin
+# https://www.checkov.io/2.Basics/CLI%20Command%20Reference.html
+
+# Checks to enforce (block on failure)
+check:
+  # Terraform — encryption & access
+  - CKV_AWS_19   # S3 encryption enabled
+  - CKV_AWS_20   # S3 bucket not publicly accessible
+  - CKV_AWS_21   # S3 versioning enabled
+  - CKV_AWS_52   # MFA delete on S3
+  - CKV_AWS_86   # CloudFront HTTPS only
+  - CKV_AWS_2    # ALB HTTPS listener
+  - CKV_AWS_91   # ALB access logging
+  - CKV_AWS_17   # RDS not publicly accessible
+  - CKV_AWS_16   # RDS encryption at rest
+  - CKV_AWS_129  # RDS deletion protection
+  - CKV_AWS_23   # Security group no unrestricted ingress on SSH
+  - CKV_AWS_25   # Security group no unrestricted ingress on RDP
+  - CKV_AWS_8    # EC2 IMDSv2
+  - CKV_AWS_79   # EKS secrets envelope encryption
+  - CKV_AWS_58   # EKS cluster logging enabled
+  - CKV2_AWS_5   # Security group attached to resource
+
+  # Kubernetes — pod security
+  - CKV_K8S_1    # Do not admit root containers
+  - CKV_K8S_6    # Do not admit privileged containers
+  - CKV_K8S_8    # Liveness probe configured
+  - CKV_K8S_9    # Readiness probe configured
+  - CKV_K8S_11   # CPU limits set
+  - CKV_K8S_12   # Memory limits set
+  - CKV_K8S_14   # Image tag not 'latest'
+  - CKV_K8S_15   # Image pull policy IfNotPresent or Always with digest
+  - CKV_K8S_20   # Containers do not run as root
+  - CKV_K8S_21   # Default namespace not used
+  - CKV_K8S_28   # No host network
+  - CKV_K8S_30   # No host PID
+  - CKV_K8S_32   # Seccomp profile set
+  - CKV_K8S_35   # ServiceAccount tokens not automounted unnecessarily
+  - CKV_K8S_37   # Minimise capabilities — drop ALL
+  - CKV_K8S_43   # Read-only root filesystem
+
+# Checks to skip (known accepted risks, document reason)
+skip-check:
+  - CKV_AWS_7    # KMS key rotation — handled by external rotation schedule
+  - CKV_K8S_26   # hostPath — required by Falco DaemonSet
+
+# Output settings
+output: sarif
+compact: true
+soft-fail-on:
+  - LOW
+  - MEDIUM
+
+# Directories to scan
+directory:
+  - infrastructure/terraform
+  - infrastructure/k8s
+
+# Exclude generated/vendor paths
+exclude-path:
+  - infrastructure/terraform/.terraform
+  - infrastructure/k8s/keda/install.yaml   # upstream manifest, not owned
+  - infrastructure/k8s/falco/install.yaml  # upstream manifest, not owned
+  - infrastructure/k8s/vpa/install.yaml    # upstream manifest, not owned

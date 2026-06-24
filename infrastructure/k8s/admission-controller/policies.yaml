@@ -1,0 +1,47 @@
+# GistPin Admission Controller Policies
+# Applied to all non-system namespaces by the validating/mutating webhooks.
+
+# Workload security policies
+requireResourceLimits: true       # All containers must declare CPU + memory limits
+requireReadOnlyRootFS: true       # Root filesystem must be read-only
+requireNonRootUser: true          # Containers must not run as UID 0
+disallowPrivileged: true          # Privileged containers are rejected
+disallowHostNetwork: true         # hostNetwork: true is rejected
+
+# Registry allowlist — images must originate from one of these prefixes
+allowedRegistries:
+  - ghcr.io/pinspace-org/
+  - docker.io/library/          # Official Docker Hub images (postgres, redis, etc.)
+
+# Labels that every workload must carry
+requireLabels:
+  - app
+  - app.kubernetes.io/version
+  - app.kubernetes.io/managed-by
+
+# Mutation settings
+injectSeccompAnnotation: true     # Inject RuntimeDefault seccomp profile if absent
+
+# Rejection policies — these are evaluated during validation
+rejectionPolicies:
+  - name: no-latest-tag
+    description: "Image tag 'latest' is forbidden; use a specific digest or semver tag"
+    enabled: true
+
+  - name: no-host-pid
+    description: "hostPID must not be set to true"
+    enabled: true
+
+  - name: no-host-ports
+    description: "hostPort bindings expose cluster nodes — use Services instead"
+    enabled: true
+
+# Rollback thresholds — admission controller emits these as metrics for alerting
+rollbackThresholds:
+  maxViolationsPerHour: 50
+  alertOnCriticalViolation: true
+
+# Webhook notification target (environment-specific, can be overridden via Secret)
+notifications:
+  slackChannel: "#security-alerts"
+  notifyOnCritical: true

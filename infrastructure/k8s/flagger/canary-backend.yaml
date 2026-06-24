@@ -1,0 +1,124 @@
+---
+# Canary resource for GistPin backend
+# Flagger will manage traffic shifting between the primary (stable) and
+# canary (new) deployments using Istio VirtualService weight adjustments.
+#
+# Prerequisites:
+#   - Flagger installed (install.yaml)
+#   - Istio service mesh active in 'gistpin' namespace
+#   - MetricTemplates applied (metric-templates.yaml)
+#   - Deployment 'backend-deployment' exists in 'gistpin' namespace
+
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: backend
+  namespace: gistpin
+spec:
+  # Target workload — Flagger takes over this Deployment
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment
+
+  # HPA is optional; Flagger will pause/resume it during analysis
+  autoscalerRef:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: hpa-backend
+
+  service:
+    port: 80
+    targetPort: 3000
+    portDiscovery: true
+    # Istio traffic policy
+    trafficPolicy:
+      tls:
+        mode: ISTIO_MUTUAL
+    gateways:
+      - istio-system/ingressgateway
+    hosts:
+      - api.gistpin.io
+
+  # Progressive delivery analysis configuration
+  analysis:
+    # Run analysis every 30 seconds
+    interval: 30s
+    # Increment traffic weight by 10% each interval
+    stepWeight: 10
+    # Maximum canary traffic weight (100% = full rollout)
+    maxWeight: 50
+    # How many consecutive analysis failures trigger a rollback
+    threshold: 3
+    # Promote to primary once canary reaches maxWeight with no violations
+    iterations: 0
+
+    # Metrics to check at each analysis step
+    metrics:
+      # Built-in: request success rate (HTTP 2xx/3xx)
+      - name: request-success-rate
+        thresholdRange:
+          min: 99
+        interval: 1m
+
+      # Built-in: P99 request duration
+      - name: request-duration
+        thresholdRange:
+          max: 500   # milliseconds
+        interval: 1m
+
+      # Custom metric: error rate from MetricTemplate
+      - name: error-rate
+        templateRef:
+          name: error-rate
+          namespace: gistpin
+        thresholdRange:
+          max: 1    # percent
+        interval: 1m
+
+      # Custom metric: DB query latency
+      - name: db-query-latency
+        templateRef:
+          name: db-query-latency
+          namespace: gistpin
+        thresholdRange:
+          max: 200  # milliseconds
+        interval: 1m
+
+    # Rollback thresholds — immediate rollback conditions
+    webhooks:
+      # Pre-rollout smoke test
+      - name: smoke-test
+        type: pre-rollout
+        url: http://flagger-loadtester.flagger-system/
+        timeout: 60s
+        metadata:
+          type: bash
+          cmd: |
+            curl -sf http://backend-canary.gistpin/health | grep '"status":"ok"'
+
+      # Load test during canary analysis
+      - name: load-test
+        url: http://flagger-loadtester.flagger-system/
+        timeout: 5s
+        metadata:
+          type: cmd
+          cmd: "hey -z 1m -q 10 -c 2 http://backend-canary.gistpin/api/gists"
+          logCmdOutput: "true"
+
+      # Rollback notification
+      - name: notify-rollback
+        type: rollback
+        url: http://flagger-loadtester.flagger-system/
+        timeout: 10s
+        metadata:
+          type: slack
+          message: "Canary rollback triggered for backend"
+
+    # Alert on canary promotion/rollback
+    alerts:
+      - name: slack
+        severity: warn
+        providerRef:
+          name: slack
+          namespace: gistpin
