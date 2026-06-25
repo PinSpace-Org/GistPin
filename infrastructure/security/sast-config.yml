@@ -1,0 +1,63 @@
+# Semgrep SAST configuration for GistPin
+# https://semgrep.dev/docs/semgrep-app/getting-started/
+
+rules:
+  - id: no-hardcoded-secrets
+    patterns:
+      - pattern: |
+          $KEY = "..."
+    message: "Potential hardcoded secret in $KEY"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798"
+
+  - id: no-eval
+    pattern: eval(...)
+    message: "Use of eval() is unsafe"
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-95"
+
+  - id: sql-injection-typeorm
+    patterns:
+      - pattern: |
+          $REPO.query("..." + $INPUT, ...)
+    message: "Possible SQL injection via string concatenation"
+    languages: [typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-89"
+
+  - id: unsafe-regex
+    patterns:
+      - pattern: new RegExp($VAR)
+    message: "Dynamic RegExp may lead to ReDoS"
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-1333"
+
+# Rulesets to include from Semgrep registry
+configs:
+  - p/typescript
+  - p/nodejs
+  - p/secrets
+  - p/owasp-top-ten
+
+# Paths to exclude from scanning
+exclude:
+  - node_modules/
+  - "**/*.min.js"
+  - "**/*.d.ts"
+  - dist/
+  - build/
+  - coverage/
+
+# Severity threshold — fail on ERROR findings
+severity: ERROR

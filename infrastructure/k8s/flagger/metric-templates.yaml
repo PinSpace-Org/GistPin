@@ -1,0 +1,156 @@
+---
+# Flagger MetricTemplates for GistPin backend canary analysis.
+# These query Prometheus to evaluate canary health at each analysis step.
+#
+# Apply: kubectl apply -f metric-templates.yaml -n gistpin
+
+# ── 1. HTTP Error Rate ────────────────────────────────────────────────────────
+# Percentage of 5xx responses from the canary workload over the interval.
+# Rollback threshold: > 1%
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: error-rate
+  namespace: gistpin
+spec:
+  provider:
+    type: prometheus
+    address: http://prometheus.monitoring:9090
+  query: |
+    100 - (
+      sum(
+        rate(
+          istio_requests_total{
+            reporter="destination",
+            destination_workload_namespace="{{ namespace }}",
+            destination_workload=~"{{ target }}-canary",
+            response_code!~"5.*"
+          }[{{ interval }}]
+        )
+      )
+      /
+      sum(
+        rate(
+          istio_requests_total{
+            reporter="destination",
+            destination_workload_namespace="{{ namespace }}",
+            destination_workload=~"{{ target }}-canary"
+          }[{{ interval }}]
+        )
+      )
+    ) * 100
+---
+# ── 2. P99 Request Latency ────────────────────────────────────────────────────
+# 99th percentile latency for the canary in milliseconds.
+# Rollback threshold: > 500ms
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: request-latency-p99
+  namespace: gistpin
+spec:
+  provider:
+    type: prometheus
+    address: http://prometheus.monitoring:9090
+  query: |
+    histogram_quantile(0.99,
+      sum(
+        rate(
+          istio_request_duration_milliseconds_bucket{
+            reporter="destination",
+            destination_workload_namespace="{{ namespace }}",
+            destination_workload=~"{{ target }}-canary"
+          }[{{ interval }}]
+        )
+      ) by (le)
+    )
+---
+# ── 3. Database Query Latency ─────────────────────────────────────────────────
+# P95 latency (ms) of database queries executed by the canary pods.
+# Rollback threshold: > 200ms
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: db-query-latency
+  namespace: gistpin
+spec:
+  provider:
+    type: prometheus
+    address: http://prometheus.monitoring:9090
+  query: |
+    histogram_quantile(0.95,
+      sum(
+        rate(
+          nodejs_db_query_duration_ms_bucket{
+            namespace="{{ namespace }}",
+            pod=~"{{ target }}-canary.*"
+          }[{{ interval }}]
+        )
+      ) by (le)
+    )
+---
+# ── 4. Blockchain Transaction Success Rate ────────────────────────────────────
+# Percentage of successful Soroban contract calls from canary pods.
+# Rollback threshold: < 95%
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: soroban-success-rate
+  namespace: gistpin
+spec:
+  provider:
+    type: prometheus
+    address: http://prometheus.monitoring:9090
+  query: |
+    sum(
+      rate(
+        gistpin_soroban_tx_total{
+          status="success",
+          namespace="{{ namespace }}",
+          pod=~"{{ target }}-canary.*"
+        }[{{ interval }}]
+      )
+    )
+    /
+    sum(
+      rate(
+        gistpin_soroban_tx_total{
+          namespace="{{ namespace }}",
+          pod=~"{{ target }}-canary.*"
+        }[{{ interval }}]
+      )
+    ) * 100
+---
+# ── 5. CPU Throttling Rate ────────────────────────────────────────────────────
+# Percentage of time CPU is being throttled for canary pods.
+# High throttling can indicate under-resourced containers or a resource leak.
+# Rollback threshold: > 25%
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: cpu-throttle-rate
+  namespace: gistpin
+spec:
+  provider:
+    type: prometheus
+    address: http://prometheus.monitoring:9090
+  query: |
+    sum(
+      rate(
+        container_cpu_cfs_throttled_seconds_total{
+          namespace="{{ namespace }}",
+          pod=~"{{ target }}-canary.*",
+          container!=""
+        }[{{ interval }}]
+      )
+    )
+    /
+    sum(
+      rate(
+        container_cpu_cfs_periods_total{
+          namespace="{{ namespace }}",
+          pod=~"{{ target }}-canary.*",
+          container!=""
+        }[{{ interval }}]
+      )
+    ) * 100

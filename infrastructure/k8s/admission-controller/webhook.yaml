@@ -1,0 +1,164 @@
+---
+# Namespace for the admission controller
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gistpin-admission
+  labels:
+    app.kubernetes.io/name: gistpin-admission-controller
+---
+# TLS Secret (populated externally via cert-manager or sealed-secrets)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admission-controller-tls
+  namespace: gistpin-admission
+type: kubernetes.io/tls
+data:
+  tls.crt: ""  # base64-encoded cert injected at deploy time
+  tls.key: ""  # base64-encoded key  injected at deploy time
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gistpin-admission-controller
+  namespace: gistpin-admission
+  labels:
+    app: gistpin-admission-controller
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gistpin-admission-controller
+  template:
+    metadata:
+      labels:
+        app: gistpin-admission-controller
+    spec:
+      serviceAccountName: admission-controller-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: admission-controller
+          image: ghcr.io/pinspace-org/gistpin-admission-controller:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8443
+              name: https
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          env:
+            - name: POLICIES_PATH
+              value: /policies/policies.yaml
+      volumes:
+        - name: tls
+          secret:
+            secretName: admission-controller-tls
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: gistpin-admission-controller
+  namespace: gistpin-admission
+spec:
+  selector:
+    app: gistpin-admission-controller
+  ports:
+    - port: 443
+      targetPort: 8443
+      name: https
+---
+# ValidatingWebhookConfiguration — rejects non-compliant resources
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: gistpin-validating-webhook
+  annotations:
+    cert-manager.io/inject-ca-from: gistpin-admission/admission-controller-tls
+webhooks:
+  - name: validate.gistpin.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    timeoutSeconds: 10
+    rules:
+      - apiGroups: ["apps", ""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "pods", "statefulsets", "daemonsets"]
+        scope: "Namespaced"
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "gistpin-admission"]
+    clientConfig:
+      service:
+        name: gistpin-admission-controller
+        namespace: gistpin-admission
+        path: /validate
+        port: 443
+---
+# MutatingWebhookConfiguration — injects defaults / sidecar
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: gistpin-mutating-webhook
+  annotations:
+    cert-manager.io/inject-ca-from: gistpin-admission/admission-controller-tls
+webhooks:
+  - name: mutate.gistpin.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    failurePolicy: Ignore
+    matchPolicy: Equivalent
+    timeoutSeconds: 10
+    rules:
+      - apiGroups: ["apps", ""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["deployments", "pods"]
+        scope: "Namespaced"
+    namespaceSelector:
+      matchLabels:
+        gistpin-inject: "enabled"
+    clientConfig:
+      service:
+        name: gistpin-admission-controller
+        namespace: gistpin-admission
+        path: /mutate
+        port: 443
