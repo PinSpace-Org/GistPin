@@ -1,0 +1,237 @@
+# infrastructure/k8s/cross-cluster/submariner.yaml
+# Submariner cross-cluster networking setup for GistPin
+# Covers: Broker, Gateway, RouteAgent, Lighthouse DNS
+
+---
+# Namespace for all Submariner components
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: submariner-operator
+  labels:
+    app.kubernetes.io/managed-by: submariner
+
+---
+# Submariner Broker (deployed on the hub/broker cluster only)
+# The broker facilitates cluster discovery and endpoint exchange.
+apiVersion: submariner.io/v1alpha1
+kind: Broker
+metadata:
+  name: submariner-broker
+  namespace: submariner-k8s-broker
+spec:
+  globalnetEnabled: false          # enable if CIDR overlap exists between clusters
+  defaultCustomDomains: []
+  components:
+    - service-discovery
+    - connectivity
+
+---
+# Submariner operator subscription (OLM-based install)
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: submariner
+  namespace: submariner-operator
+spec:
+  channel: stable-0.17
+  name: submariner
+  source: operatorhubio-catalog
+  sourceNamespace: olm
+
+---
+# Submariner configuration per member cluster
+# Apply this on EACH member cluster (not the broker cluster).
+apiVersion: submariner.io/v1alpha1
+kind: Submariner
+metadata:
+  name: submariner
+  namespace: submariner-operator
+spec:
+  brokerK8sApiServer: "https://broker-cluster-api.gistpin.internal:6443"
+  brokerK8sApiServerToken: ""        # injected via sealed secret at deploy time
+  brokerK8sCA: ""                    # base64-encoded broker cluster CA
+  brokerK8sRemoteNamespace: submariner-k8s-broker
+  cableDriver: libreswan             # options: libreswan (default), wireguard, vxlan
+  clusterCIDR: "10.244.0.0/16"      # update per cluster
+  serviceCIDR: "10.96.0.0/12"       # update per cluster
+  clusterID: "gistpin-cluster-a"    # unique per member cluster
+  colorCodes: blue
+  debug: false
+  natEnabled: true                   # set false if clusters share a flat L3 network
+  namespace: submariner-operator
+  serviceDiscoveryEnabled: true
+
+  # Gateway node selection -- label nodes with
+  # submariner.io/gateway=true before applying
+  gatewayConfig:
+    aws:
+      instanceType: ""
+    azure:
+      instanceType: ""
+  loadBalancerEnabled: false
+
+---
+# Gateway DaemonSet (managed by the operator; shown here for reference/override)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: submariner-gateway
+  namespace: submariner-operator
+  labels:
+    app: submariner-gateway
+spec:
+  selector:
+    matchLabels:
+      app: submariner-gateway
+  template:
+    metadata:
+      labels:
+        app: submariner-gateway
+    spec:
+      nodeSelector:
+        submariner.io/gateway: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+      hostNetwork: true
+      containers:
+        - name: submariner-gateway
+          image: quay.io/submariner/submariner-gateway:0.17.0
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["NET_ADMIN", "SYS_MODULE"]
+          env:
+            - name: CE_IPSEC_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: submariner-ipsec-psk
+                  key: psk
+          ports:
+            - name: natt
+              containerPort: 4500
+              protocol: UDP
+            - name: isakmp
+              containerPort: 500
+              protocol: UDP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+---
+# RouteAgent DaemonSet -- runs on ALL nodes to program routes for cross-cluster traffic
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: submariner-routeagent
+  namespace: submariner-operator
+  labels:
+    app: submariner-routeagent
+spec:
+  selector:
+    matchLabels:
+      app: submariner-routeagent
+  template:
+    metadata:
+      labels:
+        app: submariner-routeagent
+    spec:
+      hostNetwork: true
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: submariner-routeagent
+          image: quay.io/submariner/submariner-routeagent:0.17.0
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["NET_ADMIN", "SYS_MODULE"]
+          env:
+            - name: SUBMARINER_NAMESPACE
+              value: submariner-operator
+            - name: SUBMARINER_CLUSTERID
+              value: gistpin-cluster-a    # match Submariner CR clusterID
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+---
+# Lighthouse DNS (service-discovery component)
+# CoreDNS ConfigMap patch to forward .clusterset.local queries to Lighthouse
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+          lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+          pods insecure
+          fallthrough in-addr.arpa ip6.arpa
+          ttl 30
+        }
+        # Forward clusterset.local to Lighthouse for cross-cluster DNS
+        forward clusterset.local 100.96.0.10 {
+          policy round_robin
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf {
+          max_concurrent 1000
+        }
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+
+---
+# IPsec PSK secret (value injected by CI/sealed-secrets; do not hardcode)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: submariner-ipsec-psk
+  namespace: submariner-operator
+type: Opaque
+data:
+  psk: ""    # base64-encoded pre-shared key -- managed by sealed-secrets
+
+---
+# NetworkPolicy: allow Submariner control-plane ports
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-submariner-ports
+  namespace: submariner-operator
+spec:
+  podSelector:
+    matchLabels:
+      app: submariner-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: UDP
+          port: 4500    # NAT-T / ESP encapsulation
+        - protocol: UDP
+          port: 500     # IKE
+        - protocol: UDP
+          port: 4800    # Submariner cable health check
+        - protocol: TCP
+          port: 8080    # metrics
