@@ -1,0 +1,100 @@
+# remediation-playbooks/playbook-registry.yml
+# Maps compliance finding IDs to playbooks and risk classifications.
+#
+# risk: auto             -- safe to fix automatically, no approval needed
+# risk: approval-required -- human must approve before playbook runs
+#
+# approval_reason is shown in the pending-approval queue so reviewers
+# understand why the change cannot be automated.
+
+playbooks:
+
+  # CIS 1.x -- OS / SSH Hardening
+  - id: CIS-1.1
+    description: SSH root login disabled
+    playbook: fix-ssh.sh
+    risk: auto
+    severity: CRITICAL
+    tags: [ssh, os-hardening]
+
+  - id: CIS-1.2
+    description: SSH password authentication disabled
+    playbook: fix-ssh.sh
+    risk: auto
+    severity: HIGH
+    tags: [ssh, os-hardening]
+
+  - id: CIS-1.3
+    description: Automatic security updates enabled
+    playbook: fix-auto-updates.sh
+    risk: approval-required
+    severity: HIGH
+    approval_reason: enabling auto-updates may restart services during business hours
+    tags: [os-hardening, availability]
+
+  # CIS 2.x -- Network / Firewall
+  - id: CIS-2.1
+    description: Host firewall is active
+    playbook: fix-firewall.sh
+    risk: approval-required
+    severity: CRITICAL
+    approval_reason: firewall rule changes can cut off SSH access if misconfigured
+    tags: [firewall, network]
+
+  - id: CIS-2.2
+    description: IP forwarding disabled
+    playbook: fix-firewall.sh
+    risk: auto
+    severity: MEDIUM
+    tags: [firewall, network]
+
+  # CIS 3.x -- Kubernetes
+  - id: CIS-3.1
+    description: Anonymous Kubernetes API access denied
+    playbook: fix-k8s-rbac.sh
+    risk: approval-required
+    severity: CRITICAL
+    approval_reason: RBAC changes can break workloads relying on anonymous access
+    tags: [kubernetes, rbac]
+
+  - id: CIS-3.2
+    description: Kubernetes secrets encrypted at rest
+    playbook: fix-k8s-rbac.sh
+    risk: approval-required
+    severity: HIGH
+    approval_reason: enabling encryption at rest requires API server restart
+    tags: [kubernetes, encryption]
+
+  # GDPR
+  - id: GDPR-1
+    description: Data retention policy configured in Terraform
+    playbook: fix-terraform-policy.sh
+    risk: approval-required
+    severity: HIGH
+    approval_reason: retention policy changes affect data lifecycle and may have legal implications
+    tags: [gdpr, terraform, data-lifecycle]
+
+  - id: GDPR-2
+    description: Encryption in transit configured
+    playbook: fix-terraform-policy.sh
+    risk: approval-required
+    severity: HIGH
+    approval_reason: TLS policy changes require load balancer reconfiguration
+    tags: [gdpr, terraform, tls]
+
+  # PCI-DSS
+  - id: PCI-1
+    description: Audit logging enabled
+    playbook: fix-terraform-policy.sh
+    risk: approval-required
+    severity: CRITICAL
+    approval_reason: audit log config changes require Terraform apply with state lock
+    tags: [pci-dss, logging, terraform]
+
+  - id: PCI-2
+    description: MFA enforced for privileged access
+    playbook: fix-terraform-policy.sh
+    risk: approval-required
+    severity: HIGH
+    approval_reason: MFA enforcement will immediately lock out users without MFA configured
+    tags: [pci-dss, iam, mfa]
