@@ -3,6 +3,10 @@ kind: Service
 metadata:
   name: backend-service
   namespace: gistpin
+  annotations:
+    # DNS-based service discovery annotations (issue #557)
+    external-dns.alpha.kubernetes.io/hostname: api.gistpin.local,api.gistpin.com
+    external-dns.alpha.kubernetes.io/internal-hostname: backend.internal.gistpin.local
 spec:
   selector:
     app: gistpin-backend

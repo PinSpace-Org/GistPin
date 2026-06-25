@@ -1,0 +1,47 @@
+---
+# Backend-database affinity rules (issue #558)
+# Ensures backend pods are scheduled on the same nodes as the database for low latency
+apiVersion: v1
+kind: Pod
+metadata:
+  name: backend-pod
+  labels:
+    app: backend
+spec:
+  affinity:
+    # Required: Backend must run on the same zone as database
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: topology.kubernetes.io/zone
+            operator: In
+            values:
+            - us-central1-a
+
+    # Preferred: Backend co-locate with database on the same node if possible
+    podAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: app
+              operator: In
+              values:
+              - postgres
+          topologyKey: kubernetes.io/hostname
+          namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gistpin
+
+  # Node affinity for GPU workloads (if any backend services require GPU)
+      - weight: 50
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+            - key: workload-type
+              operator: In
+              values:
+              - gpu-workload
+          topologyKey: topology.kubernetes.io/zone

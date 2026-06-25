@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: postgres-headless
   namespace: gistpin
+  annotations:
+    # DNS-based service discovery annotations (issue #557)
+    external-dns.alpha.kubernetes.io/internal-hostname: db.internal.gistpin.local
 spec:
   clusterIP: None
   selector:

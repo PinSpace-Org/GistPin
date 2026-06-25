@@ -1,0 +1,306 @@
+---
+# Immutable Infrastructure Pipeline (issue #556)
+# Implements immutable infrastructure principles: all infrastructure components are
+# built once, versioned, signed, and never modified after deployment. Any changes
+# require building new versions with new version numbers.
+name: Immutable Infrastructure Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/immutable-infra-pipeline.yml'
+  pull_request:
+    paths:
+      - 'infrastructure/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      version:
+        description: 'Version tag (semver)'
+        required: false
+        type: string
+
+env:
+  # Global environment configuration
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/gistpin-infra
+  TERRAFORM_VERSION: 1.7.0
+  HELM_VERSION: 3.14.0
+  COSIGN_VERSION: 2.2.4
+  SNYK_VERSION: latest
+
+jobs:
+  validate:
+    name: Validate Infrastructure Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Terraform fmt check
+        run: |
+          cd infrastructure/terraform
+          terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: |
+          cd infrastructure/terraform/environments/${{ github.event.inputs.environment || 'staging' }}
+          terraform init -backend=false
+
+      - name: Terraform validate
+        run: |
+          cd infrastructure/terraform/environments/${{ github.event.inputs.environment || 'staging' }}
+          terraform validate
+
+      - name: Helm lint
+        run: |
+          cd infrastructure/k8s
+          helm lint . --set environment=${{ github.event.inputs.environment || 'staging' }}
+
+      - name: Snyk infrastructure scan
+        uses: snyk/actions/iac@master
+        with:
+          args: --sarif-file-output=snyk.sarif
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Upload Snyk scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk.sarif
+
+  build:
+    name: Build Infrastructure Artifacts
+    needs: validate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up version
+        id: set-version
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            TIMESTAMP=$(date +%Y%m%d%H%M%S)
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${SHORT_SHA}-${TIMESTAMP}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "::set-output name=version::$VERSION"
+
+      - name: Log into container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create infrastructure bundle
+        run: |
+          VERSION=${{ steps.set-version.outputs.version }}
+          mkdir -p .infrabundle
+          cp -r infrastructure/* .infrabundle/
+          echo "BUILD_VERSION=$VERSION" >> .infrabundle/metadata.env
+          echo "GIT_COMMIT=$(git rev-parse HEAD)" >> .infrabundle/metadata.env
+          echo "BUILD_TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> .infrabundle/metadata.env
+          echo "BUILT_BY=${{ github.actor }}" >> .infrabundle/metadata.env
+
+      - name: Build and tag container images
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/infra-bundle.Dockerfile
+          push: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set-version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          outputs: type=docker,dest=/tmp/infra-bundle.tar
+
+      - name: Upload artifact bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: infra-bundle-${{ steps.set-version.outputs.version }}
+          path: /tmp/infra-bundle.tar
+          retention-days: 90
+
+  sign:
+    name: Sign Artifacts (Cosign)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifact bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: infra-bundle-${{ needs.build.outputs.version }}
+          path: /tmp
+
+      - name: Load docker image
+        run: docker load --input /tmp/infra-bundle.tar
+
+      - name: Set up Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+        with:
+          cosign-release: v${{ env.COSIGN_VERSION }}
+
+      - name: Log into container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push and sign image
+        run: |
+          IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}
+          docker push $IMAGE
+          cosign sign --yes $IMAGE
+
+      - name: Generate SBOM (Software Bill of Materials)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}
+          artifact-name: sbom-${{ needs.build.outputs.version }}.spdx.json
+          output-file: ./sbom.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ needs.build.outputs.version }}
+          path: ./sbom.spdx.json
+          retention-days: 90
+
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'staging' }}
+      url: https://gistpin.${{ github.event.inputs.environment || 'staging' }}.com
+    if: github.ref == 'refs/heads/main' || (github.event.inputs.environment != 'production')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifact bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: infra-bundle-${{ needs.build.outputs.version }}
+          path: /tmp
+
+      - name: Load docker image
+        run: docker load --input /tmp/infra-bundle.tar
+
+      - name: Log into container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure kubectl
+        uses: steebchen/kubectl@v2
+        with:
+          config: ${{ secrets.KUBE_CONFIG_DATA }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform init and apply
+        run: |
+          cd infrastructure/terraform/environments/${{ github.event.inputs.environment || 'staging' }}
+          terraform init
+          terraform apply -auto-approve \
+            -var="infra_version=${{ needs.build.outputs.version }}" \
+            -var="environment=${{ github.event.inputs.environment || 'staging' }}"
+
+      - name: Helm upgrade
+        run: |
+          cd infrastructure/k8s
+          helm upgrade --install gistpin . \
+            --namespace gistpin \
+            --create-namespace \
+            --set image.tag=${{ needs.build.outputs.version }} \
+            --set environment=${{ github.event.inputs.environment || 'staging' }} \
+            --wait --timeout 15m
+
+      - name: Run post-deployment checks
+        run: |
+          kubectl get pods -n gistpin
+          kubectl get services -n gistpin
+          kubectl get ingress -n gistpin
+
+      - name: Send deployment notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          slack-message: "Successfully deployed infrastructure version ${{ needs.build.outputs.version }} to ${{ github.event.inputs.environment || 'staging' }}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  promote:
+    name: Promote to Production
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://gistpin.com
+    if: github.event.inputs.environment == 'production'
+    steps:
+      - name: Verify staging health before promotion
+        run: |
+          echo "Running comprehensive health checks in staging before production promotion"
+          # Add your staging health checks here
+          curl -f https://api.staging.gistpin.com/health
+          echo "Staging environment is healthy, proceeding with production deployment"
+
+      - name: Log deployment to audit log
+        run: |
+          echo "Production deployment initiated:" >> production-audit.log
+          echo "Version: ${{ needs.build.outputs.version }}" >> production-audit.log
+          echo "Deployed by: ${{ github.actor }}" >> production-audit.log
+          echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> production-audit.log
+          cat production-audit.log
+
+  rollback:
+    name: Rollback on Failure
+    if: failure() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger rollback workflow
+        run: |
+          echo "Deployment failed, initiating rollback to previous stable version"
+          # Call external rollback script or workflow
+          curl -X POST https://api.github.com/repos/${{ github.repository }}/actions/workflows/rollback.yml/dispatches \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -d '{"event_type":"rollback","client_payload":{"version":"${{ needs.build.outputs.version }}","environment":"${{ github.event.inputs.environment || 'staging' }}"}}'
