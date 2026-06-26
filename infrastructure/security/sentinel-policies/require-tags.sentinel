@@ -1,0 +1,23 @@
+# Sentinel Policy: All resources must have required tags
+policy "require-resource-tags" {
+  enforcement_level = "advisory"
+}
+
+import "tfplan/v2" as tfplan
+
+required_tags = ["Environment", "Project"]
+
+all_resources = filter tfplan.resource_changes as _, rc {
+  rc.change.actions contains "create" or rc.change.actions contains "update"
+}
+
+violations = filter all_resources as _, rc {
+  tags = rc.change.after.tags else {}
+  any required_tags as tag {
+    tags[tag] is not defined or tags[tag] is ""
+  }
+}
+
+main = rule {
+  length(violations) is 0
+}
