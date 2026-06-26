@@ -1,0 +1,83 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+metadata:
+  name: gistpin-audit-policy
+rules:
+  # Do not log read-only requests to non-sensitive resources
+  - level: None
+    verbs: ["get", "list", "watch"]
+    resources:
+      - group: ""
+        resources: ["endpoints", "services", "configmaps"]
+    namespaces: ["kube-system"]
+
+  # Do not log lease renewals (noisy, low-value)
+  - level: None
+    resources:
+      - group: "coordination.k8s.io"
+        resources: ["leases"]
+
+  # Do not log read-only healthz/readyz/livez
+  - level: None
+    nonResourceURLs:
+      - "/healthz*"
+      - "/readyz*"
+      - "/livez*"
+      - "/metrics"
+
+  # Log secret/configmap/token access at Metadata level only (no content)
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps"]
+      - group: "authentication.k8s.io"
+        resources: ["tokenreviews"]
+      - group: "authorization.k8s.io"
+        resources: ["subjectaccessreviews"]
+
+  # Log all writes to persistent volumes and storage classes
+  - level: Request
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: ""
+        resources: ["persistentvolumes", "persistentvolumeclaims"]
+      - group: "storage.k8s.io"
+        resources: ["storageclasses"]
+
+  # Log RBAC changes at RequestResponse level
+  - level: RequestResponse
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: "rbac.authorization.k8s.io"
+        resources:
+          - clusterroles
+          - clusterrolebindings
+          - roles
+          - rolebindings
+
+  # Log namespace creation/deletion
+  - level: RequestResponse
+    verbs: ["create", "delete"]
+    resources:
+      - group: ""
+        resources: ["namespaces"]
+
+  # Log pod exec/attach/port-forward (sensitive operations)
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+
+  # Log deployment/statefulset mutations
+  - level: Request
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: "apps"
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+
+  # Log all gistpin namespace activity at Request level
+  - level: Request
+    namespaces: ["gistpin-prod", "gistpin-staging", "gistpin-dev"]
+
+  # Default: log metadata for everything else
+  - level: Metadata
