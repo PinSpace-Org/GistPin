@@ -1,0 +1,105 @@
+groups:
+  - name: audit.cloudtrail
+    interval: 1m
+    rules:
+      - alert: RootAccountUsed
+        expr: |
+          sum(rate(cloudtrail_events_total{user_type="Root"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "AWS root account activity detected"
+          description: "Root account was used. Investigate immediately."
+
+      - alert: IAMPolicyChanges
+        expr: |
+          sum(rate(cloudtrail_events_total{event_name=~"PutUserPolicy|PutRolePolicy|AttachUserPolicy|AttachRolePolicy|CreatePolicy|DeletePolicy"}[10m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "IAM policy change detected"
+          description: "An IAM policy was modified. Verify this is an expected change."
+
+      - alert: SecurityGroupModified
+        expr: |
+          sum(rate(cloudtrail_events_total{event_name=~"AuthorizeSecurityGroup.*|RevokeSecurityGroup.*|CreateSecurityGroup|DeleteSecurityGroup"}[10m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Security group modified"
+          description: "A security group rule was created/modified/deleted."
+
+      - alert: CloudTrailDisabled
+        expr: |
+          sum(rate(cloudtrail_events_total{event_name=~"StopLogging|DeleteTrail|UpdateTrail"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "CloudTrail logging tampered"
+          description: "CloudTrail was stopped, deleted, or updated. Possible log evasion attempt."
+
+      - alert: UnauthorizedAPICalls
+        expr: |
+          sum(rate(cloudtrail_errors_total{error_code=~"AccessDenied|UnauthorizedOperation"}[5m])) by (user_arn) > 5
+        for: 2m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Multiple unauthorized API calls from {{ $labels.user_arn }}"
+          description: "Potential credential misuse or misconfiguration."
+
+  - name: audit.kubernetes
+    interval: 1m
+    rules:
+      - alert: K8sSecretAccessed
+        expr: |
+          sum(rate(apiserver_audit_event_total{objectRef_resource="secrets",verb=~"get|list"}[5m])) by (user_username) > 10
+        for: 1m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "High secret access rate by {{ $labels.user_username }}"
+          description: "Unusual number of secret reads. Check for credential harvesting."
+
+      - alert: K8sPrivilegedPodCreated
+        expr: |
+          sum(rate(apiserver_audit_event_total{objectRef_resource="pods",verb="create",annotations_authorization_k8s_io_decision="allow"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "Pod created in production namespace"
+          description: "A pod was created. Verify it matches expected deployments."
+
+      - alert: K8sRBACChanged
+        expr: |
+          sum(rate(apiserver_audit_event_total{objectRef_resource=~"clusterroles|clusterrolebindings|roles|rolebindings",verb=~"create|update|patch|delete"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: security
+        annotations:
+          summary: "Kubernetes RBAC resource modified"
+          description: "A role or binding was changed. Review for privilege escalation."
+
+      - alert: K8sExecInPod
+        expr: |
+          sum(rate(apiserver_audit_event_total{objectRef_subresource="exec",verb="create"}[5m])) by (user_username) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "kubectl exec by {{ $labels.user_username }}"
+          description: "Interactive exec session opened in a pod. Ensure this is authorised."
