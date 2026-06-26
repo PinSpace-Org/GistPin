@@ -1,0 +1,19 @@
+Implement a complete production-ready eBPF network monitoring stack using Cilium and Hubble.
+
+Create:
+
+- infrastructure/k8s/cilium/install.yaml
+- infrastructure/k8s/cilium/network-policies.yaml
+- infrastructure/monitoring/hubble-config.yaml
+
+Requirements:
+- Deploy Cilium as the eBPF CNI.
+- Enable Hubble, Hubble Relay, and Hubble UI.
+- Enable Prometheus metrics.
+- Configure RBAC, Services, ConfigMaps, Deployments, DaemonSets, and ServiceAccounts.
+- Create production-ready CiliumNetworkPolicies including default deny, DNS, kube-apiserver, monitoring, ingress controller, frontend→backend, backend→database, and intra-namespace communication.
+- Configure service map generation.
+- Configure anomaly detection metrics (packet drops, policy denials, DNS failures, TCP retransmissions, HTTP errors).
+- Configure Prometheus scraping and alert rules.
+- Use Kubernetes stable APIs compatible with Kubernetes v1.30+.
+- Generate complete, production-ready YAML with comments and no placeholders.
