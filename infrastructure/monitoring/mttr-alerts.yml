@@ -1,0 +1,54 @@
+groups:
+  - name: mttr-tracking
+    rules:
+      # Alert when MTTR (7-day rolling avg) exceeds SLO target of 30 minutes
+      - alert: MTTRBreachingTarget
+        expr: |
+          avg_over_time(
+            (
+              avg(
+                (ALERTS{alertstate="resolved"} - ALERTS{alertstate="firing"})
+              ) by (alertname, job)
+            )[7d:1h]
+          ) > 30
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "MTTR exceeding 30-minute target"
+          description: "7-day rolling MTTR for {{ $labels.alertname }} ({{ $labels.job }}) is {{ $value | humanizeDuration }}."
+
+      # Alert on high-severity incident in progress
+      - alert: CriticalIncidentActive
+        expr: ALERTS{alertstate="firing", severity="critical"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Critical incident active: {{ $labels.alertname }}"
+          description: "Service {{ $labels.job }} has had a critical incident for > 5 min — impacts MTTR."
+
+      # Alert on replica lag (feeds into MTTR for DB incidents)
+      - alert: ReplicaLagHigh
+        expr: aws_rds_replica_lag_average > 30
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "RDS replica lag > 30s"
+          description: "Replica {{ $labels.db_instance_identifier }} lag: {{ $value }}s."
+
+      # Incident frequency spike
+      - alert: IncidentFrequencySpike
+        expr: |
+          increase(ALERTS{alertstate="firing", severity=~"critical|warning"}[1h]) > 5
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Incident frequency spike detected"
+          description: "More than 5 alerts fired in the last hour — MTTR at risk."
