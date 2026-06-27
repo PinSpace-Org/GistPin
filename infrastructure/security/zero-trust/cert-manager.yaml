@@ -1,0 +1,41 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: gistpin-mtls-issuer
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gistpin-mtls-cert
+  namespace: gistpin
+spec:
+  secretName: gistpin-mtls-tls
+  duration: 2160h # 90 days
+  renewBefore: 216h # 9 days
+  commonName: "*.gistpin.svc.cluster.local"
+  dnsNames:
+    - "*.gistpin.svc.cluster.local"
+  issuerRef:
+    name: gistpin-mtls-issuer
+    kind: ClusterIssuer
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+    - client auth
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cert-manager-webhook
+  namespace: cert-manager
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: webhook
