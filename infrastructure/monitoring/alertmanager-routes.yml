@@ -1,0 +1,82 @@
+# Alertmanager routes configuration for log-based alerts
+# Extends the main alertmanager.yml configuration
+
+route:
+  # Log-specific routing rules that extend the base configuration
+  routes:
+    # Critical log errors - route to critical alerts channel with high priority
+    - match_re:
+        type: "^log-error|database-error|security-alert$"
+        severity: critical
+      receiver: slack-critical
+      group_by: ['alertname', 'instance', 'type']
+      group_wait: 10s  # Short wait for critical issues
+      group_interval: 5m
+      repeat_interval: 1h  # More frequent repeats for active log issues
+      continue: false
+
+    # Warning-level log alerts
+    - match_re:
+        type: "^log-error|log-volume|log-anomaly$"
+        severity: warning
+      receiver: slack-warnings
+      group_by: ['alertname', 'type']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+      continue: false
+
+    # Security-specific routing - send all security alerts to dedicated security channel
+    - match:
+        type: "security-alert"
+      receiver: slack-security
+      group_by: ['alertname']
+      group_wait: 5s  # Immediately send security alerts
+      group_interval: 3m
+      repeat_interval: 30m  # Frequent repeats for ongoing security issues
+      continue: true
+
+# Inhibit rules for log alerts - prevent alert spam
+inhibit_rules:
+  # If a critical log error is firing, suppress lower-severity warnings from the same instance
+  - source_match:
+      severity: critical
+      type: log-error
+    target_match:
+      severity: warning
+      type: log-error
+    equal: ['instance']
+
+  # If there's a log volume anomaly, suppress high log volume alerts for the same instance
+  - source_match:
+      alertname: "LogVolumeAnomaly"
+    target_match:
+      alertname: "HighLogVolume"
+    equal: ['instance']
+
+# Deduplication settings to prevent alert flooding
+inhibit_rules:
+  - source_match_re:
+      alertname: ".*"
+    target_match_re:
+      alertname: ".*"
+    equal: ['instance', 'message_pattern']
+    # Prevent duplicate alerts from same instance with same error pattern
+    # This works with the dedupe window in log-patterns.json to enforce deduplication
+
+receivers:
+  # Dedicated security receiver for all security-related log alerts
+  - name: slack-security
+    slack_configs:
+      - channel: '#alerts-security'
+        title: '[{{ .Status | toUpper }}][SECURITY] {{ .CommonLabels.alertname }}'
+        text: |
+          :shield: *SECURITY ALERT* :shield:
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Instance:* {{ .Labels.instance }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+        send_resolved: true
+        mention_channel: true  # Always @channel for security alerts
