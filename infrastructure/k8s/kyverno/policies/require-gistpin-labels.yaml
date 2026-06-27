@@ -1,0 +1,44 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-gistpin-labels
+  annotations:
+    policies.kyverno.io/title: Require GistPin labels
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: Enforces ownership and lifecycle labels on workloads.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-app-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+                - Job
+                - CronJob
+      validate:
+        message: "The app.kubernetes.io/name label is required."
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+    - name: require-part-of-label
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - StatefulSet
+                - Job
+                - CronJob
+      validate:
+        message: "The app.kubernetes.io/part-of label is required."
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/part-of: "?*"
