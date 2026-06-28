@@ -1,0 +1,73 @@
+name: Post-Deploy Smoke Tests
+
+on:
+  workflow_run:
+    workflows:
+      - "Deploy to Staging"
+      - "Deploy to Production"
+    types:
+      - completed
+
+concurrency:
+  group: smoke-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-tests:
+    name: Run Smoke Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Database connectivity check
+        id: db-check
+        continue-on-error: true
+        run: |
+          bash infrastructure/scripts/smoke-tests/db-check.sh
+
+      - name: Service endpoint checks
+        id: service-check
+        continue-on-error: true
+        run: |
+          bash infrastructure/scripts/smoke-tests/service-check.sh
+
+      - name: DNS resolution checks
+        id: dns-check
+        run: |
+          kubectl run dns-test --image=busybox:1.36 --rm --restart=Never -n gistpin \
+            -- nslookup backend-service.gistpin.svc.cluster.local
+
+      - name: SSL certificate verification
+        id: ssl-check
+        continue-on-error: true
+        run: |
+          DOMAIN="${DEPLOY_DOMAIN:-gistpin.app}"
+          echo | openssl s_client -connect "${DOMAIN}:443" -servername "${DOMAIN}" 2>/dev/null | openssl x509 -noout -dates || echo "SSL check failed"
+
+      - name: Upload smoke test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: infrastructure/ci/reports/
+          retention-days: 14
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Smoke test failed after deployment',
+              body: 'Smoke tests failed after deployment. Check workflow for details.',
+              labels: ['incident', 'infrastructure'],
+            })

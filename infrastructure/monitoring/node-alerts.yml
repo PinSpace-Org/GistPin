@@ -1,0 +1,52 @@
+groups:
+  - name: node-problems
+    interval: 30s
+    rules:
+      - alert: NodeProblemDetected
+        expr: node_problem_detector_conditions{status="true"} > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node problem detected on {{ $labels.node }}"
+          description: "{{ $labels.reason }} on node {{ $labels.node }}"
+
+      - alert: NodeKernelPanic
+        expr: node_problem_detector_kernel_panic_total > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kernel panic on node {{ $labels.node }}"
+
+      - alert: NodeOOMKill
+        expr: rate(node_problem_detector_oom_kill_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OOM kills detected on node {{ $labels.node }}"
+
+      - alert: NodeHighMemoryPressure
+        expr: node_memory_Pressure > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory pressure on node {{ $labels.node }}"
+
+      - alert: NodeDiskPressure
+        expr: node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"} < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space on node {{ $labels.node }}"
+
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node {{ $labels.node }} is not ready"
