@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: __NAMESPACE__
+  labels:
+    app.kubernetes.io/managed-by: gitops
+    environment: __ENVIRONMENT__
+    owner: __OWNER__
+    cost-center: __COST_CENTER__
+    cleanup-date: __CLEANUP_DATE__
+  annotations:
+    description: "Namespace provisioned for __NAMESPACE__"
+    provisioned-by: "namespace-provisioner"
