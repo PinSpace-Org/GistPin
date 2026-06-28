@@ -1,0 +1,66 @@
+name: Multi-Environment Configuration Validation
+
+on:
+  pull_request:
+    paths:
+      - ".env.*"
+      - "infrastructure/**/*.tfvars"
+      - "infrastructure/k8s/configmaps/**"
+      - "infrastructure/scripts/validate-env-configs.sh"
+  push:
+    branches: [main]
+    paths:
+      - ".env.*"
+      - "infrastructure/**/*.tfvars"
+      - "infrastructure/k8s/configmaps/**"
+      - "infrastructure/scripts/validate-env-configs.sh"
+
+concurrency:
+  group: config-validation-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate Configurations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run config validation
+        id: validate
+        run: |
+          bash infrastructure/scripts/validate-env-configs.sh
+        continue-on-error: true
+
+      - name: Upload validation report
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-validation-report
+          path: infrastructure/ci/reports/config-validation-*.json
+          retention-days: 14
+
+      - name: Post validation result
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const files = fs.readdirSync('infrastructure/ci/reports/')
+              .filter(f => f.startsWith('config-validation-'));
+            if (files.length > 0) {
+              const report = JSON.parse(fs.readFileSync(`infrastructure/ci/reports/${files[0]}`, 'utf8'));
+              const status = report.valid ? '✅ PASSED' : '❌ FAILED';
+              const body = `### Multi-Environment Configuration Validation\n\n**Status:** ${status}\n\n${report.valid ? 'All environment configurations are consistent.' : 'Configuration inconsistencies detected.'}`;
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }
+
+      - name: Block deploy on failure
+        if: steps.validate.outcome == 'failure' && github.ref == 'refs/heads/main'
+        run: |
+          echo "Configuration validation failed on main branch. Deploy blocked."
+          exit 1

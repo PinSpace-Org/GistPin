@@ -1,0 +1,93 @@
+name: IaC Lint Pipeline
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/**/*.tf"
+      - "infrastructure/**/*.yaml"
+      - "infrastructure/**/*.yml"
+      - "infrastructure/**/*.sh"
+      - "**/Dockerfile*"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/**/*.tf"
+      - "infrastructure/**/*.yaml"
+      - "infrastructure/**/*.yml"
+      - "infrastructure/**/*.sh"
+      - "**/Dockerfile*"
+
+concurrency:
+  group: iac-lint-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  tflint:
+    name: Terraform Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+      - name: Run tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: tflint --config=../.tflint.hcl --format=compact
+
+  kube-linter:
+    name: Kubernetes Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run kube-linter
+        uses: stackrox/kube-linter-action@v1
+        with:
+          directory: infrastructure/k8s
+          config: infrastructure/.kube-linter.yaml
+          format: sarif
+          output: kube-linter-results.sarif
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: kube-linter-results.sarif
+          category: kube-linter
+
+  hadolint:
+    name: Dockerfile Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run hadolint
+        uses: hadolint/hadolint-action@v3
+        with:
+          dockerfile: Dockerfile
+          config: infrastructure/.hadolint.yaml
+          format: sarif
+          output: hadolint-results.sarif
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: hadolint-results.sarif
+          category: hadolint
+
+  shellcheck:
+    name: Shell Script Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: ./infrastructure/scripts
+          format: sarif
+          severity: style
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: shellcheck-results.sarif
+          category: shellcheck

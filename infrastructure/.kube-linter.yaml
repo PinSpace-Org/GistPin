@@ -1,0 +1,30 @@
+checks:
+  doNotAutoAddDefaults: false
+  include:
+    - "no-read-only-root-fs"
+    - "unset-cpu-requirements"
+    - "unset-memory-requirements"
+    - "no-liveness-probe"
+    - "no-readiness-probe"
+    - "no-node-selector"
+    - "unsafe-proc-mount"
+    - "run-as-non-root"
+    - "writable-host-mount"
+    - "no-anti-affinity"
+    - "required-annotation-email"
+    - "minimum-three-replicas"
+    - "no-extensions-v1beta1"
+    - "no-service-account"
+  exclude:
+    - "unset-cpu-requirements"
+    - "unset-memory-requirements"
+
+customChecks:
+  - name: "no-latest-image-tag"
+    template: "latest-tag"
+    params:
+      imageTag: "latest"
+    remediation: "Use a specific image tag instead of 'latest'"
+    scope:
+      objectKinds:
+        - DeploymentLike

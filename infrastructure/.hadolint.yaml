@@ -1,0 +1,31 @@
+failure-threshold: WARNING
+
+ignored:
+  - DL3008
+  - DL3018
+  - DL4006
+
+trustedRegistries:
+  - ghcr.io
+  - docker.io
+
+override:
+  error:
+    - DL3042
+    - DL3043
+    - DL3044
+  warning:
+    - DL3002
+    - DL3003
+    - DL3007
+    - DL3009
+    - DL3015
+    - DL3019
+    - DL3020
+    - DL3025
+    - DL3040
+    - DL3045
+  info:
+    - DL3059
+    - SC1000
+    - SC1001
