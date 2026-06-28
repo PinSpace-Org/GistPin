@@ -1,0 +1,116 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [],
+  "title": "Infrastructure Health Dashboard",
+  "uid": "infra-health-dashboard",
+  "version": 1,
+  "schemaVersion": 39,
+  "tags": ["gistpin", "health"],
+  "timezone": "utc",
+  "panels": [
+    {
+      "title": "Overall Platform Health",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "health:overall:score", "legendFormat": "Overall" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 60, "color": "orange" },
+              { "value": 80, "color": "green" }
+            ]
+          },
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "title": "Availability Score",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 0 },
+      "targets": [
+        { "expr": "health:availability:score", "legendFormat": "Availability" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 90, "color": "orange" },
+              { "value": 99, "color": "green" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Component Scores",
+      "type": "bargauge",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "health:availability:score", "legendFormat": "Availability" },
+        { "expr": "health:latency:score", "legendFormat": "Latency" },
+        { "expr": "health:error_rate:score", "legendFormat": "Error Rate" },
+        { "expr": "health:resource_usage:score", "legendFormat": "Resource Usage" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "min": 0, "max": 100 }
+      }
+    },
+    {
+      "title": "Health Score Trend",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "health:overall:score", "legendFormat": "Overall" },
+        { "expr": "health:availability:score", "legendFormat": "Availability" },
+        { "expr": "health:latency:score", "legendFormat": "Latency" },
+        { "expr": "health:error_rate:score", "legendFormat": "Error Rate" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 60, "color": "orange" },
+              { "value": 80, "color": "green" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Historical Trend (7 days)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "avg_over_time(health:overall:score[1d])", "legendFormat": "Daily Avg" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      }
+    }
+  ]
+}

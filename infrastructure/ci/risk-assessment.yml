@@ -1,0 +1,70 @@
+name: Infrastructure Change Risk Assessment
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: read
+
+jobs:
+  risk-score:
+    name: Calculate Risk Score
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Identify changed resources
+        id: changes
+        run: |
+          echo "Analyzing infrastructure changes..."
+          CHANGES=$(git diff --name-only origin/main...${{ github.head_ref }} -- 'infrastructure/**/*.tf' 'infrastructure/k8s/**/*.yaml' | jq -R -s '[split("\n")[] | select(length > 0) | {file: ., resource_type: (if test("\\.tf$") then "terraform" elif test("\\.yaml$") then "kubernetes" else "other" end), address: ., dependency_count: 1, has_backup: (if test("backup|restore|velero") then true else false end)}]')
+          echo "changes_json=${CHANGES}" >> "$GITHUB_OUTPUT"
+          echo "changes=${CHANGES}" | python3 -c "import json,sys; data=json.load(sys.stdin); print(f'Found {len(data)} changed files')"
+
+      - name: Run risk scoring
+        id: risk
+        env:
+          CHANGES_JSON: ${{ steps.changes.outputs.changes }}
+        run: |
+          echo "${CHANGES_JSON}" | python3 infrastructure/scripts/score-risk.py
+          echo "score=$(cat infrastructure/ci/reports/risk-score.json | jq -r '.overall_score')" >> "$GITHUB_OUTPUT"
+          echo "classification=$(cat infrastructure/ci/reports/risk-score.json | jq -r '.overall_classification')" >> "$GITHUB_OUTPUT"
+
+      - name: Upload risk report
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk-assessment
+          path: infrastructure/ci/reports/risk-score.json
+          retention-days: 30
+
+      - name: Post risk score to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const report = require(process.cwd() + '/infrastructure/ci/reports/risk-score.json');
+            const colors = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444', critical: '#dc2626' };
+            const color = colors[report.overall_classification] || '#64748b';
+            const body = `### Infrastructure Change Risk Assessment\n\n**Overall Risk: ${report.overall_classification.toUpperCase()}** (Score: ${report.overall_score}/100)\n\n| Metric | Value |\n|--------|-------|\n| Resources Changed | ${report.resource_count} |\n| Max Risk Score | ${report.max_risk_score} |\n| Highest Risk Resource | ${report.highest_risk_resource ? report.highest_risk_resource.resource : 'N/A'} |\n\n<details>\n<summary>Resource Breakdown</summary>\n\n| Resource | Score | Classification |\n|----------|-------|----------------|\n${report.resources.map(r => `| ${r.resource} | ${r.score} | ${r.classification} |`).join('\n')}\n</details>`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+      - name: Require approval for high-risk changes
+        if: steps.risk.outputs.classification == 'high' || steps.risk.outputs.classification == 'critical'
+        run: |
+          echo "Risk score is ${steps.risk.outputs.classification}. Manual approval required."

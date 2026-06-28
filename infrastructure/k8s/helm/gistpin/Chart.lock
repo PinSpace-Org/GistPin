@@ -1,0 +1,21 @@
+dependencies:
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 15.5.2
+- name: redis
+  repository: https://charts.bitnami.com/bitnami
+  version: 19.6.1
+- name: ingress-nginx
+  repository: https://kubernetes.github.io/ingress-nginx
+  version: 4.10.1
+- name: cert-manager
+  repository: https://charts.jetstack.io
+  version: 1.15.2
+- name: prometheus
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 25.21.0
+- name: loki
+  repository: https://grafana.github.io/helm-charts
+  version: 5.47.2
+digest: sha256:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1
+generated: "2026-06-28T08:00:00Z"
