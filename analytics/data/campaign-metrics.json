@@ -1,0 +1,45 @@
+[
+  {
+    "id": "total_campaigns",
+    "label": "Total Campaigns",
+    "value": 47,
+    "period": "Q2 2025",
+    "change": 12.3,
+    "trend": "up"
+  },
+  {
+    "id": "active_campaigns",
+    "label": "Active Campaigns",
+    "value": 23,
+    "period": "current",
+    "change": 5.1,
+    "trend": "up"
+  },
+  {
+    "id": "avg_conversion",
+    "label": "Average Conversion Rate",
+    "value": 3.42,
+    "unit": "%",
+    "period": "Q2 2025",
+    "change": 0.87,
+    "trend": "up"
+  },
+  {
+    "id": "campaign_roi",
+    "label": "Campaign ROI",
+    "value": 284,
+    "unit": "%",
+    "period": "Q2 2025",
+    "change": 22.5,
+    "trend": "up"
+  },
+  {
+    "id": "cost_per_acquisition",
+    "label": "Cost Per Acquisition",
+    "value": 12.5,
+    "unit": "USD",
+    "period": "Q2 2025",
+    "change": -8.3,
+    "trend": "down"
+  }
+]
