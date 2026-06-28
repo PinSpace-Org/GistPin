@@ -1,0 +1,45 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-strict-mtls
+  namespace: gistpin
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: gistpin
+  mtls:
+    mode: STRICT
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: gistpin-mtls
+  namespace: gistpin
+spec:
+  host: "*.gistpin.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    loadBalancer:
+      simple: ROUND_ROBIN
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: backend-api-allow
+  namespace: gistpin
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/gistpin/sa/frontend
+              - cluster.local/ns/gistpin/sa/worker
+      to:
+        - operation:
+            methods: ["GET", "POST"]
+            paths: ["/api/*"]
