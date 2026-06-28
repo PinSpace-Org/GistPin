@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#f8fafc"/>
+  <text x="400" y="40" text-anchor="middle" font-family="system-ui" font-size="20" font-weight="bold" fill="#0f172a">GistPin Infrastructure Resource Graph</text>
+  <text x="400" y="65" text-anchor="middle" font-family="system-ui" font-size="13" fill="#64748b">Auto-generated from terraform graph</text>
+  <g transform="translate(50, 100)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#0369a1">VPC</text>
+  </g>
+  <g transform="translate(320, 100)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#0369a1">EKS Cluster</text>
+  </g>
+  <g transform="translate(590, 100)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#e0f2fe" stroke="#0ea5e9" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#0369a1">RDS</text>
+  </g>
+  <g transform="translate(50, 220)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#15803d">Subnets</text>
+  </g>
+  <g transform="translate(320, 220)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#15803d">Node Groups</text>
+  </g>
+  <g transform="translate(590, 220)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#15803d">Subnet Group</text>
+  </g>
+  <g transform="translate(50, 340)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#b45309">Security Groups</text>
+  </g>
+  <g transform="translate(320, 340)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#b45309">ALB</text>
+  </g>
+  <g transform="translate(590, 340)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#b45309">ElastiCache</text>
+  </g>
+  <g transform="translate(50, 460)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#be185d">IAM Roles</text>
+  </g>
+  <g transform="translate(320, 460)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#be185d">S3 Buckets</text>
+  </g>
+  <g transform="translate(590, 460)">
+    <rect x="0" y="0" width="160" height="40" rx="6" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
+    <text x="80" y="25" text-anchor="middle" font-family="monospace" font-size="12" fill="#be185d">CloudFront</text>
+  </g>
+  <line x1="130" y1="140" x2="130" y2="220" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="400" y1="140" x2="400" y2="220" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="670" y1="140" x2="670" y2="220" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="130" y1="260" x2="130" y2="340" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="400" y1="260" x2="320" y2="340" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="670" y1="260" x2="670" y2="340" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="130" y1="380" x2="130" y2="460" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="400" y1="380" x2="320" y2="460" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+  <line x1="670" y1="380" x2="670" y2="460" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4"/>
+</svg>

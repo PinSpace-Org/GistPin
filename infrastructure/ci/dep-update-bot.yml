@@ -1,0 +1,55 @@
+name: Infrastructure Dependency Update Bot
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-versions:
+    name: Check Versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run version check
+        id: versions
+        continue-on-error: true
+        run: |
+          bash infrastructure/scripts/check-versions.sh
+
+      - name: Upload version report
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-report
+          path: infrastructure/ci/reports/versions-*.json
+          retention-days: 30
+
+      - name: Create dependency update PR
+        if: steps.versions.outcome == 'success'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update infrastructure dependencies"
+          title: "chore: update infrastructure dependencies"
+          body: |
+            Automated infrastructure dependency update.
+
+            ## Updates Detected
+            $(cat infrastructure/ci/reports/versions-*.json | python3 -c "
+            import json, sys
+            data = json.load(sys.stdin)
+            for dep in data.get('updates', []):
+                print(f'- **{dep[\"name\"]}**: {dep[\"current\"]} → {dep[\"latest\"]}')
+            " || echo "See version report artifact for details.")
+
+            ## Verification
+            - [ ] Dependencies tested in CI
+            - [ ] Changelog reviewed for breaking changes
+          branch: chore/dep-update
+          labels: dependencies, automated-pr
+          delete-branch: true
