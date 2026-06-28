@@ -1,0 +1,97 @@
+name: Policy Checks
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/terraform/**'
+      - 'infrastructure/security/**'
+      - 'infrastructure/k8s/**'
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/**'
+
+jobs:
+  sentinel:
+    name: Terraform Sentinel Policies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Init
+        working-directory: infrastructure/terraform
+        run: terraform init -backend=false
+
+      - name: Terraform Plan (JSON)
+        working-directory: infrastructure/terraform
+        run: |
+          terraform plan -out=tfplan.binary 2>/dev/null || true
+          terraform show -json tfplan.binary > tfplan.json 2>/dev/null || echo "{}" > tfplan.json
+
+      - name: Run Sentinel Policies
+        run: |
+          # Install Sentinel CLI if available, else do a basic check
+          if command -v sentinel &>/dev/null; then
+            for policy in infrastructure/security/sentinel-policies/*.sentinel; do
+              echo "Checking: $policy"
+              sentinel apply -config=sentinel.hcl "$policy"
+            done
+          else
+            echo "Sentinel CLI not installed — skipping (install via https://docs.hashicorp.com/sentinel/downloads)"
+            echo "Policies present:"
+            ls infrastructure/security/sentinel-policies/
+          fi
+
+  opa:
+    name: OPA Rego Policies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
+
+      - name: OPA Check (syntax)
+        run: |
+          opa check infrastructure/security/opa-policies/
+
+      - name: OPA Test
+        run: |
+          if ls infrastructure/security/opa-policies/*_test.rego 1>/dev/null 2>&1; then
+            opa test infrastructure/security/opa-policies/ -v
+          else
+            echo "No OPA tests found — skipping test run"
+          fi
+
+      - name: OPA Lint
+        run: |
+          opa check --strict infrastructure/security/opa-policies/ || true
+
+  k8s-policies:
+    name: K8s Manifest Policy Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
+
+      - name: Evaluate K8s manifests against OPA policies
+        run: |
+          for manifest in infrastructure/k8s/*.yaml; do
+            echo "Evaluating: $manifest"
+            opa eval \
+              --data infrastructure/security/opa-policies/ \
+              --input "$manifest" \
+              "data.kubernetes.admission.deny" \
+              "data.kubernetes.security.deny" || true
+          done

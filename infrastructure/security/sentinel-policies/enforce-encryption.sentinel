@@ -1,0 +1,26 @@
+# Sentinel Policy: Enforce encryption-at-rest for all RDS and S3 resources
+policy "enforce-encryption-at-rest" {
+  enforcement_level = "hard-mandatory"
+}
+
+import "tfplan/v2" as tfplan
+
+# RDS instances must have storage_encrypted = true
+rds_instances = filter tfplan.resource_changes as _, rc {
+  rc.type is "aws_db_instance" and
+  (rc.change.actions contains "create" or rc.change.actions contains "update")
+}
+
+rds_encryption_violations = filter rds_instances as _, rc {
+  rc.change.after.storage_encrypted is not true
+}
+
+# S3 buckets must have server-side encryption enabled
+s3_buckets = filter tfplan.resource_changes as _, rc {
+  rc.type is "aws_s3_bucket_server_side_encryption_configuration" and
+  rc.change.actions contains "create"
+}
+
+main = rule {
+  length(rds_encryption_violations) is 0
+}

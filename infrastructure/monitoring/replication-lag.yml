@@ -1,0 +1,46 @@
+groups:
+  - name: rds-replication
+    rules:
+      # Replica lag warning — risk of stale reads
+      - alert: ReplicaLagWarning
+        expr: aws_rds_replica_lag_average > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "RDS replica lag elevated ({{ $labels.db_instance_identifier }})"
+          description: "Replica lag is {{ $value }}s — stale reads may occur. Threshold: 10s."
+
+      # Replica lag critical — trigger failover consideration
+      - alert: ReplicaLagCritical
+        expr: aws_rds_replica_lag_average > 60
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "RDS replica lag critical ({{ $labels.db_instance_identifier }})"
+          description: "Replica lag is {{ $value }}s. Consider routing reads back to primary."
+
+      # Replica not replicating (lag goes to 0 and replica is not active)
+      - alert: ReplicaReplicationStopped
+        expr: aws_rds_replica_lag_average == 0 and aws_rds_database_connections_average == 0
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Replica replication may have stopped ({{ $labels.db_instance_identifier }})"
+          description: "Replica shows 0 lag but 0 connections — replication may be broken."
+
+      # Primary DB high CPU (may affect replication throughput)
+      - alert: PrimaryDBHighCPU
+        expr: aws_rds_cpuutilization_average{role="primary"} > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Primary RDS CPU > 80%"
+          description: "High CPU on primary may impact replication to replicas."
