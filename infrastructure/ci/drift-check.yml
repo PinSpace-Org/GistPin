@@ -1,0 +1,59 @@
+name: GitOps Drift Check
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift-check:
+    name: Check Drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Run drift reporter
+        id: drift
+        continue-on-error: true
+        run: |
+          bash infrastructure/scripts/drift-reporter.sh
+
+      - name: Upload drift report
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: infrastructure/ci/reports/drift-report-*.json
+          retention-days: 30
+
+      - name: Create issue for critical drifts
+        if: steps.drift.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reports = fs.readdirSync('infrastructure/ci/reports/')
+              .filter(f => f.startsWith('drift-report-'));
+            if (reports.length === 0) return;
+            const report = JSON.parse(fs.readFileSync(`infrastructure/ci/reports/${reports[0]}`, 'utf8'));
+            const critical = report.summary.critical;
+            const high = report.summary.high;
+            if (critical > 0 || high > 0) {
+              const body = `## Drift Report\n\n### Summary\n- Critical drifts: ${critical}\n- High drifts: ${high}\n- Medium drifts: ${report.summary.medium}\n- Low drifts: ${report.summary.low}\n\n### Details\n\`\`\`json\n${JSON.stringify(report.drifts, null, 2)}\n\`\`\``;
+              github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Drift detected: ${critical + high} critical/high severity drifts`,
+                body,
+                labels: ['drift', 'infrastructure'],
+              });
+            }

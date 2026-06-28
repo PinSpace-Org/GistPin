@@ -1,0 +1,25 @@
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: gistpin-provenance-policy
+spec:
+  images:
+    - glob: ghcr.io/pinspace-org/*
+  authorities:
+    - keyless:
+        url: https://fulcio.sigstore.dev
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subjectRegExp: "https://github.com/PinSpace-Org/GistPin/.*"
+      attestations:
+        - name: slsa-provenance
+          predicateType: https://slsa.dev/provenance/v1
+          policy:
+            type: cue
+            data: |
+              predicateType: "https://slsa.dev/provenance/v1"
+              predicate: {
+                buildDefinition: {
+                  buildType: "https://slsa.dev/attestation/github-actions/v1"
+                }
+              }
