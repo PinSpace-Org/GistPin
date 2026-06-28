@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: event-exporter-config
+  namespace: gistpin
+data:
+  config.yaml: |
+    logLevel: info
+    logFormat: json
+    route:
+      routes:
+        - match:
+            - receiver: "s3-archive"
+              type: "s3"
+        - match:
+            - receiver: "s3-archive"
+              type: "s3"
+      receivers:
+        - name: "s3-archive"
+          s3:
+            endpoint: s3.us-east-1.amazonaws.com
+            bucket: gistpin-event-archive
+            region: us-east-1
+            prefix: events/
+            buffer:
+              max_size: 10MB
+              flush_interval: 30s
+        - name: "elasticsearch"
+          elasticsearch:
+            hosts:
+              - http://elasticsearch:9200
+            index: k8s-events
+            indexFormat: k8s-events-{2006-01-02}
+        - name: "stdout"
+          stdout: {}
+    filters:
+      - type: "deny"
+        match:
+          - namespace: ["kube-system", "velero"]
+            reason: ["CronJob"]
+      - type: "allow"
+        match:
+          - type: ["Warning"]
+          - reason: ["Failed", "Error", "OOMKilling", "NodeNotReady"]

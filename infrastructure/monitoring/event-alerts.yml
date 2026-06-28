@@ -1,0 +1,40 @@
+groups:
+  - name: kubernetes-events
+    interval: 30s
+    rules:
+      - alert: CriticalEventDetected
+        expr: |
+          count(kube_event{type="Warning", reason=~"Failed|Error|OOMKilling|NodeNotReady|BackOff|CrashLoopBackOff"}) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical Kubernetes event detected"
+          description: "{{ $labels.reason }} in {{ $labels.namespace }}/{{ $labels.name }}"
+
+      - alert: FrequentPodRestarts
+        expr: |
+          rate(kube_event{reason="BackOff"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Frequent pod restarts detected"
+
+      - alert: NodeIssueEvent
+        expr: |
+          kube_event{reason=~"NodeNotReady|NodeHasDiskPressure|NodeHasMemoryPressure"}
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node issue event: {{ $labels.reason }} on {{ $labels.name }}"
+
+      - alert: EventArchiveFailure
+        expr: |
+          rate(event_exporter_s3_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Event archive S3 upload failures detected"

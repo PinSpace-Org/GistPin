@@ -1,0 +1,69 @@
+name: Helm Dependency Update
+
+on:
+  schedule:
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Check Helm Updates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.15.0"
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add grafana https://grafana.github.io/helm-charts
+          helm repo update
+
+      - name: Check current dependencies
+        id: check
+        run: |
+          cd infrastructure/k8s/helm/gistpin
+          helm dependency list 2>&1
+
+      - name: Update dependencies
+        id: update
+        continue-on-error: true
+        run: |
+          cd infrastructure/k8s/helm/gistpin
+          helm dependency update 2>&1
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if git diff --stat -- 'Chart.lock' | grep -q 'Chart.lock'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update Helm chart dependencies"
+          title: "chore: update Helm chart dependencies"
+          body: |
+            Automated Helm dependency update.
+
+            Changes detected in `infrastructure/k8s/helm/gistpin/Chart.lock`
+
+            Please verify compatibility before merging.
+          branch: chore/helm-deps-update
+          labels: dependencies, helm
