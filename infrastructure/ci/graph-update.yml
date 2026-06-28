@@ -1,0 +1,65 @@
+name: Terraform Graph Update
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/terraform/**"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/terraform/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  graph:
+    name: Generate Graph
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Install graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Generate Terraform graph
+        run: |
+          bash infrastructure/scripts/generate-tf-graph.sh
+
+      - name: Upload graph artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-graph
+          path: |
+            infrastructure/docs/resource-graph.svg
+            infrastructure/docs/resource-graph.html
+          retention-days: 30
+
+      - name: Comment graph on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const svg = fs.readFileSync('infrastructure/docs/resource-graph.svg', 'utf8');
+            const truncated = svg.length > 60000 ? svg.slice(0, 60000) + '\n<!-- truncated -->' : svg;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Resource Graph\n\n![Resource Graph](https://www.gravatar.com/avatar/?d=mp&f=y)\n\nSee artifact for full interactive HTML view.`,
+            });
+
+      - name: Commit updated graph
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add infrastructure/docs/resource-graph.svg infrastructure/docs/resource-graph.html
+          git diff --cached --quiet || git commit -m "chore: update Terraform resource graph [skip ci]"
+          git push
