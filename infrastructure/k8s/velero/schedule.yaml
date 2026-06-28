@@ -1,0 +1,89 @@
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily-cluster-backup
+  namespace: velero
+spec:
+  schedule: "0 2 * * *"
+  template:
+    includedNamespaces:
+      - gistpin
+      - istio-system
+      - monitoring
+    excludedResources:
+      - pods
+      - events
+      - events.events.k8s.io
+    includeClusterResources: true
+    ttl: 720h
+    storageLocation: default
+    volumeSnapshotLocations:
+      - default
+    defaultVolumesToRestic: true
+    snapshotMoveData: true
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: weekly-full-cluster-backup
+  namespace: velero
+spec:
+  schedule: "0 3 * * 0"
+  template:
+    includedNamespaces:
+      - "*"
+    excludedResources:
+      - events
+      - events.events.k8s.io
+    includeClusterResources: true
+    ttl: 2160h
+    storageLocation: default
+    volumeSnapshotLocations:
+      - default
+    defaultVolumesToRestic: true
+    snapshotMoveData: true
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: database-backup
+  namespace: velero
+spec:
+  schedule: "0 1 * * *"
+  template:
+    includedNamespaces:
+      - gistpin
+    labelSelector:
+      matchLabels:
+        app: postgres
+    ttl: 720h
+    storageLocation: default
+    volumeSnapshotLocations:
+      - default
+    defaultVolumesToRestic: true
+---
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: default
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage:
+    bucket: gistpin-velero-backups
+    prefix: velero
+  config:
+    region: us-east-1
+    s3ForcePathStyle: "false"
+    s3Url: https://s3.us-east-1.amazonaws.com
+---
+apiVersion: velero.io/v1
+kind: VolumeSnapshotLocation
+metadata:
+  name: default
+  namespace: velero
+spec:
+  provider: aws
+  config:
+    region: us-east-1

@@ -1,0 +1,66 @@
+namespace: gistpin
+
+groups:
+  - name: loki-log-metrics
+    interval: 30s
+    limit: 20
+    rules:
+      - record: loki:error_count:5m
+        expr: |
+          sum by (app, level) (
+            rate({app=~"gistpin-.*"} | json | level=~"error|critical|fatal" [5m])
+          )
+
+      - record: loki:log_volume_bytes:5m
+        expr: |
+          sum by (app) (
+            rate({app=~"gistpin-.*"}[5m])
+          )
+
+      - record: loki:unique_errors:1h
+        expr: |
+          count by (app) (
+            count_over_time({app=~"gistpin-.*"} | json | level=~"error|critical|fatal" [1h])
+          )
+
+  - name: loki-business-metrics
+    interval: 1m
+    limit: 50
+    rules:
+      - record: loki:gists_created:1h
+        expr: |
+          count_over_time({app="gistpin-backend"} |= "event=gist_created" [1h])
+
+      - record: loki:users_signed_up:1h
+        expr: |
+          count_over_time({app="gistpin-backend"} |= "event=user_signup" [1h])
+
+      - record: loki:transactions_settled:1h
+        expr: |
+          count_over_time({app="gistpin-backend"} |= "event=transaction_settled" [1h])
+
+      - record: loki:average_gist_size_bytes:1h
+        expr: |
+          avg_over_time({app="gistpin-backend"} | pattern "gist_size=<size>" | unwrap size [1h])
+
+  - name: loki-alerts
+    rules:
+      - alert: LogVolumeSpike
+        expr: |
+          sum(rate({app=~"gistpin-.*"}[5m]))
+          /
+          sum(rate({app=~"gistpin-.*"}[5m] offset 1h)) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Log volume spike detected ({{ $value }}x normal)"
+
+      - alert: NoLogsFromService
+        expr: |
+          rate({app="gistpin-backend"}[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No logs received from gistpin-backend for 5 minutes"

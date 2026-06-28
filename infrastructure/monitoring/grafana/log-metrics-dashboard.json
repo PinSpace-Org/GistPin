@@ -1,0 +1,98 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [],
+  "title": "Log-Based Metrics Dashboard",
+  "uid": "log-metrics-dashboard",
+  "version": 1,
+  "schemaVersion": 39,
+  "tags": ["gistpin", "logs", "metrics"],
+  "timezone": "utc",
+  "panels": [
+    {
+      "title": "Error Rate (from logs)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "log:error_rate:5m", "legendFormat": "5m" },
+        { "expr": "log:error_rate:30m", "legendFormat": "30m" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "steps": [{ "value": 10, "color": "orange" }, { "value": 25, "color": "red" }] },
+          "min": 0
+        }
+      }
+    },
+    {
+      "title": "Latency Percentiles (from logs)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "log:p99_latency_ms:5m", "legendFormat": "P99" },
+        { "expr": "log:p95_latency_ms:5m", "legendFormat": "P95" },
+        { "expr": "log:p50_latency_ms:5m", "legendFormat": "P50" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "title": "HTTP Status Rate (from logs)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        { "expr": "log:http_4xx_rate:5m", "legendFormat": "4xx" },
+        { "expr": "log:http_5xx_rate:5m", "legendFormat": "5xx" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": { "steps": [{ "value": 10, "color": "orange" }, { "value": 25, "color": "red" }] },
+          "min": 0
+        }
+      }
+    },
+    {
+      "title": "Request Rate (from logs)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "sum(log:request_count:5m)", "legendFormat": "Total" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "rps" } }
+    },
+    {
+      "title": "Business Metrics",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "log:gist_creations:1h", "legendFormat": "Gists Created" },
+        { "expr": "log:transaction_volume:1h", "legendFormat": "Transactions" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Active Users",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 4, "y": 16 },
+      "targets": [
+        { "expr": "log:active_users:5m", "legendFormat": "{{tenant_id}}" }
+      ],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "title": "Log Volume",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        { "expr": "loki:log_volume_bytes:5m", "legendFormat": "{{app}}" }
+      ],
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "Bps" } }
+    }
+  ]
+}

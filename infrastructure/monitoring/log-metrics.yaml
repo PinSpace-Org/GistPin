@@ -1,0 +1,96 @@
+groups:
+  - name: log-based-metrics
+    interval: 30s
+    rules:
+      - record: log:error_rate:5m
+        expr: |
+          sum(rate({app="gistpin-backend"} |= "error" [5m]))
+          / sum(rate({app="gistpin-backend"}[5m]))
+          * 100
+
+      - record: log:error_rate:30m
+        expr: |
+          sum(rate({app="gistpin-backend"} |= "error" [30m]))
+          / sum(rate({app="gistpin-backend"}[30m]))
+          * 100
+
+      - record: log:p99_latency_ms:5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate({app="gistpin-backend"} | regexp "duration=(?P<duration>\\d+)ms" [5m])) by (le)
+          )
+
+      - record: log:p95_latency_ms:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate({app="gistpin-backend"} | regexp "duration=(?P<duration>\\d+)ms" [5m])) by (le)
+          )
+
+      - record: log:p50_latency_ms:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate({app="gistpin-backend"} | regexp "duration=(?P<duration>\\d+)ms" [5m])) by (le)
+          )
+
+      - record: log:request_count:5m
+        expr: |
+          sum(rate({app="gistpin-backend"}[5m])) by (method, path, status)
+
+      - record: log:http_4xx_rate:5m
+        expr: |
+          sum(rate({app="gistpin-backend"} |~ "status=(4[0-9][0-9])" [5m]))
+          / sum(rate({app="gistpin-backend"}[5m]))
+          * 100
+
+      - record: log:http_5xx_rate:5m
+        expr: |
+          sum(rate({app="gistpin-backend"} |~ "status=(5[0-9][0-9])" [5m]))
+          / sum(rate({app="gistpin-backend"}[5m]))
+          * 100
+
+      - record: log:active_users:5m
+        expr: |
+          count by (tenant_id)
+            (rate({app="gistpin-backend"} |= "request" | pattern "<method> <path> <status> <duration> <user_id>" [5m]))
+
+      - record: log:gist_creations:1h
+        expr: |
+          count_over_time({app="gistpin-backend"} |= "gist.created" [1h])
+
+      - record: log:transaction_volume:1h
+        expr: |
+          count_over_time({app="gistpin-backend"} |= "transaction" [1h])
+
+  - name: log-alerts
+    rules:
+      - alert: HighLogErrorRate
+        expr: log:error_rate:5m > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate from logs: {{ $value }}%"
+
+      - alert: CriticalLogErrorRate
+        expr: log:error_rate:5m > 25
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical error rate from logs: {{ $value }}%"
+
+      - alert: HighLatencyFromLogs
+        expr: log:p99_latency_ms:5m > 5000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P99 latency from logs: {{ $value }}ms"
+
+      - alert: Elevated4xxRate
+        expr: log:http_4xx_rate:5m > 15
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated 4xx rate from logs: {{ $value }}%"
