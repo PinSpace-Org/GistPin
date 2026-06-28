@@ -1,0 +1,89 @@
+groups:
+  - name: log-error-alerts
+    rules:
+      # Error pattern detection rules
+      - alert: CriticalLogError
+        expr: |
+          count_over_time(logs_total{level="critical"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          type: log-error
+        annotations:
+          summary: "Critical error logged in application"
+          description: "Critical error detected in logs: {{ $labels.message }} (instance: {{ $labels.instance }})"
+          runbook_url: "https://github.com/ykargee/GistPin/runbooks/logs/critical-error.md"
+
+      - alert: ErrorLogSpike
+        expr: |
+          rate(logs_total{level="error"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          type: log-error
+        annotations:
+          summary: "High error rate detected in logs"
+          description: "Error rate exceeded 10 errors per minute for 2 minutes. Current rate: {{ $value | printf "%.2f" }} errors/sec"
+          runbook_url: "https://github.com/ykargee/GistPin/runbooks/logs/error-spike.md"
+
+      - alert: DatabaseConnectionErrors
+        expr: |
+          count_over_time(logs_total{message=~".*connection refused.*",component="postgres"}[5m]) > 5
+        for: 1m
+        labels:
+          severity: critical
+          type: database-error
+        annotations:
+          summary: "Multiple database connection failures"
+          description: "{{ $value }} database connection failures detected in 5 minutes"
+          runbook_url: "https://github.com/ykargee/GistPin/runbooks/database/connection-failed.md"
+
+      - alert: AuthenticationFailures
+        expr: |
+          count_over_time(logs_total{message=~".*invalid credentials.*|.*authentication failed.*"}[10m]) > 20
+        for: 0m
+        labels:
+          severity: critical
+          type: security-alert
+        annotations:
+          summary: "Multiple authentication failures detected"
+          description: "{{ $value }} authentication failures detected in 10 minutes - possible brute force attempt"
+          runbook_url: "https://github.com/ykargee/GistPin/runbooks/security/auth-failures.md"
+
+      # Rate-based alerting rules
+      - alert: HighLogVolume
+        expr: |
+          rate(logs_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          type: log-volume
+        annotations:
+          summary: "Abnormally high log volume detected"
+          description: "Log ingestion rate exceeded 1000 logs/sec for 5 minutes. Current rate: {{ $value | printf "%.2f" }} logs/sec"
+          runbook_url: "https://github.com/ykargee/GistPin/runbooks/logs/high-volume.md"
+
+      # Anomaly detection using historical baseline comparison
+      - alert: LogVolumeAnomaly
+        expr: |
+          rate(logs_total[5m]) > 3 * rate(logs_total[5m] offset 24h)
+        for: 5m
+        labels:
+          severity: warning
+          type: log-anomaly
+        annotations:
+          summary: "Log volume anomaly detected"
+          description: "Current log rate ({{ $value | printf "%.2f" }} logs/sec) is 3x higher than the same time yesterday"
+          runbook_url: "https://github.com/ykargee/GistPin/runbooks/logs/anomaly.md"
+
+      - alert: ErrorRateAnomaly
+        expr: |
+          rate(logs_total{level="error"}[5m]) > 5 * rate(logs_total{level="error"}[5m] offset 24h)
+        for: 3m
+        labels:
+          severity: warning
+          type: log-anomaly
+        annotations:
+          summary: "Error rate anomaly detected"
+          description: "Current error rate is 5x higher than the same time yesterday"
+          runbook_url: "https://github.com/ykargee/GistPin/runbooks/logs/error-anomaly.md"

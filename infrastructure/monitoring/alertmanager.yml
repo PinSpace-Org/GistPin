@@ -16,6 +16,9 @@ route:
         severity: warning
       receiver: slack-warnings
 
+# Include log alert routes
+{{ include "alertmanager-routes.yml" . }}
+
 receivers:
   - name: slack-critical
     slack_configs:
@@ -27,6 +30,20 @@ receivers:
       - channel: '#alerts-warnings'
         title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
         text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+  - name: slack-security
+    slack_configs:
+      - channel: '#alerts-security'
+        title: '[{{ .Status | toUpper }}][SECURITY] {{ .CommonLabels.alertname }}'
+        text: |
+          :shield: *SECURITY ALERT* :shield:
+          {{ range .Alerts }}
+          *Alert:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Instance:* {{ .Labels.instance }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+        send_resolved: true
+        mention_channel: true
 
 inhibit_rules:
   - source_match:

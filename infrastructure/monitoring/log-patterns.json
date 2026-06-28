@@ -1,0 +1,93 @@
+{
+  "error_patterns": [
+    {
+      "name": "critical_system_errors",
+      "patterns": [
+        "out of memory",
+        "stack overflow",
+        "segmentation fault",
+        "unhandled exception",
+        "fatal error",
+        "panic:"
+      ],
+      "level": "critical",
+      "alert_threshold": 1,
+      "window": "5m",
+      "deduplication_window": "15m"
+    },
+    {
+      "name": "database_errors",
+      "patterns": [
+        "connection refused",
+        "connection reset",
+        "deadlock detected",
+        "query timeout",
+        "too many connections",
+        "integrity constraint violation"
+      ],
+      "level": "error",
+      "alert_threshold": 5,
+      "window": "5m",
+      "deduplication_window": "10m"
+    },
+    {
+      "name": "security_errors",
+      "patterns": [
+        "invalid credentials",
+        "authentication failed",
+        "unauthorized access",
+        "forbidden access",
+        "csrf token invalid",
+        "xss attempt detected",
+        "sql injection attempt"
+      ],
+      "level": "warning",
+      "alert_threshold": 20,
+      "window": "10m",
+      "deduplication_window": "5m"
+    },
+    {
+      "name": "api_errors",
+      "patterns": [
+        "internal server error",
+        "bad gateway",
+        "service unavailable",
+        "gateway timeout",
+        "bad request",
+        "not found"
+      ],
+      "level": "error",
+      "alert_threshold": 10,
+      "window": "5m",
+      "deduplication_window": "5m"
+    },
+    {
+      "name": "network_errors",
+      "patterns": [
+        "connection timed out",
+        "network unreachable",
+        "dns resolution failed",
+        "tls handshake failed",
+        "ssl error"
+      ],
+      "level": "warning",
+      "alert_threshold": 15,
+      "window": "10m",
+      "deduplication_window": "10m"
+    }
+  ],
+  "anomaly_detection": {
+    "enabled": true,
+    "baseline_window": "7d",
+    "training_window": "24h",
+    "sensitivity": 2.0,
+    "seasonality": true,
+    "seasonality_period": "24h"
+  },
+  "deduplication": {
+    "enabled": true,
+    "default_window": "15m",
+    "fields": ["instance", "level", "message_pattern"],
+    "max_alerts_per_window": 5
+  }
+}
