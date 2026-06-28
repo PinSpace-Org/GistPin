@@ -1,0 +1,242 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  endpointSelector: {}
+  ingress: []
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-egress
+spec:
+  endpointSelector: {}
+  egress: []
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  endpointSelector: {}
+
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-kube-apiserver
+spec:
+  endpointSelector: {}
+
+  egress:
+    - toEntities:
+        - kube-apiserver
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-health-checks
+spec:
+  endpointSelector: {}
+
+  ingress:
+    - fromEntities:
+        - remote-node
+        - host
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-intra-namespace
+spec:
+  endpointSelector: {}
+
+  ingress:
+    - fromEndpoints:
+        - {}
+
+  egress:
+    - toEndpoints:
+        - {}
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-monitoring
+spec:
+  endpointSelector: {}
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+            - port: "9962"
+              protocol: TCP
+            - port: "4244"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: ingress-controller-to-frontend
+spec:
+  endpointSelector:
+    matchLabels:
+      app: frontend
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: ingress-nginx
+
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: frontend-to-backend
+spec:
+  endpointSelector:
+    matchLabels:
+      app: backend
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: frontend
+
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+
+          rules:
+            http:
+              - method: GET
+              - method: POST
+              - method: PUT
+              - method: DELETE
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backend-to-database
+spec:
+  endpointSelector:
+    matchLabels:
+      app: database
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: backend
+
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+spec:
+  endpointSelector:
+    matchLabels:
+      prometheus.io/scrape: "true"
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: prometheus
+
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+            - port: "9962"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-hubble-ui
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hubble-relay
+
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: hubble-ui
+
+      toPorts:
+        - ports:
+            - port: "4245"
+              protocol: TCP
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-world-egress
+spec:
+  endpointSelector: {}
+
+  egress:
+    - toEntities:
+        - world
+
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-node-traffic
+spec:
+  endpointSelector: {}
+
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+
+  egress:
+    - toEntities:
+        - host
+        - remote-node
