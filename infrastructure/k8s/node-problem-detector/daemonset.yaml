@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-problem-detector
+  namespace: gistpin
+  labels:
+    app: node-problem-detector
+spec:
+  selector:
+    matchLabels:
+      app: node-problem-detector
+  template:
+    metadata:
+      labels:
+        app: node-problem-detector
+    spec:
+      serviceAccountName: node-problem-detector
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: node-problem-detector
+          image: registry.k8s.io/node-problem-detector/node-problem-detector:v0.8.15
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config.system-log-monitor=/config/kernel-monitor.json
+            - --config.system-log-monitor=/config/docker-monitor.json
+            - --config.custom-plugin-monitor=/config/health-checker-kubelet.json
+            - --config.custom-plugin-monitor=/config/health-checker-docker.json
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: log
+              mountPath: /var/log
+              readOnly: true
+            - name: kmsg
+              mountPath: /dev/kmsg
+              readOnly: true
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+      volumes:
+        - name: config
+          configMap:
+            name: node-problem-detector-config
+        - name: log
+          hostPath:
+            path: /var/log
+        - name: kmsg
+          hostPath:
+            path: /dev/kmsg
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: node-problem-detector
+  namespace: gistpin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: node-problem-detector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: node-problem-detector
+subjects:
+  - kind: ServiceAccount
+    name: node-problem-detector
+    namespace: gistpin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: node-problem-detector
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "create", "update"]

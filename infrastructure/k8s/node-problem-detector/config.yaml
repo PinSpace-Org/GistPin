@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-problem-detector-config
+  namespace: gistpin
+data:
+  kernel-monitor.json: |
+    {
+      "plugin": "log",
+      "config": {
+        "logPath": "/var/log/kern.log",
+        "timestamp": "^\\w{3}\\s+\\d+\\s+\\d{2}:\\d{2}:\\d{2}",
+        "conditions": [
+          {
+            "type": "KernelDeadlock",
+            "reason": "KernelHasNoDeadlock",
+            "message": "kernel has no deadlock"
+          }
+        ],
+        "rules": [
+          {
+            "type": "temporary",
+            "reason": "OOMKilling",
+            "pattern": "Killed process.*oom_killer"
+          },
+          {
+            "type": "temporary",
+            "reason": "TaskHung",
+            "pattern": "task.*blocked for more than.*seconds"
+          },
+          {
+            "type": "permanent",
+            "reason": "KernelPanic",
+            "pattern": "kernel panic"
+          },
+          {
+            "type": "permanent",
+            "reason": "KernelOops",
+            "pattern": "BUG: unable to handle kernel"
+          }
+        ]
+      }
+    }
+  docker-monitor.json: |
+    {
+      "plugin": "log",
+      "config": {
+        "logPath": "/var/log/docker.log",
+        "timestamp": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}",
+        "conditions": [],
+        "rules": [
+          {
+            "type": "temporary",
+            "reason": "CorruptDockerOverlay2",
+            "pattern": "corrupt.*overlay2"
+          },
+          {
+            "type": "temporary",
+            "reason": "DockerSocketHung",
+            "pattern": "docker socket.*hung"
+          }
+        ]
+      }
+    }
+  health-checker-kubelet.json: |
+    {
+      "plugin": "custom",
+      "config": {
+        "configPath": "/home/kubernetes/node-problem-detector/health-checker-kubelet.json"
+      }
+    }
+  health-checker-docker.json: |
+    {
+      "plugin": "custom",
+      "config": {
+        "configPath": "/home/kubernetes/node-problem-detector/health-checker-docker.json"
+      }
+    }

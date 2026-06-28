@@ -1,0 +1,42 @@
+import "tfplan"
+import "strings"
+
+required_tags = [
+  "Environment",
+  "Owner",
+  "CostCenter",
+  "Project",
+]
+
+global_deny_list = [
+  "aws_iam_role",
+  "aws_iam_policy",
+  "aws_iam_role_policy_attachment",
+]
+
+allowed_tags_by_resource = {
+  "aws_s3_bucket":           required_tags,
+  "aws_ecs_service":         required_tags,
+  "aws_instance":            required_tags,
+  "aws_lb":                 required_tags,
+  "aws_db_instance":         required_tags,
+  "aws_elasticache_cluster": required_tags,
+  "aws_lambda_function":     required_tags,
+}
+
+main = rule {
+  all tfplan.resource_changes as _, rc {
+    resource_type = rc.type
+    change = rc.change
+
+    resource_type in allowed_tags_by_resource else true
+
+    resource_type in global_deny_list else true
+
+    change.after.tags else false
+
+    all allowed_tags_by_resource[resource_type] as _, tag {
+      change.after.tags contains tag else false
+    }
+  }
+}
