@@ -1,0 +1,66 @@
+{
+  "node_versions": [18, 20, 22],
+  "os": ["ubuntu-latest"],
+  "test_suites": {
+    "unit": {
+      "paths": ["Backend", "Frontend", "analytics"],
+      "parallelism": 3,
+      "timeout_minutes": 10
+    },
+    "integration": {
+      "paths": ["Backend"],
+      "parallelism": 1,
+      "timeout_minutes": 20,
+      "requires_services": true
+    },
+    "e2e": {
+      "paths": ["Backend"],
+      "parallelism": 2,
+      "timeout_minutes": 30,
+      "requires_services": true
+    }
+  },
+  "cache_strategy": {
+    "npm": {
+      "paths": ["~/.npm", "**/node_modules"],
+      "key_template": "${{ runner.os }}-node${{ matrix.node-version }}-npm-${{ hashFiles('**/package-lock.json') }}"
+    },
+    "cargo": {
+      "paths": ["~/.cargo/registry", "~/.cargo/git", "contracts/target"],
+      "key_template": "${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}"
+    },
+    "docker": {
+      "paths": ["/tmp/.buildx-cache"],
+      "key_template": "${{ runner.os }}-buildx-${{ github.sha }}"
+    }
+  },
+  "pipeline_stages": {
+    "parallel_groups": [
+      "lint",
+      "typecheck"
+    ],
+    "dependent_groups": {
+      "test": {
+        "dependencies": ["lint", "typecheck"],
+        "matrix": true
+      },
+      "integration": {
+        "dependencies": ["lint", "typecheck"],
+        "matrix": false
+      },
+      "security": {
+        "dependencies": ["lint", "typecheck"],
+        "matrix": false
+      }
+    },
+    "final_stage": {
+      "name": "pipeline-visualization",
+      "dependencies": ["test", "integration", "security"]
+    }
+  },
+  "time_reduction_estimates": {
+    "sequential_estimated_minutes": 45,
+    "parallel_estimated_minutes": 18,
+    "reduction_percentage": 60
+  }
+}
