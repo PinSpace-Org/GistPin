@@ -1,0 +1,98 @@
+# Egress Cost Alerting Rules
+# Relies on VPC flow log metrics and the egress-cost-tracker.sh script.
+# Requires flow log metrics to be scraped via cloudwatch_exporter or similar.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: egress-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: egress-cost.alerts
+      interval: 60s
+      rules:
+        # Unexpected egress spike — 2x normal baseline
+        - alert: UnexpectedEgressSpike
+          expr: |
+            sum(gistpin:network_egress_bytes_per_second)
+            > 2 * avg_over_time(sum(gistpin:network_egress_bytes_per_second)[1h] offset 1h)
+          for: 5m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "Unexpected egress spike detected"
+            description: "Egress traffic is 2x the 1-hour baseline (current: {{ $value | humanizeBytes }}/s). Investigate for data exfiltration or misconfigured clients."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/egress-spike"
+
+        # Daily egress cost anomaly — projected cost exceeds threshold
+        - alert: EgressCostAnomaly
+          expr: |
+            gistpin:estimated_egress_cost_usd_daily > 100
+          for: 10m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "Daily egress cost exceeds $100"
+            description: "Projected 24-hour egress cost is ${{ $value | printf \"%.2f\" }}. Review the egress cost dashboard and top consumers."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/egress-cost"
+
+        # Critical egress cost — projected cost exceeds $500
+        - alert: EgressCostCritical
+          expr: |
+            gistpin:estimated_egress_cost_usd_daily > 500
+          for: 5m
+          labels:
+            severity: critical
+            team: infrastructure
+          annotations:
+            summary: "Daily egress cost exceeds $500 — urgent review required"
+            description: "Projected 24-hour egress cost is ${{ $value | printf \"%.2f\" }}. Immediate investigation required."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/egress-cost"
+
+        # Cross-region data transfer warning
+        - alert: CrossRegionTransferWarning
+          expr: |
+            sum by (destination_region) (
+              gistpin:network_egress_bytes_per_second
+            ) > 52428800
+          for: 10m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "Cross-region data transfer detected to {{ $labels.destination_region }}"
+            description: "Sustained cross-region egress of {{ $value | humanizeBytes }}/s to {{ $labels.destination_region }}. Cross-region transfers incur higher costs."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/cross-region-egress"
+
+        # Single service egress spike — top consumer anomaly
+        - alert: ServiceEgressAnomaly
+          expr: |
+            topk(1, sum by (service) (gistpin:network_egress_bytes_per_second))
+            > 3 * avg without (service) (sum by (service) (gistpin:network_egress_bytes_per_second) offset 6h)
+          for: 5m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "Service {{ $labels.service }} egress anomaly detected"
+            description: "Service {{ $labels.service }} egress is 3x its 6-hour baseline. Current: {{ $value | humanizeBytes }}/s."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/egress-spike"
+
+        # NAT Gateway data transfer cost spike
+        - alert: NatGatewayCostSpike
+          expr: |
+            sum(gistpin:nat_gateway_bytes_per_second) > 104857600
+          for: 10m
+          labels:
+            severity: warning
+            team: infrastructure
+          annotations:
+            summary: "NAT Gateway data transfer spike (> 100 MiB/s)"
+            description: "NAT Gateway throughput is {{ $value | humanizeBytes }}/s. NAT Gateway processing and data transfer costs are elevated."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/nat-cost"

@@ -1,0 +1,80 @@
+# Connection Pool Alerting Rules — PgBouncer
+# Requires pgbouncer metrics defined in pgbouncer-metrics.yml.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: pool-alerts
+  namespace: monitoring
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: connection-pool.alerts
+      interval: 30s
+      rules:
+        # Pool utilization warning (> 80 %)
+        - alert: PoolUtilizationWarning
+          expr: |
+            gistpin:pgbouncer_pool_utilization > 80
+          for: 5m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "PgBouncer pool utilization above 80 % on {{ $labels.database }}"
+            description: "Database {{ $labels.database }} pool utilization is at {{ $value | humanizePercentage }}. Consider increasing pool_size or optimizing queries."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/pool-utilization"
+
+        # Pool utilization critical (> 95 %)
+        - alert: PoolUtilizationCritical
+          expr: |
+            gistpin:pgbouncer_pool_utilization > 95
+          for: 2m
+          labels:
+            severity: critical
+            team: backend
+          annotations:
+            summary: "PgBouncer pool utilization above 95 % on {{ $labels.database }} — connections may be rejected"
+            description: "Database {{ $labels.database }} pool utilization is at {{ $value | humanizePercentage }}. Immediate action required to prevent connection failures."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/pool-utilization"
+
+        # Connection wait time spike (> 500 ms average over 5m)
+        - alert: HighConnectionWaitTime
+          expr: |
+            gistpin:pgbouncer_avg_wait_time_seconds > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "High connection wait time on {{ $labels.database }} (> 500 ms)"
+            description: "Average connection wait time on {{ $labels.database }} is {{ $value | humanizeDuration }}. Check for long-running queries or pool exhaustion."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/connection-wait"
+
+        # Pool exhaustion — all connections in use with clients waiting
+        - alert: PoolExhaustion
+          expr: |
+            gistpin:pgbouncer_waiting_clients > 0
+          for: 1m
+          labels:
+            severity: critical
+            team: backend
+          annotations:
+            summary: "PgBouncer pool exhausted on {{ $labels.database }}"
+            description: "Database {{ $labels.database }} has {{ $value }} waiting client(s) and no available connections. Connections are being queued."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/pool-exhaustion"
+
+        # Connection churn too high — rapid connect/disconnect pattern
+        - alert: HighConnectionChurn
+          expr: |
+            gistpin:pgbouncer_connection_rate_per_second > 10
+          for: 5m
+          labels:
+            severity: warning
+            team: backend
+          annotations:
+            summary: "High connection churn rate on {{ $labels.database }}"
+            description: "Database {{ $labels.database }} is seeing {{ $value | humanizeNumber }} connections/s. Investigate connection pooling in application code."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/connection-churn"

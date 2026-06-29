@@ -1,0 +1,256 @@
+{
+  "title": "Connection Pool Monitoring",
+  "uid": "gistpin-connection-pool",
+  "version": 1,
+  "schemaVersion": 38,
+  "tags": ["gistpin", "postgresql", "connection-pool"],
+  "timezone": "utc",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "title": "Active vs Idle Connections",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (database) (gistpin:pgbouncer_active_connections)",
+          "legendFormat": "Active - {{ database }}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (database) (gistpin:pgbouncer_idle_connections)",
+          "legendFormat": "Idle - {{ database }}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": "/Active/" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": "/Idle/" },
+            "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }]
+          }
+        ]
+      }
+    },
+    {
+      "title": "Pool Utilization",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg(gistpin:pgbouncer_pool_utilization)",
+          "legendFormat": "Average",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Pool Exhaustion Alerts",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(gistpin:pgbouncer_pool_exhausted)",
+          "legendFormat": "Exhausted pools",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(gistpin:pgbouncer_waiting_clients)",
+          "legendFormat": "Waiting clients",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Connection Wait Times",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "gistpin:pgbouncer_avg_wait_time_seconds",
+          "legendFormat": "{{ database }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.25 },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Per-Service Connection Breakdown",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (database) (gistpin:pgbouncer_active_connections)",
+          "legendFormat": "{{ database }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "options": {
+        "pieType": "pie",
+        "legend": { "displayMode": "table", "placement": "right" }
+      }
+    },
+    {
+      "title": "Connection Churn Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "gistpin:pgbouncer_connection_rate_per_second",
+          "legendFormat": "{{ database }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Pool Size vs Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "gistpin:pgbouncer_pool_size_limit",
+          "legendFormat": "Pool limit - {{ database }}",
+          "refId": "A"
+        },
+        {
+          "expr": "gistpin:pgbouncer_total_connections",
+          "legendFormat": "Total used - {{ database }}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "title": "Auto-Scaling Recommendations",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "gistpin:pgbouncer_pool_utilization",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true },
+            "indexByName": {},
+            "renameByName": {
+              "database": "Database",
+              "Value": "Utilization %"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "reduceRow",
+            "reduce": { "calcs": ["last"] }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "red", "value": 95 }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "refresh": "30s"
+}
