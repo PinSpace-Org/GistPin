@@ -1,0 +1,158 @@
+---
+# Goldilocks Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: goldilocks
+  labels:
+    goldilocks.fairwinds.com/enabled: "true"
+---
+# Goldilocks Controller Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goldilocks-controller
+  namespace: goldilocks
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goldilocks-controller
+  template:
+    metadata:
+      labels:
+        app: goldilocks-controller
+    spec:
+      serviceAccountName: goldilocks-sa
+      containers:
+        - name: controller
+          image: quay.io/fairwinds/goldilocks:v4.10.0
+          args:
+            - controller
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+---
+# Goldilocks Dashboard Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goldilocks-dashboard
+  namespace: goldilocks
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goldilocks-dashboard
+  template:
+    metadata:
+      labels:
+        app: goldilocks-dashboard
+    spec:
+      serviceAccountName: goldilocks-sa
+      containers:
+        - name: dashboard
+          image: quay.io/fairwinds/goldilocks:v4.10.0
+          args:
+            - dashboard
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
+---
+# Goldilocks Dashboard Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: goldilocks-dashboard
+  namespace: goldilocks
+spec:
+  selector:
+    app: goldilocks-dashboard
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+---
+# Goldilocks Dashboard Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: goldilocks-dashboard
+  namespace: goldilocks
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - goldilocks.gistpin.io
+      secretName: goldilocks-tls
+  rules:
+    - host: goldilocks.gistpin.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: goldilocks-dashboard
+                port:
+                  number: 80
+---
+# VPA Recommendation for Backend
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: goldilocks-backend-vpa
+  namespace: gistpin
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        mode: Auto
+        controlledResources:
+          - cpu
+          - memory
+---
+# VPA Recommendation for Frontend
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: goldilocks-frontend-vpa
+  namespace: gistpin
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: "*"
+        mode: Auto
+        controlledResources:
+          - cpu
+          - memory
