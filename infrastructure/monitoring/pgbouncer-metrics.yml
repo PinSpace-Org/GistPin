@@ -1,0 +1,86 @@
+# PgBouncer Metrics — Prometheus scrape config and recording rules
+# Requires pgbouncer_exporter sidecar on the PostgreSQL pod.
+
+scrape_configs:
+  - job_name: "gistpin-pgbouncer"
+    static_configs:
+      - targets: ["localhost:9127"]
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "pgbouncer"
+
+recording_rules:
+  - name: pgbouncer.recording
+    interval: 15s
+    rules:
+      # Active connections per database
+      - record: gistpin:pgbouncer_active_connections
+        expr: |
+          sum by (database) (
+            pgbouncer_pools_client_active_connections
+          )
+
+      # Idle connections per database
+      - record: gistpin:pgbouncer_idle_connections
+        expr: |
+          sum by (database) (
+            pgbouncer_pools_client_idle_connections
+          )
+
+      # Total connections (active + idle)
+      - record: gistpin:pgbouncer_total_connections
+        expr: |
+          gistpin:pgbouncer_active_connections
+          + gistpin:pgbouncer_idle_connections
+
+      # Average wait time per database (seconds)
+      - record: gistpin:pgbouncer_avg_wait_time_seconds
+        expr: |
+          rate(pgbouncer_pools_client_wait_seconds_total[5m])
+          / rate(pgbouncer_pools_client_wait_count_total[5m])
+
+      # Pool utilization percentage
+      - record: gistpin:pgbouncer_pool_utilization
+        expr: |
+          sum by (database) (
+            pgbouncer_pools_client_active_connections
+          )
+          / sum by (database) (
+            pgbouncer_pools_client_active_connections
+            + pgbouncer_pools_client_idle_connections
+            + pgbouncer_pools_client_waiting_connections
+          )
+          * 100
+
+      # Number of waiting clients
+      - record: gistpin:pgbouncer_waiting_clients
+        expr: |
+          sum by (database) (
+            pgbouncer_pools_client_waiting_connections
+          )
+
+      # Connection churn rate (new connections per second)
+      - record: gistpin:pgbouncer_connection_rate_per_second
+        expr: |
+          rate(pgbouncer_pools_client_connections_received_total[1m])
+
+      # Max pool size per database (from config)
+      - record: gistpin:pgbouncer_pool_size_limit
+        expr: |
+          pgbouncer_databases_pool_size
+
+      # Pool exhaustion flag (1 if pool is fully saturated)
+      - record: gistpin:pgbouncer_pool_exhausted
+        expr: |
+          (
+            sum by (database) (
+              pgbouncer_pools_client_active_connections
+              + pgbouncer_pools_client_idle_connections
+              + pgbouncer_pools_client_waiting_connections
+            )
+            >= on (database) pgbouncer_databases_pool_size
+          )

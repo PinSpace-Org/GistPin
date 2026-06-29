@@ -1,0 +1,110 @@
+# LimitRange definitions per namespace type.
+# These define default, min, and max resource limits for containers, pods, and PVCs.
+# Applied to new namespaces via the admission webhook or manually.
+
+# Dev namespaces — relaxed defaults, tight max to prevent runaway resources
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: dev-default-limits
+  namespace: gistpin-dev
+  labels:
+    gistpin.io/namespace-type: dev
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      max:
+        cpu: "2"
+        memory: 4Gi
+      min:
+        cpu: 10m
+        memory: 16Mi
+
+    - type: Pod
+      max:
+        cpu: "4"
+        memory: 8Gi
+
+    - type: PersistentVolumeClaim
+      max:
+        storage: 20Gi
+      min:
+        storage: 1Gi
+
+---
+# Staging namespaces — moderate limits that approximate prod behavior
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: staging-default-limits
+  namespace: gistpin-staging
+  labels:
+    gistpin.io/namespace-type: staging
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "1"
+        memory: 1Gi
+      defaultRequest:
+        cpu: 200m
+        memory: 256Mi
+      max:
+        cpu: "4"
+        memory: 8Gi
+      min:
+        cpu: 50m
+        memory: 64Mi
+
+    - type: Pod
+      max:
+        cpu: "8"
+        memory: 16Gi
+
+    - type: PersistentVolumeClaim
+      max:
+        storage: 100Gi
+      min:
+        storage: 1Gi
+
+---
+# Prod namespaces — production-grade limits with strict max constraints
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: prod-default-limits
+  namespace: gistpin-prod
+  labels:
+    gistpin.io/namespace-type: prod
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "1"
+        memory: 1Gi
+      defaultRequest:
+        cpu: 250m
+        memory: 256Mi
+      max:
+        cpu: "8"
+        memory: 16Gi
+      min:
+        cpu: 50m
+        memory: 64Mi
+
+    - type: Pod
+      max:
+        cpu: "16"
+        memory: 32Gi
+
+    - type: PersistentVolumeClaim
+      max:
+        storage: 500Gi
+      min:
+        storage: 1Gi

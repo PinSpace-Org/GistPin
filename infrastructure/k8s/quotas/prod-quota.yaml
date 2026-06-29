@@ -1,0 +1,179 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gistpin-prod
+  labels:
+    env: prod
+    team: gistpin
+
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gistpin-prod-quota
+  namespace: gistpin-prod
+  annotations:
+    quota.gistpin.io/alert-threshold: "70"
+spec:
+  hard:
+    # Compute — sized for 3-replica backend + frontend + analytics + sidecars
+    requests.cpu: "24"
+    limits.cpu: "48"
+    requests.memory: 48Gi
+    limits.memory: 96Gi
+
+    # Workloads
+    count/pods: "150"
+    count/deployments.apps: "30"
+    count/statefulsets.apps: "10"
+    count/jobs.batch: "30"
+    count/cronjobs.batch: "10"
+
+    # Services & config
+    count/services: "50"
+    count/configmaps: "80"
+    count/secrets: "80"
+    count/serviceaccounts: "20"
+
+    # Storage
+    requests.storage: 1Ti
+    persistentvolumeclaims: "40"
+    count/persistentvolumeclaims: "40"
+
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: gistpin-prod-limits
+  namespace: gistpin-prod
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "1"
+        memory: 1Gi
+      defaultRequest:
+        cpu: 250m
+        memory: 256Mi
+      max:
+        cpu: "8"
+        memory: 16Gi
+      min:
+        cpu: 50m
+        memory: 64Mi
+
+    - type: Pod
+      max:
+        cpu: "16"
+        memory: 32Gi
+
+    - type: PersistentVolumeClaim
+      max:
+        storage: 500Gi
+      min:
+        storage: 1Gi
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gistpin-prod-quota-alerts
+  namespace: gistpin-prod
+  labels:
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: gistpin-prod-quota
+      interval: 30s
+      rules:
+        - alert: ProdCpuRequestQuotaHigh
+          expr: |
+            kube_resourcequota{namespace="gistpin-prod", resource="requests.cpu", type="used"}
+            / kube_resourcequota{namespace="gistpin-prod", resource="requests.cpu", type="hard"} > 0.70
+          for: 5m
+          labels:
+            severity: warning
+            env: prod
+          annotations:
+            summary: "Prod CPU request quota above 70 %"
+            description: "gistpin-prod CPU requests at {{ $value | humanizePercentage }}. Consider raising quota or scaling down workloads."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/quota-cpu"
+
+        - alert: ProdCpuRequestQuotaCritical
+          expr: |
+            kube_resourcequota{namespace="gistpin-prod", resource="requests.cpu", type="used"}
+            / kube_resourcequota{namespace="gistpin-prod", resource="requests.cpu", type="hard"} > 0.90
+          for: 2m
+          labels:
+            severity: critical
+            env: prod
+          annotations:
+            summary: "Prod CPU request quota above 90 % -- scheduling risk"
+            description: "gistpin-prod CPU requests at {{ $value | humanizePercentage }}. New pods may fail to schedule."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/quota-cpu"
+
+        - alert: ProdMemoryRequestQuotaHigh
+          expr: |
+            kube_resourcequota{namespace="gistpin-prod", resource="requests.memory", type="used"}
+            / kube_resourcequota{namespace="gistpin-prod", resource="requests.memory", type="hard"} > 0.70
+          for: 5m
+          labels:
+            severity: warning
+            env: prod
+          annotations:
+            summary: "Prod memory request quota above 70 %"
+            description: "gistpin-prod memory requests at {{ $value | humanizePercentage }}."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/quota-memory"
+
+        - alert: ProdMemoryRequestQuotaCritical
+          expr: |
+            kube_resourcequota{namespace="gistpin-prod", resource="requests.memory", type="used"}
+            / kube_resourcequota{namespace="gistpin-prod", resource="requests.memory", type="hard"} > 0.90
+          for: 2m
+          labels:
+            severity: critical
+            env: prod
+          annotations:
+            summary: "Prod memory request quota above 90 %"
+            description: "gistpin-prod memory requests at {{ $value | humanizePercentage }}. OOM evictions and scheduling failures imminent."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/quota-memory"
+
+        - alert: ProdPodCountQuotaHigh
+          expr: |
+            kube_resourcequota{namespace="gistpin-prod", resource="count/pods", type="used"}
+            / kube_resourcequota{namespace="gistpin-prod", resource="count/pods", type="hard"} > 0.70
+          for: 5m
+          labels:
+            severity: warning
+            env: prod
+          annotations:
+            summary: "Prod pod count quota above 70 %"
+            description: "{{ $value | humanizePercentage }} of pod quota consumed in gistpin-prod."
+
+        - alert: ProdStorageQuotaHigh
+          expr: |
+            kube_resourcequota{namespace="gistpin-prod", resource="requests.storage", type="used"}
+            / kube_resourcequota{namespace="gistpin-prod", resource="requests.storage", type="hard"} > 0.70
+          for: 10m
+          labels:
+            severity: warning
+            env: prod
+          annotations:
+            summary: "Prod storage quota above 70 %"
+            description: "Storage quota in gistpin-prod at {{ $value | humanizePercentage }}."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/quota-storage"
+
+        - alert: ProdQuotaExceeded
+          expr: |
+            kube_resourcequota{namespace="gistpin-prod", type="used"}
+            >= kube_resourcequota{namespace="gistpin-prod", type="hard"}
+          for: 1m
+          labels:
+            severity: critical
+            env: prod
+            page: "true"
+          annotations:
+            summary: "PROD quota hard limit hit for {{ $labels.resource }}"
+            description: "Resource {{ $labels.resource }} has reached its hard quota in gistpin-prod. Pod/PVC creation is being rejected RIGHT NOW."
+            runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/quota-exceeded"
