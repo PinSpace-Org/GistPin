@@ -1,0 +1,47 @@
+groups:
+  - name: gistpin-budget-alerts
+    rules:
+      - alert: BudgetProjectedOverage
+        expr: aws_cost_forecast_next_month_usd > aws_cost_budget_monthly_usd
+        for: 6h
+        labels:
+          severity: critical
+        annotations:
+          summary: "Projected monthly spend exceeds budget"
+          description: "Forecast: ${{ $value | humanize }} — review cost-forecast.py output"
+
+      - alert: BudgetNearThreshold
+        expr: aws_cost_forecast_next_month_usd > aws_cost_budget_monthly_usd * 0.85
+        for: 12h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Projected spend within 85% of monthly budget"
+          description: "Forecast: ${{ $value | humanize }}"
+
+      - alert: ForecastAnomaly
+        expr: abs(aws_cost_forecast_growth_rate_pct) > 20
+        for: 1d
+        labels:
+          severity: warning
+        annotations:
+          summary: "Abnormal spend growth rate detected"
+          description: "Growth rate: {{ $value }}% — investigate recent infrastructure changes"
+
+      - alert: ResourceGrowthProjection
+        expr: aws_cost_resource_growth_pct > 50
+        for: 3d
+        labels:
+          severity: info
+        annotations:
+          summary: "Resource cost growth projection exceeds 50%"
+          description: "Run cost-forecast.py for detailed breakdown"
+
+      - alert: SavingsOpportunityDetected
+        expr: aws_cost_rightsizing_savings_usd > 100
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "Rightsizing savings opportunity detected"
+          description: "Potential monthly savings: ${{ $value | humanize }}"
