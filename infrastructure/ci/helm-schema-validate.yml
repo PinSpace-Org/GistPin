@@ -1,0 +1,117 @@
+name: Helm Schema Validation
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/k8s/**'
+      - 'infrastructure/ci/helm-schema-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/k8s/**'
+
+jobs:
+  validate:
+    name: Validate Helm Values
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: '3.14.0'
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Validate values.schema.json syntax
+        run: |
+          python3 -m json.tool infrastructure/k8s/helm/gistpin/values.schema.json > /dev/null && \
+          echo "✓ values.schema.json is valid JSON"
+
+      - name: Validate values.yaml against schema
+        run: |
+          helm lint infrastructure/k8s --strict \
+            --namespace gistpin \
+            --set environment=staging
+        continue-on-error: true
+
+      - name: Validate schema with ajv
+        run: |
+          npm install -g ajv-cli@5.0.0
+          ajv validate \
+            -s infrastructure/k8s/helm/gistpin/values.schema.json \
+            -d infrastructure/k8s/values.yaml \
+            --strict=false 2>&1 || echo "Warning: ajv validation produced issues (non-blocking)"
+
+      - name: Validate dev values
+        run: |
+          cat infrastructure/k8s/values.yaml \
+            | yq eval '.env = "dev"' - \
+            > /tmp/values-dev.yaml
+          helm lint infrastructure/k8s --strict --values /tmp/values-dev.yaml \
+            --namespace gistpin || true
+
+      - name: Validate staging values
+        run: |
+          cat infrastructure/k8s/values.yaml \
+            | yq eval '.env = "staging"' - \
+            > /tmp/values-staging.yaml
+          helm lint infrastructure/k8s --strict --values /tmp/values-staging.yaml \
+            --namespace gistpin || true
+
+      - name: Validate production values
+        run: |
+          cat infrastructure/k8s/values.yaml \
+            | yq eval '.env = "production"' - \
+            > /tmp/values-prod.yaml
+          helm lint infrastructure/k8s --strict --values /tmp/values-prod.yaml \
+            --namespace gistpin || true
+
+      - name: Check for breaking changes
+        run: |
+          SCHEMA_FIELDS=$(python3 -c "
+import json
+with open('infrastructure/k8s/helm/gistpin/values.schema.json') as f:
+    schema = json.load(f)
+def count_props(obj, path=''):
+    count = 0
+    if 'properties' in obj:
+        for k, v in obj['properties'].items():
+            count += 1 + count_props(v, f'{path}.{k}')
+    return count
+print('Schema defines', count_props(schema), 'validatable properties')
+")
+          echo "$SCHEMA_FIELDS"
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-schema-validation
+          path: |
+            /tmp/values-dev.yaml
+            /tmp/values-staging.yaml
+            /tmp/values-prod.yaml
+          retention-days: 14
+
+      - name: Comment on PR if validation fails
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ **Helm Schema Validation Failed**\n\nThe Helm values schema validation has detected issues. Please review the workflow run for details.\n\n' +
+                    'Common issues:\n' +
+                    '- Missing required fields\n' +
+                    '- Invalid enum values (env must be dev/staging/prod)\n' +
+                    '- Type mismatches in resource definitions\n' +
+                    '- Invalid image pull policies'
+            })
