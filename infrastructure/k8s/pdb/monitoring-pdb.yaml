@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: monitoring-pdb
+  namespace: gistpin-monitoring
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: gistpin-monitoring
