@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gistpin-backend
+  namespace: gistpin
+  labels:
+    app: gistpin-backend
+    component: blue-green-router
+  annotations:
+    description: "Blue-green traffic router for GistPin backend"
+spec:
+  selector:
+    app: gistpin-backend
+    version: blue
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+      name: http
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gistpin-backend-blue
+  namespace: gistpin
+  labels:
+    app: gistpin-backend
+    slot: blue
+  annotations:
+    description: "Direct access to blue slot (for smoke tests)"
+spec:
+  selector:
+    app: gistpin-backend
+    version: blue
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+      name: http
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gistpin-backend-green
+  namespace: gistpin
+  labels:
+    app: gistpin-backend
+    slot: green
+  annotations:
+    description: "Direct access to green slot (for smoke tests)"
+spec:
+  selector:
+    app: gistpin-backend
+    version: green
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+      name: http
+  type: ClusterIP
