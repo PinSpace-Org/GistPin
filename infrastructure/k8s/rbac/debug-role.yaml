@@ -1,0 +1,201 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gistpin-debug
+  labels:
+    app: gistpin
+    component: debug
+    purpose: ephemeral-debugging
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debug-config
+  namespace: gistpin-debug
+  labels:
+    app: gistpin
+    component: debug-config
+  annotations:
+    description: "Configuration for ephemeral debug containers"
+data:
+  APPROVED_IMAGES: |
+    busybox:latest
+    nicolaka/netshoot:latest
+    curlimages/curl:latest
+    alpine:latest
+    python:3.11-slim
+    node:18-slim
+  MAX_DEBUG_CONTAINERS: "10"
+  MAX_DEBUG_TTL: "3600"
+  AUDIT_ENABLED: "true"
+  AUDIT_LOG_PATH: "/var/log/gistpin/debug-audit.log"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debug-scripts
+  namespace: gistpin-debug
+  labels:
+    app: gistpin
+    component: debug-scripts
+  annotations:
+    description: "Debug helper scripts mounted into debug containers"
+data:
+  health-check.sh: |
+    #!/bin/sh
+    echo "=== Pod Debug Health Check ==="
+    echo "Hostname: $(hostname)"
+    echo "Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo ""
+    echo "=== Network ==="
+    cat /etc/resolv.conf 2>/dev/null || echo "No resolv.conf"
+    echo ""
+    echo "=== Disk ==="
+    df -h 2>/dev/null || echo "df not available"
+    echo ""
+    echo "=== Processes ==="
+    ps aux 2>/dev/null || echo "ps not available"
+  network-diag.sh: |
+    #!/bin/sh
+    echo "=== Network Diagnostics ==="
+    TARGET="${1:-kubernetes.default.svc.cluster.local}"
+    echo "Target: $TARGET"
+    echo ""
+    echo "--- DNS Resolution ---"
+    nslookup "$TARGET" 2>/dev/null || dig "$TARGET" 2>/dev/null || echo "DNS tools not available"
+    echo ""
+    echo "--- Connectivity ---"
+    ping -c 3 "$TARGET" 2>/dev/null || echo "ping not available"
+    echo ""
+    echo "--- HTTP Check ---"
+    curl -sf -o /dev/null -w "HTTP %{http_code}\n" "http://${TARGET}/health" 2>/dev/null || echo "curl not available or endpoint unreachable"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: debug-sa
+  namespace: gistpin-debug
+  labels:
+    app: gistpin
+    component: debug
+  annotations:
+    description: "Service account for ephemeral debug containers"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: debug-role
+  namespace: gistpin
+  labels:
+    app: gistpin
+    component: debug-rbac
+  annotations:
+    description: "RBAC role for ephemeral container operations"
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["pods/attach"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["pods/portforward"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods/status"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods/proxy"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+  - apiGroups: ["security.openshift.io"]
+    resourceNames: ["privileged"]
+    resources: ["securitycontextconstraints"]
+    verbs: ["use"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: debug-rolebinding
+  namespace: gistpin
+  labels:
+    app: gistpin
+    component: debug-rbac
+  annotations:
+    description: "Binds debug role to debug service account"
+subjects:
+  - kind: ServiceAccount
+    name: debug-sa
+    namespace: gistpin-debug
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: debug-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: debug-cluster-role
+  labels:
+    app: gistpin
+    component: debug-rbac
+  annotations:
+    description: "Cluster-wide role for cross-namespace debugging"
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: debug-cluster-rolebinding
+  labels:
+    app: gistpin
+    component: debug-rbac
+  annotations:
+    description: "Binds cluster debug role to debug service account"
+subjects:
+  - kind: ServiceAccount
+    name: debug-sa
+    namespace: gistpin-debug
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: debug-cluster-role
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: debug-audit-secret
+  namespace: gistpin-debug
+  labels:
+    app: gistpin
+    component: debug-audit
+  annotations:
+    description: "Secret for debug audit configuration"
+type: Opaque
+data: {}
