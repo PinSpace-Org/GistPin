@@ -1,39 +1,317 @@
-name: Blue Green Deploy
+name: Blue-Green Deployment Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Docker image tag to deploy"
+        required: true
+        default: "latest"
+      namespace:
+        description: "Target Kubernetes namespace"
+        required: false
+        default: "gistpin"
+      dry_run:
+        description: "Perform dry run only"
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [main]
+    paths:
+      - 'infrastructure/k8s/blue-green/**'
+      - 'infrastructure/scripts/blue-green-deploy.sh'
+      - 'infrastructure/scripts/switch-blue-green.sh'
+
+env:
+  SERVICE_NAME: gistpin-backend
+  IMAGE_REGISTRY: ghcr.io
+  IMAGE_NAME: pinspace-org/gistpin-backend
 
 permissions:
   contents: read
+  packages: read
+  id-token: write
 
 jobs:
-  blue-green:
+  pre-deploy-validation:
+    name: Pre-deploy Validation
     runs-on: ubuntu-latest
+    outputs:
+      active_slot: ${{ steps.detect.outputs.active_slot }}
+      target_slot: ${{ steps.detect.outputs.target_slot }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy to inactive environment
+      - name: Detect active slot
+        id: detect
         run: |
-          current_env="$(cat /tmp/gistpin-active-environment 2>/dev/null || echo blue)"
-          if [ "$current_env" = "blue" ]; then target_env="green"; else target_env="blue"; fi
-          echo "Deploying new version to ${target_env}"
-          echo "$target_env" > /tmp/gistpin-target-environment
+          kubectl get service ${{ env.SERVICE_NAME }} -n ${{ inputs.namespace || 'gistpin' }} \
+            -o jsonpath='{.spec.selector.version}' 2>/dev/null > /tmp/active-slot || echo "blue" > /tmp/active-slot
+          active_slot="$(cat /tmp/active-slot)"
+          if [ "$active_slot" = "blue" ]; then target_slot="green"; else target_slot="blue"; fi
+          echo "active_slot=${active_slot}" >> "$GITHUB_OUTPUT"
+          echo "target_slot=${target_slot}" >> "$GITHUB_OUTPUT"
+          echo "Active slot: ${active_slot}, Target slot: ${target_slot}"
 
-      - name: Run smoke tests against inactive environment
+      - name: Resolve image tag
+        id: meta
         run: |
-          target_env="$(cat /tmp/gistpin-target-environment)"
-          bash infrastructure/scripts/smoke-tests.sh "http://${target_env}.gistpin.internal/health"
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "image_tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_tag=${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Switch traffic to new version
+      - name: Validate Kubernetes manifests
         run: |
-          current_env="$(cat /tmp/gistpin-active-environment 2>/dev/null || echo blue)"
-          bash infrastructure/scripts/switch-traffic.sh "${current_env}"
+          for f in infrastructure/k8s/blue-green/*.yaml; do
+            echo "Validating: ${f}"
+            kubectl apply -f "${f}" --dry-run=client 2>&1
+          done
 
-      - name: Keep old version for rollback window
-        run: echo "Retaining previous environment for rollback period"
+      - name: Lint deployment script
+        run: |
+          bash -n infrastructure/scripts/blue-green-deploy.sh
+          echo "Script syntax OK"
 
-      - name: Cleanup after successful deploy
-        run: echo "Blue-green deployment cleanup complete"
+  deploy-to-target:
+    name: Deploy to Target Slot
+    needs: pre-deploy-validation
+    runs-on: ubuntu-latest
+    environment: ${{ needs.pre-deploy-validation.outputs.target_slot }}
+    env:
+      TARGET_SLOT: ${{ needs.pre-deploy-validation.outputs.target_slot }}
+      IMAGE_TAG: ${{ needs.pre-deploy-validation.outputs.image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Deploy to ${{ env.TARGET_SLOT }}
+        run: |
+          bash infrastructure/scripts/blue-green-deploy.sh \
+            --service ${{ env.SERVICE_NAME }} \
+            --namespace ${{ inputs.namespace || 'gistpin' }} \
+            --image ${{ env.IMAGE_TAG }} \
+            ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+  smoke-tests:
+    name: Smoke Tests
+    needs: [pre-deploy-validation, deploy-to-target]
+    runs-on: ubuntu-latest
+    env:
+      TARGET_SLOT: ${{ needs.pre-deploy-validation.outputs.target_slot }}
+      IMAGE_TAG: ${{ needs.pre-deploy-validation.outputs.image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Wait for pods to be ready
+        run: |
+          kubectl wait --for=condition=ready pod \
+            -l app=gistpin-backend,version=${{ env.TARGET_SLOT }} \
+            -n ${{ inputs.namespace || 'gistpin' }} \
+            --timeout=120s
+
+      - name: Run smoke tests against target slot
+        run: |
+          TARGET_URL="http://gistpin-backend-${{ env.TARGET_SLOT }}.${{ inputs.namespace || 'gistpin' }}.svc.cluster.local"
+          echo "Testing: ${TARGET_URL}"
+          bash infrastructure/scripts/smoke-tests.sh
+
+      - name: Health check
+        run: |
+          TARGET_URL="http://gistpin-backend-${{ env.TARGET_SLOT }}.${{ inputs.namespace || 'gistpin' }}.svc.cluster.local"
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 10 "${TARGET_URL}/health" || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Health check failed: HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+          echo "Health check passed: HTTP ${HTTP_CODE}"
+
+  traffic-switch:
+    name: Switch Traffic
+    needs: [pre-deploy-validation, smoke-tests]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      TARGET_SLOT: ${{ needs.pre-deploy-validation.outputs.target_slot }}
+      ACTIVE_SLOT: ${{ needs.pre-deploy-validation.outputs.active_slot }}
+      IMAGE_TAG: ${{ needs.pre-deploy-validation.outputs.image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Switch traffic to ${{ env.TARGET_SLOT }}
+        run: |
+          echo "Switching traffic from ${{ env.ACTIVE_SLOT }} to ${{ env.TARGET_SLOT }}"
+          bash infrastructure/scripts/switch-blue-green.sh "${TARGET_SLOT}" \
+            "${{ env.SERVICE_NAME }}" "${{ inputs.namespace || 'gistpin' }}"
+
+      - name: Verify traffic switch
+        run: |
+          sleep 5
+          current_selector=$(kubectl get service ${{ env.SERVICE_NAME }} \
+            -n ${{ inputs.namespace || 'gistpin' }} \
+            -o jsonpath='{.spec.selector.version}')
+          if [ "$current_selector" != "${{ env.TARGET_SLOT }}" ]; then
+            echo "Traffic switch verification failed. Expected: ${{ env.TARGET_SLOT }}, Got: ${current_selector}"
+            exit 1
+          fi
+          echo "Traffic switch verified: active=${current_selector}"
+
+      - name: Record deployment
+        run: |
+          echo "{
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+            \"service\": \"${{ env.SERVICE_NAME }}\",
+            \"namespace\": \"${{ inputs.namespace || 'gistpin' }}\",
+            \"slot\": \"${{ env.TARGET_SLOT }}\",
+            \"previous_slot\": \"${{ env.ACTIVE_SLOT }}\",
+            \"image_tag\": \"${{ env.IMAGE_TAG }}\",
+            \"status\": \"completed\",
+            \"deployed_by\": \"${{ github.actor }}\",
+            \"git_commit\": \"${{ github.sha }}\",
+            \"workflow_run\": \"${{ github.run_id }}\"
+          }" | tee /tmp/deployment-record.json
+
+      - name: Upload deployment record
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-record-${{ github.run_number }}
+          path: /tmp/deployment-record.json
+          retention-days: 90
+
+  post-deploy-verification:
+    name: Post-deploy Verification
+    needs: [pre-deploy-validation, traffic-switch]
+    runs-on: ubuntu-latest
+    env:
+      TARGET_SLOT: ${{ needs.pre-deploy-validation.outputs.target_slot }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Post-switch health check
+        run: |
+          echo "Verifying post-switch health..."
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 10 \
+            "http://${{ env.SERVICE_NAME }}.${{ inputs.namespace || 'gistpin' }}.svc.cluster.local/health" || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Post-switch health check failed: HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+          echo "Post-switch health check passed"
+
+      - name: Confirm deployment success
+        run: |
+          echo "Blue-green deployment completed successfully"
+          echo "Active slot: ${{ env.TARGET_SLOT }}"
+          echo "Previous slot available for rollback"
+
+  rollback-on-failure:
+    name: Rollback on Failure
+    needs: [pre-deploy-validation, smoke-tests]
+    if: failure()
+    runs-on: ubuntu-latest
+    env:
+      ACTIVE_SLOT: ${{ needs.pre-deploy-validation.outputs.active_slot }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: Set kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Rollback to ${{ env.ACTIVE_SLOT }}
+        run: |
+          echo "Smoke tests failed. Rolling back to ${{ env.ACTIVE_SLOT }}..."
+          bash infrastructure/scripts/switch-blue-green.sh "${ACTIVE_SLOT}" \
+            "${{ env.SERVICE_NAME }}" "${{ inputs.namespace || 'gistpin' }}"
+          echo "Rollback complete"
+
+      - name: Verify rollback
+        run: |
+          sleep 5
+          current_selector=$(kubectl get service ${{ env.SERVICE_NAME }} \
+            -n ${{ inputs.namespace || 'gistpin' }} \
+            -o jsonpath='{.spec.selector.version}')
+          if [ "$current_selector" != "${{ env.ACTIVE_SLOT }}" ]; then
+            echo "Rollback verification failed"
+            exit 1
+          fi
+          echo "Rollback verified: active=${current_selector}"
+
+      - name: Record rollback
+        run: |
+          echo "{
+            \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+            \"service\": \"${{ env.SERVICE_NAME }}\",
+            \"namespace\": \"${{ inputs.namespace || 'gistpin' }}\",
+            \"slot\": \"${{ env.ACTIVE_SLOT }}\",
+            \"status\": \"rollback\",
+            \"reason\": \"smoke-test-failure\",
+            \"deployed_by\": \"${{ github.actor }}\",
+            \"workflow_run\": \"${{ github.run_id }}\"
+          }" | tee /tmp/rollback-record.json
+
+      - name: Upload rollback record
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollback-record-${{ github.run_number }}
+          path: /tmp/rollback-record.json
+          retention-days: 90
+
+      - name: Notify rollback
+        if: always()
+        run: |
+          echo "::error::Blue-green deployment failed. Traffic rolled back to ${{ env.ACTIVE_SLOT }}."

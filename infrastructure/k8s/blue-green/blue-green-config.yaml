@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gistpin
+  labels:
+    app: gistpin
+    managed-by: blue-green-deploy
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blue-green-config
+  namespace: gistpin
+  labels:
+    app: gistpin
+    component: blue-green-config
+  annotations:
+    description: "Blue-green deployment configuration and history"
+data:
+  ACTIVE_SLOT: "blue"
+  ROLLBACK_WINDOW: "600"
+  SMOKE_TEST_RETRIES: "3"
+  SMOKE_TEST_INTERVAL: "10"
+  HEALTH_ENDPOINT: "/health"
+  DEPLOY_TIMEOUT: "300"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deployment-history
+  namespace: gistpin
+  labels:
+    app: gistpin
+    component: deployment-history
+  annotations:
+    description: "Tracks blue-green deployment history"
+data:
+  last_deployment: ""
+  last_rollback: ""
+  deployment_count: "0"

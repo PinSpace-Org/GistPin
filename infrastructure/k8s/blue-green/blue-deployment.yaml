@@ -2,20 +2,71 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: gistpin-blue
+  namespace: gistpin
+  labels:
+    app: gistpin-backend
+    version: blue
+    slot: blue
+  annotations:
+    deployment.kubernetes.io/revision: "1"
+    description: "Blue slot deployment for GistPin backend"
 spec:
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
-      app: gistpin
+      app: gistpin-backend
       version: blue
   template:
     metadata:
       labels:
-        app: gistpin
+        app: gistpin-backend
         version: blue
+        slot: blue
     spec:
+      terminationGracePeriodSeconds: 30
       containers:
         - name: gistpin
-          image: gistpin:blue
+          image: ghcr.io/pinspace-org/gistpin-backend:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
+              protocol: TCP
+              name: http
+          envFrom:
+            - configMapRef:
+                name: backend-config
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 30
