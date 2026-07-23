@@ -14,6 +14,13 @@ import {
 } from '@stellar/stellar-sdk';
 import { randomBytes } from 'crypto';
 
+/**
+ * Canonical event name emitted by the GistRegistry Soroban contract on a new
+ * gist. Must match the symbol published in contracts/src/lib.rs (see
+ * contracts/README.md "Events").
+ */
+const GIST_POSTED_EVENT = 'gist_posted';
+
 export interface PostGistResult {
   gistId: string;
   txHash: string;
@@ -331,8 +338,10 @@ export class SorobanService {
       return null;
     }
 
+    // Canonical event name emitted by the GistRegistry contract (see contracts/lib.rs
+    // and contracts/README.md "Events"). Keep this in sync with the contract.
     const eventName = typeof topic[0] === 'string' ? topic[0] : '';
-    if (eventName && eventName !== 'post_gist' && eventName !== 'gist_posted') {
+    if (eventName !== GIST_POSTED_EVENT) {
       return null;
     }
 
