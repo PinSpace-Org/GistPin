@@ -401,17 +401,13 @@ describe('GistRepository (integration)', () => {
         location_cell: 's1t7d8c',
       });
 
-      const count = await repository.countNearby({ lat: 9.0579, lon: 7.4951, radiusMeters: 500 });
+      const count = await repository.countNearby(9.0579, 7.4951, 500);
       expect(typeof count).toBe('number');
       expect(count).toBeGreaterThanOrEqual(0);
     });
 
     it('should return 0 when no gists are in radius', async () => {
-      const count = await repository.countNearby({
-        lat: 51.5074, // London
-        lon: -0.1278,
-        radiusMeters: 100,
-      });
+      const count = await repository.countNearby(51.5074, -0.1278, 100);
       expect(count).toBe(0);
     });
   });

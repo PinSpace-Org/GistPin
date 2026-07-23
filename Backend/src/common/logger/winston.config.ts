@@ -1,6 +1,6 @@
 import { utilities as nestWinstonUtilities, WinstonModuleOptions } from 'nest-winston';
 import * as winston from 'winston';
-import 'winston-daily-rotate-file';
+import DailyRotateFile = require('winston-daily-rotate-file');
 import { getCorrelationId } from './correlation-id.store';
 
 const correlationFormat = winston.format((info) => {
@@ -33,12 +33,12 @@ function buildFileTransports(logDir: string): winston.transport[] {
   };
 
   return [
-    new winston.transports.DailyRotateFile({
+    new DailyRotateFile({
       ...sharedOptions,
       filename: 'combined-%DATE%.log',
       level: 'info',
     }),
-    new winston.transports.DailyRotateFile({
+    new DailyRotateFile({
       ...sharedOptions,
       filename: 'error-%DATE%.log',
       level: 'error',

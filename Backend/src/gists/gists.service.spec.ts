@@ -66,7 +66,7 @@ describe('GistsService', () => {
         { provide: DataSource, useValue: { transaction: transactionMock } },
         { provide: GistRepository, useValue: gistRepo },
         { provide: GeoService, useValue: { encode: jest.fn().mockReturnValue('s1t7d8c') } },
-        { provide: IpfsService, useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'mock_cid' }) } },
+        { provide: IpfsService, useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'Qmrealcid' }) } },
         {
           provide: SorobanService,
           useValue: { postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }) },
@@ -108,7 +108,7 @@ describe('GistsService', () => {
         stellar_gist_id: 'gist-1',
         tx_hash: 'mock_tx',
       });
-      expect(writeArgs[1]).toEqual({});
+      expect(managerArg).toEqual({});
       expect(result).toBe(created);
     });
 
@@ -158,20 +158,11 @@ describe('GistsService', () => {
       const driverError: Error & { code?: string } = new Error('connection lost');
       driverError.code = '08006';
 
-      await expect(service.create(buildDto())).rejects.toBe(err);
-    });
-
-      await expect(service.create(buildDto())).rejects.toBe(driverError);
-      expect(gistRepository.findByStellarGistId).not.toHaveBeenCalled();
-    });
-  });
-
-  // ── findOne ───────────────────────────────────────────────────────────────
-
       gistRepository.create.mockRejectedValue(driverError);
       gistRepository.findByStellarGistId.mockResolvedValue(null);
 
       await expect(service.create(buildDto())).rejects.toBe(driverError);
+      expect(gistRepository.findByStellarGistId).not.toHaveBeenCalled();
     });
   });
 
