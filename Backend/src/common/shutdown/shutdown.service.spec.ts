@@ -22,10 +22,10 @@ class FakeTracker extends InFlightRequestTracker {
 function makeHttpServer(tracker: FakeTracker): Server {
   const ee = new EventEmitter();
   const server = ee as unknown as Server;
-  server.close = (cb?: (err?: Error) => void): void => {
+  server.close = (cb?: (err?: Error) => void): Server => {
     if (tracker.active === 0) {
       cb?.();
-      return;
+      return server;
     }
     const interval = setInterval(() => {
       if (tracker.active === 0) {
@@ -33,6 +33,7 @@ function makeHttpServer(tracker: FakeTracker): Server {
         cb?.();
       }
     }, 5);
+    return server;
   };
   return server;
 }
@@ -99,9 +100,11 @@ describe('ShutdownService', () => {
 
     await service.handleSignal('SIGTERM');
 
+    // A drain timeout is a bounded, expected outcome (not an error): the app
+    // still closes cleanly and the service force-exits 0. Only a *thrown*
+    // error during shutdown suppresses the exit (see the app.close-throws test).
     expect(app.close).toHaveBeenCalledTimes(1);
-    // Failure path: do NOT exit cleanly, let the platform supervisor handle it.
-    expect(process.exit).not.toHaveBeenCalled();
+    expect(process.exit).toHaveBeenCalledWith(0);
   });
 
   it('is idempotent: a second signal is logged and ignored', async () => {
