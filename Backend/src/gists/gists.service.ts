@@ -13,6 +13,11 @@ import { stripHtml } from '../common/utils/sanitize';
 
 const DEFAULT_TTL_HOURS = 24;
 
+interface CacheEntry {
+  data: Record<string, unknown>;
+  expiresAt: number;
+}
+
 export interface CountNearbyResult {
   count: number;
   radius: number;
@@ -47,7 +52,7 @@ export class GistsService {
       created_at: new Date().toISOString(),
     });
 
-    const author = dto.authorAddress ?? dto.author;
+    const author = dto.authorAddress;
     const { gistId, txHash } = await this.sorobanService.postGist(locationCell, cid, author);
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
