@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsLatitude, IsLongitude, IsOptional, Max, MaxLength, Min } from 'class-validator';
+import { IsInt, IsLatitude, IsLongitude, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { IsStellarAddress } from '../../common/validators';
 
 export class CreateGistDto {

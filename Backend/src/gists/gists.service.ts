@@ -13,6 +13,11 @@ import { stripHtml } from '../common/utils/sanitize';
 
 const DEFAULT_TTL_HOURS = 24;
 
+interface CacheEntry {
+  data: Record<string, unknown>;
+  expiresAt: number;
+}
+
 export interface CountNearbyResult {
   count: number;
   radius: number;
