@@ -6,8 +6,6 @@ import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { useRef } from 'react';
-import { GridPattern } from '@/components/ui/grid-pattern';
-import { cn } from '@/lib/utils';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -37,17 +35,6 @@ export default function CTA() {
       ref={containerRef}
       className="relative py-24 md:py-32 overflow-hidden bg-[#030303]"
     >
-      <GridPattern
-        width={30}
-        height={30}
-        x={-1}
-        y={-1}
-        className={cn(
-          'fill-purple-500/10 stroke-purple-500/20',
-          '[mask-image:radial-gradient(500px_circle_at_center,white,transparent)]'
-        )}
-      />
-
       <div className="max-w-3xl px-4 mx-auto text-center glowing-card-container">
         <div className="glow-layer"></div>
 
