@@ -54,6 +54,17 @@ Each gist record tracks:
 | `get_gist(gist_id)` | Retrieve a gist record by id |
 | `list_gists_by_cell(location_cell, cursor, limit)` | Paginated list of gists within a location cell |
 
+### Events
+
+`post_gist` publishes a single canonical event that off-chain indexers
+(the backend) subscribe to. **Keep this in sync with the backend's
+`GIST_POSTED_EVENT` constant.**
+
+| Field | Value |
+|---|---|
+| Topic (event name) | `gist_posted` (a `Symbol`) |
+| Data payload | the full `Gist` record (`gist_id`, `author`, `location_cell`, `content_hash`, `created_at`) |
+
 ---
 
 ## Planned Contracts

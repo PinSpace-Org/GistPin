@@ -1,5 +1,7 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Symbol, Vec,
+};
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -49,6 +51,12 @@ impl GistRegistry {
 
         env.storage().persistent().set(&gist_id, &gist);
         env.storage().instance().set(&GIST_COUNT, &gist_id);
+
+        // Emit the canonical `gist_posted` event so off-chain indexers can
+        // reconcile on-chain state. The single topic is the event name; the
+        // data payload is the full Gist record.
+        let topic = Symbol::new(&env, "gist_posted");
+        env.events().publish((topic,), gist);
 
         gist_id
     }
@@ -135,5 +143,21 @@ mod tests {
 
         let results = client.list_gists_by_cell(&cell_a, &0, &10);
         assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn test_post_gist_emits_event() {
+        let env = Env::default();
+        let contract_id = env.register(GistRegistry, ());
+        let client = GistRegistryClient::new(&env, &contract_id);
+
+        let location = String::from_str(&env, "r3gx");
+        let hash = String::from_str(&env, "QmEvent");
+
+        client.post_gist(&None, &location, &hash);
+
+        // Exactly one `gist_posted` event should have been published.
+        let events = env.events().all();
+        assert_eq!(events.len(), 1);
     }
 }
