@@ -29,6 +29,18 @@ pub enum GistError {
     TtlTooLong = 2,
     /// This author posted in this cell less than `COOLDOWN_SECS` ago.
     CooldownActive = 3,
+    /// No gist exists with the given id.
+    NotFound = 4,
+    /// The caller is not permitted to perform this action (not the gist's
+    /// author, or not the moderator).
+    NotAuthorized = 5,
+    /// `initialize` has already been called.
+    AlreadyInitialized = 6,
+    /// A moderator action was attempted before `initialize`.
+    NotInitialized = 7,
+    /// Anonymous gists have no provable owner, so they cannot be edited or
+    /// deleted by users — only moderated.
+    AnonymousImmutable = 8,
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +57,9 @@ pub struct Gist {
     pub created_at: u64,
     /// Ledger timestamp after which this gist is considered expired.
     pub expires_at: u64,
+    /// Set by a moderator to soft-hide the gist. Hidden gists are excluded
+    /// from listings but remain retrievable via `get_gist`.
+    pub hidden: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +75,10 @@ pub enum DataKey {
     CellIndex(String),
     /// Last post timestamp for an (author, cell) pair — drives the cooldown.
     LastPost(Address, String),
+    /// The moderator address, set once via `initialize`.
+    Admin,
+    /// Number of reports filed against a gist (advisory, for off-chain review).
+    Reports(u64),
 }
 
 const GIST_COUNT: Symbol = symbol_short!("GCOUNT");
@@ -133,6 +152,7 @@ impl GistRegistry {
             content_hash,
             created_at: now,
             expires_at,
+            hidden: false,
         };
 
         env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
@@ -163,14 +183,15 @@ impl GistRegistry {
         env.storage().persistent().get(&DataKey::Gist(gist_id))
     }
 
-    /// Whether a gist exists and has not yet expired.
+    /// Whether a gist exists, has not expired, and has not been hidden by a
+    /// moderator.
     pub fn is_active(env: Env, gist_id: u64) -> bool {
         match env
             .storage()
             .persistent()
             .get::<DataKey, Gist>(&DataKey::Gist(gist_id))
         {
-            Some(gist) => env.ledger().timestamp() < gist.expires_at,
+            Some(gist) => !gist.hidden && env.ledger().timestamp() < gist.expires_at,
             None => false,
         }
     }
@@ -203,7 +224,7 @@ impl GistRegistry {
                     .persistent()
                     .get::<DataKey, Gist>(&DataKey::Gist(id))
                 {
-                    if now < gist.expires_at {
+                    if !gist.hidden && now < gist.expires_at {
                         results.push_back(gist);
                         count += 1;
                     }
@@ -213,6 +234,157 @@ impl GistRegistry {
         }
 
         results
+    }
+
+    // -----------------------------------------------------------------------
+    // Moderation (#878)
+    // -----------------------------------------------------------------------
+
+    /// Set the moderator address. Callable exactly once, at deploy time.
+    ///
+    /// Posting works without initialization; only moderator actions require it.
+    pub fn initialize(env: Env, admin: Address) -> Result<(), GistError> {
+        if env.storage().instance().has(&DataKey::Admin) {
+            return Err(GistError::AlreadyInitialized);
+        }
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        Ok(())
+    }
+
+    /// The configured moderator, if `initialize` has been called.
+    pub fn get_admin(env: Env) -> Option<Address> {
+        env.storage().instance().get(&DataKey::Admin)
+    }
+
+    /// Soft-hide a gist. Moderator only.
+    ///
+    /// Hidden gists are excluded from `list_gists_by_cell` and report
+    /// `is_active == false`, but remain retrievable via `get_gist` (with
+    /// `hidden == true`) so moderation stays auditable. Reversible via
+    /// [`Self::unhide_gist`].
+    pub fn hide_gist(env: Env, gist_id: u64) -> Result<(), GistError> {
+        Self::require_admin(&env)?;
+        Self::set_hidden(&env, gist_id, true)?;
+        env.events()
+            .publish((Symbol::new(&env, "gist_hidden"),), gist_id);
+        Ok(())
+    }
+
+    /// Reverse a previous [`Self::hide_gist`]. Moderator only.
+    pub fn unhide_gist(env: Env, gist_id: u64) -> Result<(), GistError> {
+        Self::require_admin(&env)?;
+        Self::set_hidden(&env, gist_id, false)?;
+        env.events()
+            .publish((Symbol::new(&env, "gist_unhidden"),), gist_id);
+        Ok(())
+    }
+
+    /// Permanently delete a gist. Moderator only.
+    ///
+    /// Prefer [`Self::hide_gist`] unless the content must not persist —
+    /// removal is irreversible and leaves no record beyond the event.
+    pub fn remove_gist(env: Env, gist_id: u64) -> Result<(), GistError> {
+        Self::require_admin(&env)?;
+        if !env.storage().persistent().has(&DataKey::Gist(gist_id)) {
+            return Err(GistError::NotFound);
+        }
+        env.storage().persistent().remove(&DataKey::Gist(gist_id));
+        env.events()
+            .publish((Symbol::new(&env, "gist_removed"),), gist_id);
+        Ok(())
+    }
+
+    /// Flag a gist for off-chain review. Callable by anyone; advisory only —
+    /// it never hides content on its own.
+    pub fn report_gist(env: Env, gist_id: u64) -> Result<u32, GistError> {
+        if !env.storage().persistent().has(&DataKey::Gist(gist_id)) {
+            return Err(GistError::NotFound);
+        }
+        let key = DataKey::Reports(gist_id);
+        let count: u32 = env.storage().persistent().get(&key).unwrap_or(0) + 1;
+        env.storage().persistent().set(&key, &count);
+        env.events()
+            .publish((Symbol::new(&env, "gist_reported"),), (gist_id, count));
+        Ok(count)
+    }
+
+    /// Number of reports filed against a gist.
+    pub fn report_count(env: Env, gist_id: u64) -> u32 {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Reports(gist_id))
+            .unwrap_or(0)
+    }
+
+    // -----------------------------------------------------------------------
+    // Author edit / delete (#879)
+    // -----------------------------------------------------------------------
+
+    /// Replace a gist's content pointer. Original author only.
+    ///
+    /// Anonymous gists cannot be edited — there is no provable owner.
+    pub fn edit_gist(env: Env, gist_id: u64, new_content_hash: String) -> Result<(), GistError> {
+        let mut gist = Self::load_authored(&env, gist_id)?;
+        gist.content_hash = new_content_hash;
+        env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
+        env.events()
+            .publish((Symbol::new(&env, "gist_edited"),), gist);
+        Ok(())
+    }
+
+    /// Delete your own gist. Original author only.
+    ///
+    /// Anonymous gists cannot be deleted by users — only moderated.
+    pub fn delete_gist(env: Env, gist_id: u64) -> Result<(), GistError> {
+        Self::load_authored(&env, gist_id)?;
+        env.storage().persistent().remove(&DataKey::Gist(gist_id));
+        env.events()
+            .publish((Symbol::new(&env, "gist_deleted"),), gist_id);
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Internal helpers
+    // -----------------------------------------------------------------------
+
+    /// Require that the call is authorized by the configured moderator.
+    fn require_admin(env: &Env) -> Result<(), GistError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(GistError::NotInitialized)?;
+        admin.require_auth();
+        Ok(())
+    }
+
+    /// Load a gist, requiring that the call is authorized by its author.
+    fn load_authored(env: &Env, gist_id: u64) -> Result<Gist, GistError> {
+        let gist: Gist = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Gist(gist_id))
+            .ok_or(GistError::NotFound)?;
+
+        match gist.author.clone() {
+            // A different address cannot pass this: the transaction must carry
+            // an authorization entry for the stored author.
+            Some(author) => author.require_auth(),
+            None => return Err(GistError::AnonymousImmutable),
+        }
+        Ok(gist)
+    }
+
+    /// Set the `hidden` flag on an existing gist.
+    fn set_hidden(env: &Env, gist_id: u64, hidden: bool) -> Result<(), GistError> {
+        let mut gist: Gist = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Gist(gist_id))
+            .ok_or(GistError::NotFound)?;
+        gist.hidden = hidden;
+        env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
+        Ok(())
     }
 }
 
@@ -473,5 +645,242 @@ mod tests {
         let client = setup(&env);
 
         assert_eq!(client.list_gists_by_cell(&cell(&env, "nope"), &0, &10).len(), 0);
+    }
+
+    // -- initialization / moderator (#878) -----------------------------------
+
+    #[test]
+    fn initialize_sets_the_admin_once() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let admin = Address::generate(&env);
+
+        assert!(client.get_admin().is_none());
+        client.initialize(&admin);
+        assert_eq!(client.get_admin(), Some(admin.clone()));
+
+        assert_eq!(
+            client.try_initialize(&admin),
+            Err(Ok(GistError::AlreadyInitialized))
+        );
+    }
+
+    #[test]
+    fn moderation_before_initialize_is_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+
+        let id = client.post_gist(&None, &cell(&env, "r3gx"), &cell(&env, "Qm1"), &None);
+
+        assert_eq!(
+            client.try_hide_gist(&id),
+            Err(Ok(GistError::NotInitialized))
+        );
+    }
+
+    #[test]
+    fn moderator_can_hide_and_unhide_a_gist() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        let location = cell(&env, "r3gx");
+        let id = client.post_gist(&None, &location, &cell(&env, "Qm1"), &None);
+        assert!(client.is_active(&id));
+
+        client.hide_gist(&id);
+
+        // excluded from listings and inactive, but still auditable
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
+        assert!(!client.is_active(&id));
+        let gist = client.get_gist(&id).expect("hidden gist is still retrievable");
+        assert!(gist.hidden);
+
+        client.unhide_gist(&id);
+        assert!(client.is_active(&id));
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn hiding_without_moderator_authorization_is_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+        let id = client.post_gist(&None, &cell(&env, "r3gx"), &cell(&env, "Qm1"), &None);
+
+        // Drop the mocked authorizations: the admin's require_auth can no
+        // longer be satisfied, so moderation must fail.
+        env.set_auths(&[]);
+        client.hide_gist(&id);
+    }
+
+    #[test]
+    fn moderator_can_remove_a_gist_permanently() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        let location = cell(&env, "r3gx");
+        let id = client.post_gist(&None, &location, &cell(&env, "Qm1"), &None);
+
+        client.remove_gist(&id);
+
+        assert!(client.get_gist(&id).is_none());
+        assert!(!client.is_active(&id));
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
+        // removing again reports NotFound
+        assert_eq!(client.try_remove_gist(&id), Err(Ok(GistError::NotFound)));
+    }
+
+    #[test]
+    fn moderating_an_unknown_gist_reports_not_found() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        assert_eq!(client.try_hide_gist(&999), Err(Ok(GistError::NotFound)));
+    }
+
+    // -- reporting (#878, advisory) -----------------------------------------
+
+    #[test]
+    fn anyone_can_report_and_reports_accumulate() {
+        let env = Env::default();
+        let client = setup(&env);
+
+        let location = cell(&env, "r3gx");
+        let id = client.post_gist(&None, &location, &cell(&env, "Qm1"), &None);
+
+        assert_eq!(client.report_count(&id), 0);
+        assert_eq!(client.report_gist(&id), 1);
+        assert_eq!(client.report_gist(&id), 2);
+        assert_eq!(client.report_count(&id), 2);
+
+        // reporting is advisory — it must not hide the gist on its own
+        assert!(client.is_active(&id));
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 1);
+
+        assert_eq!(client.try_report_gist(&999), Err(Ok(GistError::NotFound)));
+    }
+
+    // -- author edit / delete (#879) ----------------------------------------
+
+    #[test]
+    fn author_can_edit_their_own_gist() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+
+        let author = Address::generate(&env);
+        let id = client.post_gist(
+            &Some(author),
+            &cell(&env, "r3gx"),
+            &cell(&env, "QmOld"),
+            &None,
+        );
+
+        client.edit_gist(&id, &cell(&env, "QmNew"));
+
+        let gist = client.get_gist(&id).unwrap();
+        assert_eq!(gist.content_hash, cell(&env, "QmNew"));
+        // metadata is preserved
+        assert_eq!(gist.gist_id, id);
+    }
+
+    #[test]
+    fn author_can_delete_their_own_gist() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+
+        let author = Address::generate(&env);
+        let location = cell(&env, "r3gx");
+        let id = client.post_gist(&Some(author), &location, &cell(&env, "Qm1"), &None);
+
+        client.delete_gist(&id);
+
+        assert!(client.get_gist(&id).is_none());
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn a_different_address_cannot_edit_someone_elses_gist() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+
+        let author = Address::generate(&env);
+        let id = client.post_gist(
+            &Some(author),
+            &cell(&env, "r3gx"),
+            &cell(&env, "QmOld"),
+            &None,
+        );
+
+        // Without the author's authorization the edit must be rejected.
+        env.set_auths(&[]);
+        client.edit_gist(&id, &cell(&env, "QmHijacked"));
+    }
+
+    #[test]
+    fn anonymous_gists_cannot_be_edited_or_deleted() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+
+        let id = client.post_gist(&None, &cell(&env, "r3gx"), &cell(&env, "Qm1"), &None);
+
+        assert_eq!(
+            client.try_edit_gist(&id, &cell(&env, "QmNew")),
+            Err(Ok(GistError::AnonymousImmutable))
+        );
+        assert_eq!(
+            client.try_delete_gist(&id),
+            Err(Ok(GistError::AnonymousImmutable))
+        );
+    }
+
+    #[test]
+    fn editing_an_unknown_gist_reports_not_found() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+
+        assert_eq!(
+            client.try_edit_gist(&999, &cell(&env, "QmNew")),
+            Err(Ok(GistError::NotFound))
+        );
+        assert_eq!(client.try_delete_gist(&999), Err(Ok(GistError::NotFound)));
+    }
+
+    // -- interaction between features ---------------------------------------
+
+    #[test]
+    fn moderation_and_expiry_are_independent() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+        env.ledger().set_timestamp(1_000);
+
+        let location = cell(&env, "r3gx");
+        let id = client.post_gist(&None, &location, &cell(&env, "Qm1"), &Some(100u64));
+
+        client.hide_gist(&id);
+        assert!(!client.is_active(&id));
+
+        // unhiding an expired gist does not resurrect it
+        env.ledger().set_timestamp(1_000 + 500);
+        client.unhide_gist(&id);
+        assert!(!client.is_active(&id));
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
     }
 }
