@@ -41,18 +41,56 @@ Each gist record tracks:
 | Field | Type | Description |
 |---|---|---|
 | `gist_id` | `u64` | Auto-incremented identifier |
-| `author` | `Option<Address>` | Optional author address |
+| `author` | `Option<Address>` | Optional author address (`None` = anonymous) |
 | `location_cell` | `String` | Coarse geographic cell (e.g. H3 or geohash) |
 | `content_hash` | `String` | Content hash pointer (e.g. IPFS CID) |
 | `created_at` | `u64` | Ledger timestamp at creation |
+| `expires_at` | `u64` | Ledger timestamp after which the gist is expired |
 
 ### Public Methods
 
-| Method | Description |
+| Method | Returns | Description |
+|---|---|---|
+| `post_gist(author, location_cell, content_hash, ttl_secs)` | `Result<u64, GistError>` | Register a new gist; returns its `gist_id` |
+| `get_gist(gist_id)` | `Option<Gist>` | Retrieve a gist record by id (expired records are still returned) |
+| `is_active(gist_id)` | `bool` | Whether the gist exists and has not expired |
+| `list_gists_by_cell(location_cell, cursor, limit)` | `Vec<Gist>` | Paginated list of **active** gists in a cell |
+
+### Authorship
+
+`post_gist` supports both modes:
+
+- **Signed** (`author = Some(addr)`) — `addr.require_auth()` is enforced, so a
+  gist can never be attributed to an address that did not authorize the call.
+  Signed posts are cooldown-limited.
+- **Anonymous** (`author = None`) — no authorization required and no cooldown
+  (there is no on-chain identity to rate-limit; anonymous abuse is handled
+  off-chain by the API layer).
+
+### Expiry & cooldown
+
+| Rule | Value |
 |---|---|
-| `post_gist(author, location_cell, content_hash)` | Register a new gist; returns its `gist_id` |
-| `get_gist(gist_id)` | Retrieve a gist record by id |
-| `list_gists_by_cell(location_cell, cursor, limit)` | Paginated list of gists within a location cell |
+| Default TTL (when `ttl_secs` is `None`) | 24 hours |
+| Maximum TTL | 7 days |
+| Cooldown per (author, cell) | 60 seconds |
+
+Expired gists are excluded from `list_gists_by_cell` but remain retrievable via
+`get_gist`; use `is_active` to test expiry.
+
+### Errors
+
+| Error | Code | Raised when |
+|---|---|---|
+| `TtlZero` | 1 | `ttl_secs` is `0` |
+| `TtlTooLong` | 2 | `ttl_secs` exceeds the 7-day maximum |
+| `CooldownActive` | 3 | The author posted in this cell < 60s ago |
+
+### Pagination
+
+`list_gists_by_cell` pages over a **secondary index of gist ids per cell**, so
+cost scales with the results in that cell rather than the total number of
+gists. `cursor` is a zero-based **offset into that index** (not a gist id).
 
 ### Events
 
@@ -63,7 +101,7 @@ Each gist record tracks:
 | Field | Value |
 |---|---|
 | Topic (event name) | `gist_posted` (a `Symbol`) |
-| Data payload | the full `Gist` record (`gist_id`, `author`, `location_cell`, `content_hash`, `created_at`) |
+| Data payload | the full `Gist` record (`gist_id`, `author`, `location_cell`, `content_hash`, `created_at`, `expires_at`) |
 
 ---
 
