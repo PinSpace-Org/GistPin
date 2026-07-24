@@ -1,6 +1,10 @@
 # Rust / Cargo
 /target
-Cargo.lock
+
+# NOTE: Cargo.lock is intentionally committed. This crate builds a deployable
+# artifact (the Soroban WASM), so builds must be reproducible. Leaving it
+# uncommitted let fresh checkouts resolve soroban-env-host against an
+# incompatible ed25519-dalek and fail to compile.
 
 # Soroban build artifacts
 *.wasm
