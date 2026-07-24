@@ -51,10 +51,21 @@ Each gist record tracks:
 
 | Method | Returns | Description |
 |---|---|---|
+| `initialize(admin)` | `Result<(), GistError>` | Set the moderator address. Callable **once**, at deploy time |
+| `get_admin()` | `Option<Address>` | The configured moderator, if initialized |
 | `post_gist(author, location_cell, content_hash, ttl_secs)` | `Result<u64, GistError>` | Register a new gist; returns its `gist_id` |
-| `get_gist(gist_id)` | `Option<Gist>` | Retrieve a gist record by id (expired records are still returned) |
-| `is_active(gist_id)` | `bool` | Whether the gist exists and has not expired |
+| `get_gist(gist_id)` | `Option<Gist>` | Retrieve a gist record by id (expired/hidden records are still returned) |
+| `is_active(gist_id)` | `bool` | Exists, not expired, and not hidden |
 | `list_gists_by_cell(location_cell, cursor, limit)` | `Vec<Gist>` | Paginated list of **active** gists in a cell |
+| `edit_gist(gist_id, new_content_hash)` | `Result<(), GistError>` | Replace the content pointer — **author only** |
+| `delete_gist(gist_id)` | `Result<(), GistError>` | Delete your own gist — **author only** |
+| `hide_gist(gist_id)` | `Result<(), GistError>` | Soft-hide a gist — **moderator only** |
+| `unhide_gist(gist_id)` | `Result<(), GistError>` | Reverse a hide — **moderator only** |
+| `remove_gist(gist_id)` | `Result<(), GistError>` | Permanently delete — **moderator only** |
+| `report_gist(gist_id)` | `Result<u32, GistError>` | Flag for off-chain review (anyone); returns the new count |
+| `report_count(gist_id)` | `u32` | Reports filed against a gist |
+
+Posting works without `initialize`; only moderator actions require it.
 
 ### Authorship
 
@@ -78,6 +89,15 @@ Each gist record tracks:
 Expired gists are excluded from `list_gists_by_cell` but remain retrievable via
 `get_gist`; use `is_active` to test expiry.
 
+### Moderation & ownership
+
+| Action | Who | Effect |
+|---|---|---|
+| `edit_gist` / `delete_gist` | the gist's **author** (`require_auth`) | Anonymous gists are immutable — no provable owner |
+| `hide_gist` / `unhide_gist` | **moderator** (`require_auth`) | Soft, reversible. Excluded from listings; still returned by `get_gist` with `hidden = true`, so moderation stays auditable |
+| `remove_gist` | **moderator** (`require_auth`) | Permanent and irreversible — prefer `hide_gist` unless the content must not persist |
+| `report_gist` | anyone | Advisory only; never hides content on its own |
+
 ### Errors
 
 | Error | Code | Raised when |
@@ -85,6 +105,14 @@ Expired gists are excluded from `list_gists_by_cell` but remain retrievable via
 | `TtlZero` | 1 | `ttl_secs` is `0` |
 | `TtlTooLong` | 2 | `ttl_secs` exceeds the 7-day maximum |
 | `CooldownActive` | 3 | The author posted in this cell < 60s ago |
+| `NotFound` | 4 | No gist exists with that id |
+| `NotAuthorized` | 5 | Caller is neither the author nor the moderator |
+| `AlreadyInitialized` | 6 | `initialize` was called twice |
+| `NotInitialized` | 7 | A moderator action ran before `initialize` |
+| `AnonymousImmutable` | 8 | Edit/delete attempted on an anonymous gist |
+
+Authorization failures surface as a **trapped `require_auth`** (a panic), not a
+`GistError` — that is Soroban's standard behaviour.
 
 ### Pagination
 
@@ -94,14 +122,56 @@ gists. `cursor` is a zero-based **offset into that index** (not a gist id).
 
 ### Events
 
-`post_gist` publishes a single canonical event that off-chain indexers
-(the backend) subscribe to. **Keep this in sync with the backend's
-`GIST_POSTED_EVENT` constant.**
+Every state change publishes an event with a single `Symbol` topic (the event
+name) so off-chain indexers can reconcile. **Keep `gist_posted` in sync with the
+backend's `GIST_POSTED_EVENT` constant.**
 
-| Field | Value |
-|---|---|
-| Topic (event name) | `gist_posted` (a `Symbol`) |
-| Data payload | the full `Gist` record (`gist_id`, `author`, `location_cell`, `content_hash`, `created_at`, `expires_at`) |
+| Topic | Data payload | Emitted by |
+|---|---|---|
+| `gist_posted` | the full `Gist` record | `post_gist` |
+| `gist_edited` | the updated `Gist` record | `edit_gist` |
+| `gist_deleted` | `gist_id: u64` | `delete_gist` |
+| `gist_hidden` | `gist_id: u64` | `hide_gist` |
+| `gist_unhidden` | `gist_id: u64` | `unhide_gist` |
+| `gist_removed` | `gist_id: u64` | `remove_gist` |
+| `gist_reported` | `(gist_id: u64, count: u32)` | `report_gist` |
+
+The `Gist` record carries `gist_id`, `author`, `location_cell`, `content_hash`,
+`created_at`, `expires_at`, `hidden`.
+
+---
+
+## Deployment
+
+Build, deploy and initialize on testnet:
+
+```bash
+./scripts/deploy-testnet.sh <identity> [admin-address]
+```
+
+The script runs the tests, builds the release WASM, deploys, and calls
+`initialize` to set the moderator. Prerequisites (Rust wasm32 target, the
+Stellar CLI, and a funded identity) are listed at the top of the script.
+
+### Deployments
+
+| Network | Contract ID | Moderator |
+|---|---|---|
+| testnet | _not yet deployed_ | — |
+
+> Record the contract id here after deploying, then set
+> `CONTRACT_ID_GIST_REGISTRY` in the backend environment to take it out of
+> mock mode.
+
+### Backend integration checklist (Wave 2)
+
+- [ ] Set `CONTRACT_ID_GIST_REGISTRY` to the deployed id.
+- [ ] Update `soroban.service.ts` — `post_gist` now takes a 4th argument
+      (`ttl_secs: Option<u64>`) and returns a `Result`.
+- [ ] `list_gists_by_cell`'s `cursor` is a **`u32` offset into the cell index**,
+      no longer a gist id.
+- [ ] Decode the `Gist` payload's new `expires_at` and `hidden` fields.
+- [ ] Subscribe to the moderation/edit events above, not just `gist_posted`.
 
 ---
 
