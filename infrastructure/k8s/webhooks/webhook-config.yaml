@@ -1,0 +1,27 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: gistpin-resource-validator
+  annotations:
+    cert-manager.io/inject-ca-from: gistpin/resource-validator-cert
+spec:
+  webhooks:
+    - name: resource-validator.gistpin.io
+      admissionReviewVersions: ["v1"]
+      sideEffects: None
+      failurePolicy: Fail
+      namespaceSelector:
+        matchLabels:
+          webhook.gistpin.io/validate: "true"
+      rules:
+        - apiGroups:   [""]
+          apiVersions: ["v1"]
+          operations:  ["CREATE", "UPDATE"]
+          resources:   ["pods"]
+      clientConfig:
+        service:
+          name: resource-validator
+          namespace: gistpin
+          path: /validate
+          port: 443
+        caBundle: ""   # injected by cert-manager

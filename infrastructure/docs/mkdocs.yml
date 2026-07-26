@@ -1,0 +1,42 @@
+site_name: GistPin Infrastructure Docs
+site_description: Infrastructure documentation for GistPin
+site_url: https://pinspace-org.github.io/GistPin/infra-docs/
+docs_dir: .
+site_dir: ../../site
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: blue
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+
+nav:
+  - Overview: ARCHITECTURE.md
+  - Setup: SETUP.md
+  - Terraform:
+      - Setup: terraform-setup.md
+      - Naming Conventions: naming-conventions.md
+      - Sensitive Variables: sensitive-vars.md
+      - State Management: state-management.md
+  - Kubernetes:
+      - Scheduling Guide: scheduling-guide.md
+      - Topology Routing: topology-routing.md
+      - Upgrade Runbook: upgrade-runbook.md
+  - Security:
+      - SIEM Setup: siem-setup.md
+      - Secrets Management: secrets-management.md
+      - Zero Trust: zero-trust.md
+  - Monitoring:
+      - SLOs: infrastructure-slos.md
+      - Cost Optimization: cost-optimization.md
+  - Runbooks: RUNBOOKS.md

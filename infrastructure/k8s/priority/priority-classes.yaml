@@ -1,0 +1,35 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gistpin-critical
+value: 1000000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Critical core services — preempts all lower-priority pods"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gistpin-high
+value: 100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "High priority — monitoring and observability workloads"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gistpin-default
+value: 1000
+globalDefault: true
+preemptionPolicy: PreemptLowerPriority
+description: "Default priority for standard application workloads"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gistpin-low
+value: 100
+globalDefault: false
+preemptionPolicy: Never
+description: "Low priority — batch jobs and background tasks; never preempts"
