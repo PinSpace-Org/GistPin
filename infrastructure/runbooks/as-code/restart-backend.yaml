@@ -1,0 +1,26 @@
+title: Restart GistPin Backend
+description: Rolling restart of the backend deployment
+severity: low
+
+steps:
+  - name: Check current pod status
+    command: kubectl get pods -n gistpin -l app=gistpin-backend
+    requires_approval: false
+
+  - name: Confirm rollout health
+    command: kubectl rollout status deployment/backend-deployment -n gistpin --timeout=60s
+    requires_approval: false
+
+  - name: Trigger rolling restart
+    command: kubectl rollout restart deployment/backend-deployment -n gistpin
+    requires_approval: true
+    rollback: kubectl rollout undo deployment/backend-deployment -n gistpin
+
+  - name: Wait for rollout to complete
+    command: kubectl rollout status deployment/backend-deployment -n gistpin --timeout=120s
+    requires_approval: false
+    rollback: kubectl rollout undo deployment/backend-deployment -n gistpin
+
+  - name: Verify pods healthy
+    command: kubectl get pods -n gistpin -l app=gistpin-backend --field-selector=status.phase=Running
+    requires_approval: false

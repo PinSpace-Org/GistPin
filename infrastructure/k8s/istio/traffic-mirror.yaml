@@ -1,0 +1,26 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: gistpin-backend-mirror
+  namespace: gistpin
+spec:
+  hosts:
+    - gistpin-backend
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: gistpin-backend
+            port:
+              number: 3000
+          weight: 100
+      # Mirror 20% of production traffic to staging for realistic load testing.
+      # Responses from the mirror are discarded — no writes propagate.
+      mirror:
+        host: gistpin-backend-staging
+        port:
+          number: 3000
+      mirrorPercentage:
+        value: 20.0
