@@ -1,0 +1,44 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gistpin-alert-rules
+  namespace: monitoring
+  labels:
+    release: prometheus-operator
+spec:
+  groups:
+    - name: gistpin.availability
+      rules:
+        - alert: GistPinServiceDown
+          expr: up{job=~"gistpin.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "GistPin service {{ $labels.job }} is down"
+            description: "Service has been unreachable for more than 1 minute."
+
+    - name: gistpin.latency
+      rules:
+        - alert: HighP99Latency
+          expr: |
+            histogram_quantile(0.99,
+              rate(http_request_duration_seconds_bucket{job=~"gistpin.*"}[5m])
+            ) > 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "P99 latency above 2s on {{ $labels.job }}"
+
+    - name: gistpin.errors
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            rate(http_requests_total{job=~"gistpin.*",status=~"5.."}[5m]) /
+            rate(http_requests_total{job=~"gistpin.*"}[5m]) > 0.05
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Error rate above 5% on {{ $labels.job }}"

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GistPin Infrastructure Weekly Digest — {{REPORT_DATE}}</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; padding: 24px; color: #333; }
+    h1   { color: #1a56db; border-bottom: 2px solid #1a56db; padding-bottom: 8px; }
+    h2   { color: #374151; margin-top: 28px; }
+    .metric { display: inline-block; background: #f3f4f6; border-radius: 8px;
+              padding: 16px 24px; margin: 8px; text-align: center; min-width: 140px; }
+    .metric .value { font-size: 2rem; font-weight: bold; color: #1a56db; }
+    .metric .label { font-size: 0.85rem; color: #6b7280; margin-top: 4px; }
+    .ok   { color: #059669; }
+    .warn { color: #d97706; }
+    footer { margin-top: 40px; font-size: 0.8rem; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <h1>📊 GistPin Infrastructure Weekly Digest</h1>
+  <p><strong>Report date:</strong> {{REPORT_DATE}}</p>
+
+  <h2>Deployment Activity</h2>
+  <div class="metric">
+    <div class="value">{{DEPLOY_COUNT}}</div>
+    <div class="label">Deployments this week</div>
+  </div>
+
+  <h2>Cost Summary</h2>
+  <div class="metric">
+    <div class="value">${{THIS_WEEK_COST}}</div>
+    <div class="label">This week</div>
+  </div>
+  <div class="metric">
+    <div class="value">${{LAST_WEEK_COST}}</div>
+    <div class="label">Prior week</div>
+  </div>
+
+  <h2>Incidents &amp; Alarms</h2>
+  <div class="metric">
+    <div class="value {{INCIDENT_COUNT_CLASS}}">{{INCIDENT_COUNT}}</div>
+    <div class="label">Active alarms</div>
+  </div>
+
+  <h2>SLO Compliance</h2>
+  <div class="metric">
+    <div class="value {{SLO_CLASS}}">{{SLO_BREACHES}}</div>
+    <div class="label">SLO breaches</div>
+  </div>
+
+  <footer>Generated automatically by <code>infrastructure/scripts/weekly-digest.sh</code></footer>
+</body>
+</html>

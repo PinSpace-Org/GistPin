@@ -1,0 +1,45 @@
+name: Weekly Infrastructure Digest
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # Every Monday at 08:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (skip email delivery)'
+        required: false
+        default: 'false'
+
+jobs:
+  weekly-digest:
+    name: Generate and send weekly digest
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Run weekly digest
+        env:
+          DIGEST_RECIPIENTS: ${{ secrets.DIGEST_RECIPIENTS }}
+          DIGEST_FROM: ${{ vars.DIGEST_FROM || 'noreply@gistpin.io' }}
+        run: |
+          chmod +x infrastructure/scripts/weekly-digest.sh
+          ARGS=""
+          [[ "${{ github.event.inputs.dry_run }}" == "true" ]] && ARGS="--dry-run"
+          bash infrastructure/scripts/weekly-digest.sh $ARGS
+
+      - name: Upload digest report
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-digest-${{ github.run_id }}
+          path: /tmp/weekly-digest-*.html
+          retention-days: 90
