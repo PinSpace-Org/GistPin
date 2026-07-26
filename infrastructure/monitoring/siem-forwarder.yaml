@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: siem-forwarder-config
+  namespace: monitoring
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        5
+        Log_Level    info
+
+    [INPUT]
+        Name              tail
+        Path              /var/log/containers/*.log
+        Tag               kube.*
+        Refresh_Interval  5
+        Mem_Buf_Limit     5MB
+
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Merge_Log           On
+
+    [OUTPUT]
+        Name              kinesis_firehose
+        Match             kube.*
+        region            us-east-1
+        delivery_stream   ${SIEM_FIREHOSE_STREAM}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: siem-forwarder
+  namespace: monitoring
+  labels:
+    app: siem-forwarder
+spec:
+  selector:
+    matchLabels:
+      app: siem-forwarder
+  template:
+    metadata:
+      labels:
+        app: siem-forwarder
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+      containers:
+        - name: fluent-bit
+          image: fluent/fluent-bit:3.0
+          env:
+            - name: SIEM_FIREHOSE_STREAM
+              valueFrom:
+                secretKeyRef:
+                  name: siem-config
+                  key: firehose_stream_name
+          volumeMounts:
+            - name: config
+              mountPath: /fluent-bit/etc/
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: siem-forwarder-config
+        - name: varlog
+          hostPath:
+            path: /var/log

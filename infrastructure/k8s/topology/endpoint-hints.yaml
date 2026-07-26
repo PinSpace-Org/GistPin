@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: topology-hints-config
+  namespace: gistpin
+  annotations:
+    description: "Enable EndpointSlice topology hints for zone-aware routing"
+data:
+  # Topology hints guide kube-proxy to prefer endpoints in the same zone,
+  # reducing cross-zone data transfer costs and latency.
+  hints-enabled: "Auto"
+---
+# Label nodes with zone topology (applied by node lifecycle controller automatically on EKS)
+# Manual override example:
+#   kubectl label node <node> topology.kubernetes.io/zone=us-east-1a
+#
+# Verify hints are active:
+#   kubectl get endpointslices -n gistpin -o yaml | grep hints

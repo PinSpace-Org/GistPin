@@ -1,0 +1,41 @@
+# Naming convention policy for Terraform resources
+# Evaluated by Sentinel or OPA in CI — block violations before apply
+
+# Rule: all resource names must be lowercase
+resource_name_is_lowercase = rule {
+  all tfplan.resource_changes as _, rc {
+    rc.change.after.tags contains "Project" and
+    rc.change.after.name == lower(rc.change.after.name)
+  }
+}
+
+# Rule: all resource names must include the environment segment
+resource_name_has_environment = rule {
+  all tfplan.resource_changes as _, rc {
+    rc.change.after contains "name" implies
+      strings.contains(rc.change.after.name, tfvars.environment)
+  }
+}
+
+# Rule: resource names must not exceed 63 characters
+resource_name_max_length = rule {
+  all tfplan.resource_changes as _, rc {
+    rc.change.after contains "name" implies
+      length(rc.change.after.name) <= 63
+  }
+}
+
+# Rule: resource names must not use invalid special characters
+resource_name_valid_chars = rule {
+  all tfplan.resource_changes as _, rc {
+    rc.change.after contains "name" implies
+      rc.change.after.name matches "^[a-z0-9][a-z0-9\\-_]*$"
+  }
+}
+
+main = rule {
+  resource_name_is_lowercase and
+  resource_name_has_environment and
+  resource_name_max_length and
+  resource_name_valid_chars
+}
