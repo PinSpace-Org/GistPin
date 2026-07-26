@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "dashboard": {
+    "title": "GistPin Regional Latency Dashboard",
+    "refresh": "1m",
+    "panels": [
+      {
+        "title": "P50 Latency by Region",
+        "type": "timeseries",
+        "metric": "gistpin:api_latency_p50:by_region",
+        "legend": { "displayMode": "table", "placement": "right" }
+      },
+      {
+        "title": "P95 Latency by Region",
+        "type": "timeseries",
+        "metric": "gistpin:api_latency_p95:by_region"
+      },
+      {
+        "title": "P99 Latency by Region",
+        "type": "timeseries",
+        "metric": "gistpin:api_latency_p99:by_region",
+        "thresholds": [{ "value": 2, "color": "yellow" }, { "value": 3, "color": "red" }]
+      },
+      {
+        "title": "Regional Latency Heatmap",
+        "type": "heatmap",
+        "metric": "rate(http_request_duration_seconds_bucket{job='gistpin-backend'}[5m])"
+      },
+      {
+        "title": "Regional SLA Compliance (P99 < 3s)",
+        "type": "stat",
+        "metric": "count(gistpin:api_latency_p99:by_region < 3) / count(gistpin:api_latency_p99:by_region)",
+        "unit": "percentunit"
+      }
+    ]
+  }
+}

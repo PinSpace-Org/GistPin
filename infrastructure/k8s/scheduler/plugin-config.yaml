@@ -1,0 +1,16 @@
+apiVersion: kubescheduler.config.k8s.io/v1
+kind: KubeSchedulerConfiguration
+profiles:
+  - schedulerName: geo-scheduler
+    plugins:
+      filter:
+        enabled:
+          - name: GeoScheduler
+      score:
+        enabled:
+          - name: GeoScheduler
+            weight: 10
+    pluginConfig:
+      - name: GeoScheduler
+        args:
+          fallbackToDefault: true   # fall back to default scheduler if no geo match

@@ -1,0 +1,29 @@
+name: Freeze Window Check
+
+on:
+  workflow_call:   # reusable — call from deployment workflows
+  workflow_dispatch:
+
+jobs:
+  freeze-check:
+    name: Check deployment freeze window
+    runs-on: ubuntu-latest
+    outputs:
+      frozen: ${{ steps.check.outputs.frozen }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run freeze check
+        id: check
+        env:
+          FREEZE_OVERRIDE: ${{ vars.FREEZE_OVERRIDE || '' }}
+        run: |
+          chmod +x infrastructure/scripts/check-freeze-window.sh
+          if bash infrastructure/scripts/check-freeze-window.sh; then
+            echo "frozen=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "frozen=true" >> "$GITHUB_OUTPUT"
+            echo "::error::Deployment blocked by freeze window. Set FREEZE_OVERRIDE=emergency in repo variables for emergency deploys."
+            exit 1
+          fi
