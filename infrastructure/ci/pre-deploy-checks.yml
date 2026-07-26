@@ -1,0 +1,105 @@
+name: Pre-Deploy Dependency Health Checks
+
+# Reusable gate that every deploy pipeline (deploy-dev.yml, deploy-staging.yml,
+# deploy-production.yml) calls before touching the target environment. Blocks
+# the deploy if a critical dependency (database, Soroban RPC) is unhealthy.
+#
+# Called from another workflow like:
+#
+#   jobs:
+#     pre-deploy-checks:
+#       uses: ./infrastructure/ci/pre-deploy-checks.yml
+#       with:
+#         environment: staging
+#       secrets: inherit
+#
+#     deploy-staging:
+#       needs: pre-deploy-checks
+#       ...
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment (dev, staging, production)'
+        required: true
+        type: string
+      emergency_bypass:
+        description: 'Skip the blocking gate if a dependency is unhealthy'
+        required: false
+        type: boolean
+        default: false
+      emergency_reason:
+        description: 'Required justification when emergency_bypass is true'
+        required: false
+        type: string
+        default: ''
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment (dev, staging, production)'
+        required: true
+        type: choice
+        options: [dev, staging, production]
+      emergency_bypass:
+        description: 'Skip the blocking gate if a dependency is unhealthy'
+        required: false
+        type: boolean
+        default: false
+      emergency_reason:
+        description: 'Required justification when emergency_bypass is true'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  check-dependencies:
+    name: Check Infrastructure Dependencies (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate emergency bypass input
+        if: ${{ inputs.emergency_bypass && inputs.emergency_reason == '' }}
+        run: |
+          echo "emergency_bypass is true but emergency_reason was not provided."
+          echo "A reason is required so the bypass is auditable. Aborting."
+          exit 1
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq postgresql-client
+
+      - name: Run dependency health checks
+        id: health-checks
+        env:
+          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+          DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
+          DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+          DATABASE_USER: ${{ secrets.DATABASE_USER }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          SOROBAN_RPC_URL: ${{ vars.SOROBAN_RPC_URL }}
+          IPFS_GATEWAY: ${{ vars.IPFS_GATEWAY }}
+          PINATA_API_KEY: ${{ secrets.PINATA_API_KEY }}
+          PINATA_SECRET_KEY: ${{ secrets.PINATA_SECRET_KEY }}
+          EMERGENCY_BYPASS: ${{ inputs.emergency_bypass }}
+          EMERGENCY_REASON: ${{ inputs.emergency_reason }}
+        run: |
+          bash infrastructure/scripts/check-dependencies.sh
+
+      - name: Upload dependency health report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-health-${{ inputs.environment }}
+          path: infrastructure/ci/reports/dependency-health-*.json
+          retention-days: 30
+
+      - name: Notify on block
+        if: failure()
+        run: |
+          echo "Deploy to ${{ inputs.environment }} blocked: one or more infrastructure dependencies are unhealthy."
+          echo "See the dependency-health report artifact for details."
+          echo "To bypass for a genuine emergency, re-run with emergency_bypass=true and a emergency_reason."

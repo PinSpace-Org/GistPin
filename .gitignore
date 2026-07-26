@@ -21,3 +21,6 @@ cilium
 
 # OS / editor
 .DS_Store
+
+# Dependency health check reports (generated locally/in CI, not committed)
+infrastructure/ci/reports/
