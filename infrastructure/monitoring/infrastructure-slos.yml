@@ -1,0 +1,13 @@
+slos:
+  - name: db-availability
+    target: 99.9
+    window: 30d
+    indicator: sum(rate(database_successful_connections_total[5m])) / sum(rate(database_connections_total[5m]))
+  - name: k8s-control-plane
+    target: 99.95
+    window: 30d
+    indicator: sum(rate(apiserver_request_total{code=~"2..|3.."}[5m])) / sum(rate(apiserver_request_total[5m]))
+  - name: network-latency
+    target: 99.0
+    window: 30d
+    indicator: histogram_quantile(0.99, sum(rate(network_latency_seconds_bucket[5m])) by (le)) < 0.1

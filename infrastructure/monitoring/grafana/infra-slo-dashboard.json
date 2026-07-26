@@ -1,0 +1,29 @@
+{
+  "title": "Infrastructure SLO & Error Budget Dashboard",
+  "panels": [
+    {
+      "id": 1,
+      "title": "DB Availability SLO (99.9%)",
+      "type": "stat",
+      "targets": [{"expr": "sum(rate(database_successful_connections_total[5m])) / sum(rate(database_connections_total[5m])) * 100"}]
+    },
+    {
+      "id": 2,
+      "title": "K8s Control Plane Availability SLO",
+      "type": "stat",
+      "targets": [{"expr": "sum(rate(apiserver_request_total{code=~\"2..|3..\"}[5m])) / sum(rate(apiserver_request_total[5m])) * 100"}]
+    },
+    {
+      "id": 3,
+      "title": "Network Latency SLO (<100ms)",
+      "type": "gauge",
+      "targets": [{"expr": "histogram_quantile(0.99, sum(rate(network_latency_seconds_bucket[5m])) by (le))"}]
+    },
+    {
+      "id": 4,
+      "title": "Error Budget Remaining",
+      "type": "timeseries",
+      "targets": [{"expr": "100 - (100 - (sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100))"}]
+    }
+  ]
+}
