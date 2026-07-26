@@ -1,0 +1,14 @@
+name: Automated Security Patch Management
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+jobs:
+  security-patching:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run CVE Scanner & Automated Node Patching
+        run: ./infrastructure/scripts/patch-nodes.sh scan-and-patch
