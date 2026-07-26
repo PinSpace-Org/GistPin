@@ -1,0 +1,48 @@
+name: Slack Terraform Plan Notification
+
+on:
+  workflow_call:
+    inputs:
+      plan_file:
+        required: true
+        type: string
+      pr_url:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  notify:
+    name: Post plan diff to Slack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.plan_file }}
+          path: /tmp/plan
+
+      - name: Get cost estimate (infracost)
+        id: cost
+        continue-on-error: true
+        run: |
+          if command -v infracost &>/dev/null; then
+            COST=$(infracost diff --path infrastructure/terraform --format json \
+              | jq -r '.diffTotalMonthlyCost // "N/A"')
+          else
+            COST="N/A"
+          fi
+          echo "estimate=${COST}" >> "$GITHUB_OUTPUT"
+
+      - name: Send Slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          PR_URL: ${{ inputs.pr_url || github.event.pull_request.html_url }}
+          COST_ESTIMATE: ${{ steps.cost.outputs.estimate }}
+          SLACK_CHANNEL: ${{ vars.INFRA_SLACK_CHANNEL || '#infra-deploys' }}
+        run: |
+          chmod +x infrastructure/scripts/notify-plan.sh
+          bash infrastructure/scripts/notify-plan.sh \
+            --plan-file /tmp/plan/plan.txt
