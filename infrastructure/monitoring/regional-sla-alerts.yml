@@ -1,0 +1,47 @@
+groups:
+  - name: multi-region-latency
+    rules:
+      - record: gistpin:api_latency_p50:by_region
+        expr: |
+          histogram_quantile(0.50,
+            sum by (region, le) (
+              rate(http_request_duration_seconds_bucket{job="gistpin-backend"}[5m])
+            )
+          )
+
+      - record: gistpin:api_latency_p95:by_region
+        expr: |
+          histogram_quantile(0.95,
+            sum by (region, le) (
+              rate(http_request_duration_seconds_bucket{job="gistpin-backend"}[5m])
+            )
+          )
+
+      - record: gistpin:api_latency_p99:by_region
+        expr: |
+          histogram_quantile(0.99,
+            sum by (region, le) (
+              rate(http_request_duration_seconds_bucket{job="gistpin-backend"}[5m])
+            )
+          )
+
+      - alert: RegionalLatencyAnomaly
+        expr: |
+          (
+            gistpin:api_latency_p99:by_region
+            > 2 * avg without(region)(gistpin:api_latency_p99:by_region)
+          )
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Region {{ $labels.region }} P99 latency is 2x the global average"
+          description: "P99 = {{ $value | humanizeDuration }}"
+
+      - alert: RegionalSLABreach
+        expr: gistpin:api_latency_p99:by_region > 3
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SLA breach: P99 latency > 3s in region {{ $labels.region }}"

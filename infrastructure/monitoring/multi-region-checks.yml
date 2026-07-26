@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: regional-latency-probe
+  namespace: monitoring
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: latency-probe
+              image: curlimages/curl:8.7.1
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  REGIONS="us-east-1 eu-west-1 ap-southeast-1 ap-northeast-1 sa-east-1"
+                  for region in $REGIONS; do
+                    start=$(date +%s%N)
+                    curl -sf "https://${region}.api.gistpin.io/health" -o /dev/null || true
+                    end=$(date +%s%N)
+                    latency_ms=$(( (end - start) / 1000000 ))
+                    printf "gistpin_regional_probe_latency_ms{region=\"${region}\"} ${latency_ms}\n" | \
+                      curl -sf --data-binary @- \
+                      "http://prometheus-pushgateway.monitoring.svc:9091/metrics/job/regional-probe/region/${region}" || true
+                  done
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
