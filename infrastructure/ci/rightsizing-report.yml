@@ -1,0 +1,14 @@
+name: Weekly Workload Rightsizing Report
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect VPA Recommendations & Cost Savings
+        run: ./infrastructure/scripts/apply-rightsizing.sh production

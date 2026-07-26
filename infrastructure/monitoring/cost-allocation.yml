@@ -1,0 +1,11 @@
+cost_allocation:
+  teams:
+    frontend:
+      services: ["gistpin-web", "cdn"]
+      monthly_budget: 500
+    backend:
+      services: ["api-gateway", "auth-service"]
+      monthly_budget: 1200
+    data:
+      services: ["postgres-db", "redis-cache"]
+      monthly_budget: 1500

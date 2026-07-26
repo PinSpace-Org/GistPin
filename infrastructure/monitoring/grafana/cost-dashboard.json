@@ -1,0 +1,23 @@
+{
+  "title": "Infrastructure Cost Allocation & Budget Dashboard",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Cost per Service Breakdown",
+      "type": "piechart",
+      "targets": [{"expr": "sum(aws_cost_by_service) by (service)"}]
+    },
+    {
+      "id": 2,
+      "title": "Team Level Budget vs Actual",
+      "type": "bargauge",
+      "targets": [{"expr": "sum(aws_cost_by_team) by (team)"}]
+    },
+    {
+      "id": 3,
+      "title": "Monthly Cost Trend Analysis",
+      "type": "timeseries",
+      "targets": [{"expr": "rate(aws_total_daily_cost[30d])"}]
+    }
+  ]
+}
