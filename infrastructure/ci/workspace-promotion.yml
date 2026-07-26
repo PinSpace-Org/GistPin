@@ -1,0 +1,28 @@
+name: Terraform Workspace Promotion Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_env:
+        description: 'Source Environment'
+        required: true
+        default: 'dev'
+      target_env:
+        description: 'Target Environment'
+        required: true
+        default: 'staging'
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Workspace Diff & Dry Run
+        run: ./infrastructure/scripts/promote-workspace.sh ${{ github.event.inputs.source_env }} ${{ github.event.inputs.target_env }} diff
+      - name: Manual Approval Gate
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: devops-lead
+      - name: Execute Promotion
+        run: ./infrastructure/scripts/promote-workspace.sh ${{ github.event.inputs.source_env }} ${{ github.event.inputs.target_env }} promote
