@@ -1,0 +1,53 @@
+name: Update Terraform Docs
+
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/terraform/**/*.tf'
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/terraform/**/*.tf'
+
+jobs:
+  terraform-docs:
+    name: Generate terraform-docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install terraform-docs
+        run: |
+          VERSION=v0.17.0
+          curl -sSLo terraform-docs.tar.gz \
+            "https://github.com/terraform-docs/terraform-docs/releases/download/${VERSION}/terraform-docs-${VERSION}-linux-amd64.tar.gz"
+          tar -xzf terraform-docs.tar.gz terraform-docs
+          chmod +x terraform-docs
+          sudo mv terraform-docs /usr/local/bin/
+
+      - name: Generate docs for all modules
+        run: |
+          terraform-docs --config infrastructure/terraform/.terraform-docs.yml \
+            markdown table infrastructure/terraform/ \
+            > infrastructure/docs/modules/terraform-modules.md
+          echo "Root module docs generated."
+          for mod in infrastructure/terraform/modules/*/; do
+            modname=$(basename "$mod")
+            terraform-docs --config infrastructure/terraform/.terraform-docs.yml \
+              markdown table "$mod" \
+              > "infrastructure/docs/modules/${modname}.md"
+            echo "Module ${modname} docs generated."
+          done
+
+      - name: Commit updated docs
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'docs(terraform): auto-update module documentation [skip ci]'
+          file_pattern: 'infrastructure/docs/modules/*.md infrastructure/terraform/README.md'

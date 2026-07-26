@@ -1,0 +1,58 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gistpin-backend
+  namespace: monitoring
+  labels:
+    app: gistpin-backend
+    release: prometheus-operator
+spec:
+  selector:
+    matchLabels:
+      app: gistpin-backend
+  namespaceSelector:
+    matchNames:
+      - gistpin
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gistpin-frontend
+  namespace: monitoring
+  labels:
+    app: gistpin-frontend
+    release: prometheus-operator
+spec:
+  selector:
+    matchLabels:
+      app: gistpin-frontend
+  namespaceSelector:
+    matchNames:
+      - gistpin
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: gistpin-jobs
+  namespace: monitoring
+  labels:
+    release: prometheus-operator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: job
+  namespaceSelector:
+    matchNames:
+      - gistpin
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 60s
