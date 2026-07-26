@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gistpin-backend
+  namespace: gistpin
+  labels:
+    app: gistpin-backend
+    topology.kubernetes.io/zone-aware: "true"
+spec:
+  selector:
+    app: gistpin-backend
+  ports:
+    - port: 80
+      targetPort: 3000
+  # Prefer routing to endpoints in the same topology zone
+  trafficDistribution: PreferClose
+---
+apiVersion: discovery.k8s.io/v1
+kind: EndpointSlice
+metadata:
+  name: gistpin-backend-hints
+  namespace: gistpin
+  labels:
+    kubernetes.io/service-name: gistpin-backend
+addressType: IPv4
+endpoints: []   # managed by kube-controller-manager
+ports:
+  - name: http
+    protocol: TCP
+    port: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: gistpin
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: gistpin-backend
+  template:
+    metadata:
+      labels:
+        app: gistpin-backend
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: gistpin-backend
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: gistpin-backend
+      containers:
+        - name: backend
+          image: ghcr.io/pinspace-org/gistpin-backend:latest
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
