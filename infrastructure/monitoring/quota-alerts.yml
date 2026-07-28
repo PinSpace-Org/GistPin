@@ -1,0 +1,85 @@
+groups:
+  - name: gistpin-quota-enforcement-alerts
+    rules:
+      - alert: QuotaUtilizationNearLimit
+        expr: namespace:cpu_request_quota_used_pct > 80 or namespace:memory_request_quota_used_pct > 80 or namespace:pod_count_quota_used_pct > 80 or namespace:storage_quota_used_pct > 80
+        for: 15m
+        labels:
+          severity: warning
+          team: gistpin
+        annotations:
+          summary: "Resource quota utilization above 80% in {{ $labels.namespace }}"
+          description: "{{ $labels.resource }} quota at {{ printf \"%.1f\" $value }}% in namespace {{ $labels.namespace }}. Consider requesting a quota increase or optimizing workloads."
+
+      - alert: QuotaUtilizationCritical
+        expr: namespace:cpu_request_quota_used_pct > 95 or namespace:memory_request_quota_used_pct > 95 or namespace:pod_count_quota_used_pct > 95 or namespace:storage_quota_used_pct > 95
+        for: 5m
+        labels:
+          severity: critical
+          team: gistpin
+          page: "true"
+        annotations:
+          summary: "Resource quota utilization above 95% in {{ $labels.namespace }}"
+          description: "{{ $labels.resource }} quota at {{ printf \"%.1f\" $value }}% in namespace {{ $labels.namespace }}. Immediate action required — pods may fail scheduling."
+          runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/quota-exceeded"
+
+      - alert: QuotaExceeded
+        expr: kube_resourcequota{type="used"} > kube_resourcequota{type="hard"}
+        for: 0m
+        labels:
+          severity: critical
+          team: gistpin
+          page: "true"
+        annotations:
+          summary: "Quota exceeded in {{ $labels.namespace }}"
+          description: "{{ $labels.resource }} usage ({{ printf \"%.0f\" $value }}) has exceeded the hard limit. New pods in this namespace will be rejected."
+          runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/quota-exceeded"
+
+      - alert: QuotaViolationDetected
+        expr: increase(kube_resourcequota_created[5m]) > 0
+        for: 0m
+        labels:
+          severity: info
+          team: gistpin
+        annotations:
+          summary: "Quota modified in {{ $labels.namespace }}"
+          description: "Resource quota {{ $labels.resource }} was updated in namespace {{ $labels.namespace }}. Review if this was an authorized change."
+
+      - alert: NamespaceWithoutQuota
+        expr: |
+          count by (namespace) (kube_namespace_labels{team="gistpin"})
+          unless on (namespace)
+          count by (namespace) (kube_resourcequota)
+        for: 1h
+        labels:
+          severity: warning
+          team: gistpin
+        annotations:
+          summary: "Namespace {{ $labels.namespace }} has no resource quota"
+          description: "A team namespace exists without a resource quota. All namespaces must have quotas enforced."
+
+      - alert: QuotaRecommendationNeeded
+        expr: |
+          avg_over_time(namespace:cpu_request_quota_used_pct[7d]) > 70
+          and
+          avg_over_time(namespace:cpu_request_quota_used_pct[7d]) < 80
+        for: 1d
+        labels:
+          severity: info
+          team: gistpin
+        annotations:
+          summary: "CPU quota trending high in {{ $labels.namespace }}"
+          description: "Average CPU quota usage over 7 days is {{ printf \"%.1f\" $value }}%. Consider reviewing workload right-sizing or requesting a quota increase."
+
+      - alert: MemoryQuotaRecommendationNeeded
+        expr: |
+          avg_over_time(namespace:memory_request_quota_used_pct[7d]) > 70
+          and
+          avg_over_time(namespace:memory_request_quota_used_pct[7d]) < 80
+        for: 1d
+        labels:
+          severity: info
+          team: gistpin
+        annotations:
+          summary: "Memory quota trending high in {{ $labels.namespace }}"
+          description: "Average memory quota usage over 7 days is {{ printf \"%.1f\" $value }}%. Consider reviewing memory limits or requesting a quota increase."

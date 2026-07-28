@@ -1,0 +1,44 @@
+groups:
+  - name: gistpin-ct-monitoring-alerts
+    rules:
+      - alert: UnexpectedCertificateDetected
+        expr: increase(ct_monitoring_unexpected_certs_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: gistpin
+          page: "true"
+        annotations:
+          summary: "Unexpected certificate detected for {{ $labels.domain }}"
+          description: "A certificate not matching the CT allowlist was found for {{ $labels.domain }}. Issuer: {{ $labels.issuer }}. Immediate investigation required."
+          runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/certificate-transparency"
+
+      - alert: CTLogCheckFailing
+        expr: ct_monitoring_check_success_total == 0
+        for: 30m
+        labels:
+          severity: warning
+          team: gistpin
+        annotations:
+          summary: "CT log monitoring check failing"
+          description: "The monitor-ct-logs.sh script has not completed a successful check in 30 minutes. Verify script health."
+
+      - alert: CTReportOverdue
+        expr: (time() - ct_monitoring_last_report_timestamp_seconds) > 604800
+        for: 1h
+        labels:
+          severity: info
+          team: gistpin
+        annotations:
+          summary: "CT weekly report is overdue"
+          description: "The certificate transparency weekly report has not been generated in over 7 days."
+
+      - alert: CTLogHighCertificateCount
+        expr: increase(ct_monitoring_certs_checked_total[24h]) > 50
+        for: 0m
+        labels:
+          severity: warning
+          team: gistpin
+        annotations:
+          summary: "High certificate issuance volume for {{ $labels.domain }}"
+          description: "{{ $value }} certificates issued for {{ $labels.domain }} in 24 hours — above the normal threshold of 50. May indicate automated issuance or compromise."
