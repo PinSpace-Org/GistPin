@@ -1,0 +1,51 @@
+groups:
+  - name: gistpin-quota-recording-rules
+    interval: 60s
+    rules:
+      - record: namespace:cpu_request_quota_used_pct
+        expr: |
+          (
+            sum(kube_resourcequota{resource="requests.cpu", type="used"}) by (namespace)
+            /
+            sum(kube_resourcequota{resource="requests.cpu", type="hard"}) by (namespace)
+          ) * 100
+
+      - record: namespace:memory_request_quota_used_pct
+        expr: |
+          (
+            sum(kube_resourcequota{resource="requests.memory", type="used"}) by (namespace)
+            /
+            sum(kube_resourcequota{resource="requests.memory", type="hard"}) by (namespace)
+          ) * 100
+
+      - record: namespace:pod_count_quota_used_pct
+        expr: |
+          (
+            sum(kube_resourcequota{resource="pods", type="used"}) by (namespace)
+            /
+            sum(kube_resourcequota{resource="pods", type="hard"}) by (namespace)
+          ) * 100
+
+      - record: namespace:storage_quota_used_pct
+        expr: |
+          (
+            sum(kube_resourcequota{resource="requests.storage", type="used"}) by (namespace)
+            /
+            sum(kube_resourcequota{resource="requests.storage", type="hard"}) by (namespace)
+          ) * 100
+
+      - record: namespace:cpu_limit_quota_used_pct
+        expr: |
+          (
+            sum(kube_resourcequota{resource="limits.cpu", type="used"}) by (namespace)
+            /
+            sum(kube_resourcequota{resource="limits.cpu", type="hard"}) by (namespace)
+          ) * 100
+
+      - record: namespace:memory_limit_quota_used_pct
+        expr: |
+          (
+            sum(kube_resourcequota{resource="limits.memory", type="used"}) by (namespace)
+            /
+            sum(kube_resourcequota{resource="limits.memory", type="hard"}) by (namespace)
+          ) * 100

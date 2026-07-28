@@ -1,0 +1,92 @@
+{
+  "id": 1,
+  "title": "Kubernetes Resource Quota Enforcement Dashboard",
+  "panels": [
+    {
+      "id": 1,
+      "title": "CPU Request Quota Usage by Namespace",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "sort_desc(namespace:cpu_request_quota_used_pct)",
+          "legendFormat": "{{ namespace }}"
+        }
+      ],
+      "thresholds": [
+        { "value": 70, "color": "yellow" },
+        { "value": 90, "color": "red" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Memory Request Quota Usage by Namespace",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "sort_desc(namespace:memory_request_quota_used_pct)",
+          "legendFormat": "{{ namespace }}"
+        }
+      ],
+      "thresholds": [
+        { "value": 70, "color": "yellow" },
+        { "value": 90, "color": "red" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Pod Count Quota Usage by Namespace",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "sort_desc(namespace:pod_count_quota_used_pct)",
+          "legendFormat": "{{ namespace }}"
+        }
+      ],
+      "thresholds": [
+        { "value": 70, "color": "yellow" },
+        { "value": 90, "color": "red" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Storage Quota Usage by Namespace",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "sort_desc(namespace:storage_quota_used_pct)",
+          "legendFormat": "{{ namespace }}"
+        }
+      ],
+      "thresholds": [
+        { "value": 70, "color": "yellow" },
+        { "value": 90, "color": "red" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Quota Utilization Over Time",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "namespace:cpu_request_quota_used_pct",
+          "legendFormat": "CPU — {{ namespace }}"
+        },
+        {
+          "expr": "namespace:memory_request_quota_used_pct",
+          "legendFormat": "Memory — {{ namespace }}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Quota Violation Events",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "kube_resourcequota{type=\"used\"} > kube_resourcequota{type=\"hard\"}",
+          "legendFormat": "{{ namespace }}: {{ resource }}"
+        }
+      ]
+    }
+  ]
+}

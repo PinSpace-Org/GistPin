@@ -1,0 +1,91 @@
+{
+  "id": 1,
+  "title": "Infrastructure Resilience Dashboard",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Overall Resilience Score",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "chaos_score_overall",
+          "legendFormat": "Score"
+        }
+      ],
+      "thresholds": [
+        { "value": 40, "color": "red" },
+        { "value": 70, "color": "yellow" },
+        { "value": 90, "color": "green" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Resilience Score by Service",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "chaos_score_by_service",
+          "legendFormat": "{{ service }}"
+        }
+      ],
+      "thresholds": [
+        { "value": 40, "color": "red" },
+        { "value": 70, "color": "yellow" },
+        { "value": 90, "color": "green" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Resilience Score Trend",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "chaos_score_overall",
+          "legendFormat": "Overall"
+        },
+        {
+          "expr": "chaos_score_by_service",
+          "legendFormat": "{{ service }}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Chaos Experiments — Pass Rate",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "chaos_experiment_pass_rate * 100",
+          "legendFormat": "{{ service }} / {{ experiment }}"
+        }
+      ],
+      "thresholds": [
+        { "value": 50, "color": "red" },
+        { "value": 80, "color": "yellow" },
+        { "value": 95, "color": "green" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Failed Chaos Experiments (Last 7d)",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "chaos_experiment_passed == 0",
+          "legendFormat": "{{ service }} — {{ experiment }}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Mean Recovery Time by Service",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "chaos_recovery_time_seconds",
+          "legendFormat": "{{ service }}"
+        }
+      ]
+    }
+  ]
+}
