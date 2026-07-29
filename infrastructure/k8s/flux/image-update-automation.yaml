@@ -1,0 +1,20 @@
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: gistpin-backend
+  namespace: flux-system
+spec:
+  image: ghcr.io/gistpin/backend
+  interval: 1h
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: gistpin-backend
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: gistpin-backend
+  policy:
+    semver:
+      range: ">=1.0.0"
