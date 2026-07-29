@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gistpin-app
+  annotations:
+    linkerd.io/inject: enabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gistpin-backend
+  namespace: gistpin-app
+  annotations:
+    linkerd.io/inject: enabled
+spec:
+  selector:
+    matchLabels:
+      app: gistpin-backend
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: enabled
+      labels:
+        app: gistpin-backend
+    spec:
+      containers:
+        - name: backend
+          image: gistpin/backend:latest
