@@ -1,0 +1,66 @@
+groups:
+  - name: garbage-collection
+    interval: 30s
+    rules:
+      - alert: GCHighImageUsage
+        expr: kubelet_image_fs_usage_bytes / kubelet_image_fs_capacity_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Image filesystem usage above GC threshold"
+          description: "Image FS usage at {{ $value | humanizePercentage }} on {{ $labels.node }}"
+
+      - alert: GCEvictionThreshold
+        expr: kubelet_eviction_threshold_reached > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Kubelet eviction threshold reached on {{ $labels.node }}"
+          description: "{{ $labels.eviction_signal }} exceeded on node {{ $labels.node }}"
+
+      - alert: GCMemoryPressure
+        expr: kubelet_node_memory_pressure > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory pressure on node {{ $labels.node }}"
+          description: "Node {{ $labels.node }} is under memory pressure"
+
+      - alert: GCDiskPressure
+        expr: kubelet_node_disk_pressure > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk pressure on node {{ $labels.node }}"
+          description: "Node {{ $labels.node }} is under disk pressure"
+
+      - alert: GCPidPressure
+        expr: kubelet_node_pid_pressure > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PID pressure on node {{ $labels.node }}"
+          description: "Node {{ $labels.node }} is under PID pressure"
+
+      - alert: GCContainerLogSize
+        expr: avg by (node) (kubelet_container_log_filesystem_usage_bytes) > 4e7
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Container logs growing large on {{ $labels.node }}"
+          description: "Average container log size is {{ $value | humanize1024 }}"
+
+      - alert: GCImagePullFailures
+        expr: rate(kubelet_image_pull_failure_total[10m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated image pull failures on {{ $labels.node }}"
+          description: "{{ $value }} failures/second over 10 minutes"
