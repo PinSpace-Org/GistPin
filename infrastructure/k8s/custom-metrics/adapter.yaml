@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-metrics-adapter
+  namespace: gistpin-prod
+  labels:
+    app: custom-metrics-adapter
+    component: metrics
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: custom-metrics-adapter
+  template:
+    metadata:
+      labels:
+        app: custom-metrics-adapter
+        component: metrics
+    spec:
+      serviceAccountName: custom-metrics-adapter
+      containers:
+        - name: adapter
+          image: registry.k8s.io/prometheus-adapter/prometheus-adapter:v0.11.2
+          args:
+            - --config=/etc/adapter/config.yaml
+            - --cert-dir=/var/run/adapter/cert
+            - --secure-port=6443
+          ports:
+            - containerPort: 6443
+              name: https
+          volumeMounts:
+            - name: config
+              mountPath: /etc/adapter
+            - name: cert
+              mountPath: /var/run/adapter/cert
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: custom-metrics-adapter-config
+        - name: cert
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: custom-metrics-adapter
+  namespace: gistpin-prod
+  labels:
+    app: custom-metrics-adapter
+spec:
+  ports:
+    - port: 443
+      targetPort: 6443
+      name: https
+  selector:
+    app: custom-metrics-adapter
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta1.custom.metrics.k8s.io
+  labels:
+    app: custom-metrics-adapter
+spec:
+  service:
+    name: custom-metrics-adapter
+    namespace: gistpin-prod
+  group: custom.metrics.k8s.io
+  version: v1beta1
+  insecureSkipTLSVerify: true
+  groupPriorityMinimum: 100
+  versionPriority: 100
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: custom-metrics-adapter
+  labels:
+    app: custom-metrics-adapter
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/stats"]
+    verbs: ["get", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: custom-metrics-adapter
+  labels:
+    app: custom-metrics-adapter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: custom-metrics-adapter
+subjects:
+  - kind: ServiceAccount
+    name: custom-metrics-adapter
+    namespace: gistpin-prod
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-metrics-adapter
+  namespace: gistpin-prod
+  labels:
+    app: custom-metrics-adapter
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: custom-metrics-hpa
+  labels:
+    app: custom-metrics-adapter
+rules:
+  - apiGroups: ["custom.metrics.k8s.io"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: custom-metrics-hpa
+  labels:
+    app: custom-metrics-adapter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: custom-metrics-hpa
+subjects:
+  - kind: ServiceAccount
+    name: horizontal-pod-autoscaler
+    namespace: kube-system

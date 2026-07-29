@@ -1,0 +1,57 @@
+groups:
+  - name: tf-tracing
+    interval: 30s
+    rules:
+      - alert: TfTraceExporterDown
+        expr: up{job="terraform-tracing"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Terraform trace exporter is down"
+          description: "The trace exporter for Terraform operations is unreachable for over 2 minutes"
+
+      - alert: TfTraceExportHighFailureRate
+        expr: rate(terraform_trace_export_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Terraform trace export failure rate"
+          description: "Export failure rate is {{ $value | humanizePercentage }} over 5 minutes"
+
+      - alert: TfTraceExportLatencySpike
+        expr: histogram_quantile(0.95, rate(terraform_trace_export_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Terraform trace export latency spike"
+          description: "p95 latency is {{ $value }}s, expected < 5s"
+
+      - alert: TfTraceExportQueueBacklog
+        expr: terraform_trace_queue_size > 1000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Terraform trace queue backlog growing"
+          description: "{{ $value }} traces pending export, possible bottleneck"
+
+      - alert: TfTraceBackendUnavailable
+        expr: terraform_trace_backend_health{status="unavailable"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Tracing backend unavailable"
+          description: "The OpenTelemetry collector backend is unreachable from Terraform tracing"
+
+      - alert: TfTraceSpanDropped
+        expr: rate(terraform_trace_spans_dropped_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Terraform trace spans being dropped"
+          description: "{{ $value }} spans/sec dropped due to buffer overflow"
