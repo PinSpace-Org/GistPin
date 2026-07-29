@@ -1,0 +1,17 @@
+name: Terraform Dependency Analysis
+on:
+  pull_request:
+    paths:
+      - 'infrastructure/terraform/**'
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform init
+      - run: terraform graph > graph.dot
+      - run: python3 ../scripts/analyze-tf-graph.py
