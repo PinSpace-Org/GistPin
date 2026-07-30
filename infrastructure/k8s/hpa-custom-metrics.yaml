@@ -1,0 +1,92 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-custom-metrics-hpa
+  namespace: gistpin-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment
+  minReplicas: 2
+  maxReplicas: 20
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+      selectPolicy: Max
+  metrics:
+    - type: Object
+      object:
+        metric:
+          name: http_requests_per_second
+        describedObject:
+          apiVersion: apps/v1
+          kind: Service
+          name: backend-service
+        target:
+          type: Value
+          value: 1000
+    - type: Pods
+      pods:
+        metric:
+          name: grpc_requests_per_second
+        target:
+          type: AverageValue
+          averageValue: 500
+    - type: Pods
+      pods:
+        metric:
+          name: queue_depth
+        target:
+          type: AverageValue
+          averageValue: 50
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-custom-metrics-hpa
+  namespace: gistpin-prod
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-deployment
+  minReplicas: 2
+  maxReplicas: 15
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: cache_hit_ratio
+        target:
+          type: AverageValue
+          averageValue: 0.85
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_per_second
+        target:
+          type: AverageValue
+          averageValue: 2000

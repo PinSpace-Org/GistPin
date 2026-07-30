@@ -1,0 +1,48 @@
+groups:
+  - name: iam-analysis
+    interval: 30s
+    rules:
+      - alert: IAMUnusedAccess
+        expr: iam_analyzer_unused_access_total > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unused access found in IAM Analyzer"
+          description: "Found {{ $value }} unused access findings for account {{ $labels.account_id }}"
+
+      - alert: IAMExternalAccess
+        expr: iam_analyzer_external_access_total > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "External access detected by IAM Access Analyzer"
+          description: "External access finding for resource {{ $labels.resource_arn }}"
+
+      - alert: IAMCrossAccountAccess
+        expr: iam_analyzer_cross_account_total > 0
+        for: 2m
+        labels:
+          severity: high
+        annotations:
+          summary: "Cross-account access detected"
+          description: "Cross-account access from {{ $labels.source_account }} to {{ $labels.target_resource }}"
+
+      - alert: IAMAnalyzerHighSeverity
+        expr: iam_analyzer_high_severity_total > 0
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "High severity IAM Analyzer finding"
+          description: "{{ $labels.finding_type }} — {{ $labels.resource_arn }}"
+
+      - alert: IAMAnalyzerActiveFindings
+        expr: iam_analyzer_active_findings > 10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated active IAM Analyzer findings"
+          description: "{{ $value }} active findings across account {{ $labels.account_id }}"
