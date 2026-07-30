@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: boundary-worker
+  namespace: boundary
+  labels:
+    app: boundary
+    component: worker
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: boundary-worker-config
+  namespace: boundary
+  labels:
+    app: boundary
+    component: worker
+stringData:
+  config.hcl: |
+    worker {
+      name = "gistpin-boundary-worker-${HOSTNAME}"
+      description = "GistPin Boundary Worker"
+      initial_upstreams = ["boundary-controller.boundary:9201"]
+    }
+
+    listener {
+      purpose = "proxy"
+      address = "0.0.0.0:9202"
+      tls_disable = true
+    }
+
+    controller {
+      name = "gistpin-boundary-controller"
+    }
+
+    kms "aead" {
+      purpose = "worker-auth"
+      aead_type = "aes-gcm"
+      key = "8yuIkLrZnW3oP4qR5sT6uV7wX0yA2bC3"
+    }
+
+    events {
+      audit_enabled = true
+      observations_enabled = true
+      sink {
+        type = "stderr"
+        format = "json"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: boundary-worker
+  namespace: boundary
+  labels:
+    app: boundary
+    component: worker
+spec:
+  selector:
+    matchLabels:
+      app: boundary
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: boundary
+        component: worker
+    spec:
+      serviceAccountName: boundary-worker
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: worker
+          image: hashicorp/boundary:0.15.0
+          args:
+            - server
+            - -config=/etc/boundary/config.hcl
+          ports:
+            - containerPort: 9202
+              name: proxy
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: config
+              mountPath: /etc/boundary
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+          livenessProbe:
+            tcpSocket:
+              port: 9202
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: config
+          secret:
+            secretName: boundary-worker-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: boundary-worker
+  namespace: boundary
+  labels:
+    app: boundary
+    component: worker
+spec:
+  ports:
+    - port: 9202
+      name: proxy
+      targetPort: 9202
+  selector:
+    app: boundary
+    component: worker

@@ -1,0 +1,52 @@
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+metadata:
+  name: kubelet-gc-config
+  namespace: gistpin-prod
+imageGCHighThresholdPercent: 85
+imageGCLowThresholdPercent: 80
+evictionHard:
+  memory.available: "500Mi"
+  nodefs.available: "10%"
+  nodefs.inodesFree: "5%"
+  imagefs.available: "15%"
+evictionSoft:
+  memory.available: "800Mi"
+  nodefs.available: "15%"
+  nodefs.inodesFree: "10%"
+  imagefs.available: "20%"
+evictionSoftGracePeriod:
+  memory.available: "1m30s"
+  nodefs.available: "2m"
+  nodefs.inodesFree: "2m"
+  imagefs.available: "2m"
+evictionPressureTransitionPeriod: "2m"
+evictionMaxPodGracePeriod: 120
+evictionMinimumReclaim:
+  memory.available: "256Mi"
+  nodefs.available: "5%"
+  imagefs.available: "5%"
+imageMinimumGCAge: 2m
+maxPerPodContainerCount: 3
+maxContainerCount: -1
+containerLogMaxSize: "50Mi"
+containerLogMaxFiles: 5
+eventRecordQPS: 10
+eventBurst: 20
+kubeReserved:
+  cpu: "200m"
+  memory: "512Mi"
+  ephemeral-storage: "2Gi"
+systemReserved:
+  cpu: "100m"
+  memory: "256Mi"
+  ephemeral-storage: "1Gi"
+kubeReservedCgroup: "/kubelet"
+systemReservedCgroup: "/system"
+enforceNodeAllocatable:
+  - pods
+  - kube-reserved
+  - system-reserved
+cpuManagerPolicy: static
+topologyManagerPolicy: best-effort
+memoryManagerPolicy: Static

@@ -1,0 +1,191 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: boundary
+  labels:
+    app: boundary
+    component: controller
+    gistpin:tier: "2"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: boundary-controller
+  namespace: boundary
+  labels:
+    app: boundary
+    component: controller
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: boundary-controller-config
+  namespace: boundary
+  labels:
+    app: boundary
+    component: controller
+stringData:
+  config.hcl: |
+    controller {
+      name = "gistpin-boundary-controller"
+      description = "GistPin Boundary Controller"
+    }
+
+    api {
+      listener {
+        purpose = "api"
+        address = "0.0.0.0:9200"
+        tls_disable = true
+      }
+    }
+
+    cluster {
+      listener {
+        purpose = "cluster"
+        address = "0.0.0.0:9201"
+        tls_disable = true
+      }
+    }
+
+    worker {
+      listener {
+        purpose = "proxy"
+        address = "0.0.0.0:9202"
+        tls_disable = true
+      }
+    }
+
+    events {
+      audit_enabled = true
+      observations_enabled = true
+      sysevents_enabled = true
+      sink {
+        type = "stderr"
+        format = "json"
+      }
+    }
+
+    kms "aead" {
+      purpose = "root"
+      aead_type = "aes-gcm"
+      key = "7xtHkPqYmF2zN3L4v5R6s8tA0bC1dE9f"
+    }
+
+    kms "aead" {
+      purpose = "worker-auth"
+      aead_type = "aes-gcm"
+      key = "8yuIkLrZnW3oP4qR5sT6uV7wX0yA2bC3"
+    }
+
+    kms "aead" {
+      purpose = "recovery"
+      aead_type = "aes-gcm"
+      key = "9zWjMnBvCx5lK2oP3qR4sT6uV8wY0aD1"
+    }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: boundary-controller
+  namespace: boundary
+  labels:
+    app: boundary
+    component: controller
+spec:
+  serviceName: boundary-controller
+  replicas: 3
+  selector:
+    matchLabels:
+      app: boundary
+      component: controller
+  template:
+    metadata:
+      labels:
+        app: boundary
+        component: controller
+    spec:
+      serviceAccountName: boundary-controller
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: boundary
+                    component: controller
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: controller
+          image: hashicorp/boundary:0.15.0
+          args:
+            - server
+            - -config=/etc/boundary/config.hcl
+          ports:
+            - containerPort: 9200
+              name: api
+            - containerPort: 9201
+              name: cluster
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: config
+              mountPath: /etc/boundary
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9200
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9200
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          secret:
+            secretName: boundary-controller-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: boundary-controller
+  namespace: boundary
+  labels:
+    app: boundary
+    component: controller
+spec:
+  ports:
+    - port: 9200
+      name: api
+      targetPort: 9200
+    - port: 9201
+      name: cluster
+      targetPort: 9201
+  selector:
+    app: boundary
+    component: controller
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: boundary-controller-pdb
+  namespace: boundary
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: boundary
+      component: controller
