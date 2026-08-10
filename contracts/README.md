@@ -155,9 +155,12 @@ Stellar CLI, and a funded identity) are listed at the top of the script.
 
 ### Deployments
 
-| Network | Contract ID | Moderator |
-|---|---|---|
-| testnet | _not yet deployed_ | — |
+| Network | Contract ID | Moderator | Deployed |
+|---|---|---|---|
+| testnet | [`CCOVX5S3SYHVKUKM3NUXLH6COIYLV5BL3XD6HPFLLR4VLQEQGINJMDRV`](https://stellar.expert/explorer/testnet/contract/CCOVX5S3SYHVKUKM3NUXLH6COIYLV5BL3XD6HPFLLR4VLQEQGINJMDRV) | `GBFNWEU3OM7QT7Y7UAZU6FHLSJIISTT3MSPBICAK4FSBIF5YL4W6IDCK` | 2026-08-10 |
+
+Verified live: `post_gist` → returned `gist_id 1` and emitted `gist_posted`;
+`get_gist`, `is_active`, `list_gists_by_cell`, `get_admin` all read back correctly.
 
 > Record the contract id here after deploying, then set
 > `CONTRACT_ID_GIST_REGISTRY` in the backend environment to take it out of
