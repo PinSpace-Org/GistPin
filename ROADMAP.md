@@ -13,65 +13,48 @@ Wave 1: Contract  ──►  Wave 2: Backend  ──►  Wave 3: Frontend
 
 ---
 
-## 🌊 Wave 1 — Contract (build end to end)
+## 🌊 Wave 1 — Contract ✅ **COMPLETE** (except live deploy)
 
-**Goal:** A production-ready, fully tested set of Soroban contracts deployed to Stellar testnet, exposing a documented interface + event schema that the backend (Wave 2) can integrate against.
+**Goal:** A production-ready, fully tested `GistRegistry` exposing a documented interface + event schema for the backend (Wave 2) to integrate against.
 
-**Definition of done:** Deployed on testnet · every method unit-tested · authorship, expiry, cooldown, and moderation working · event schema published · contract IDs + interface documented for Wave 2.
+**Status:** All feature code written and **unit-tested (26 tests passing)**, merged to `main`. The one remaining item — the actual **testnet deploy** — is tracked in Wave 2 as [#1022](https://github.com/PinSpace-Org/GistPin/issues/1022) (it needs a funded keypair) and also gates the WASM release-build verification.
 
-### 1.1 — Cleanup & foundation
-- [ ] Remove stray non-compiling files: `vault.rs`, `multi.rs`, `ops.rs`, `rollback.rs` (issue [#864](https://github.com/PinSpace-Org/GistPin/issues/864))
-- [ ] Decide crate structure: single crate vs. workspace (needed if we add Tipping/Moderation as separate contracts)
+- [x] Cleanup — removed stray `vault.rs`/`multi.rs`/`ops.rs`/`rollback.rs` ([#864](https://github.com/PinSpace-Org/GistPin/issues/864))
+- [x] Canonical `gist_posted` event ([#873](https://github.com/PinSpace-Org/GistPin/issues/873)) + 6 more (edited/deleted/hidden/unhidden/removed/reported)
+- [x] Signed authorship via `require_auth`; anonymous still supported ([#874](https://github.com/PinSpace-Org/GistPin/issues/874))
+- [x] Per-cell secondary index — no more O(n) scan; `cursor` is now an index offset ([#875](https://github.com/PinSpace-Org/GistPin/issues/875))
+- [x] Expiry: `expires_at` + `ttl_secs` (24h default / 7d max) + `is_active()` ([#876](https://github.com/PinSpace-Org/GistPin/issues/876))
+- [x] Per-author-per-cell 60s cooldown; anonymous exempt ([#877](https://github.com/PinSpace-Org/GistPin/issues/877))
+- [x] Moderation: `initialize` + `hide`/`unhide`/`remove`/`report`, moderator `require_auth` ([#878](https://github.com/PinSpace-Org/GistPin/issues/878))
+- [x] Author `edit_gist`/`delete_gist`; anonymous gists immutable ([#879](https://github.com/PinSpace-Org/GistPin/issues/879))
+- [x] 26 tests covering every rule + rejection path ([#880](https://github.com/PinSpace-Org/GistPin/issues/880))
+- [x] Deploy script + full ABI/event/error spec in `contracts/README.md` ([#881](https://github.com/PinSpace-Org/GistPin/issues/881))
+- [ ] **Live testnet deploy + WASM build verified** → moved to Wave 2 [#1022](https://github.com/PinSpace-Org/GistPin/issues/1022)
 
-### 1.2 — Harden the core `GistRegistry`
-- [ ] **Emit a canonical event** on `post_gist` with a defined, documented schema (this is what the backend indexer will consume — pins down the naming inconsistency in issue [#869](https://github.com/PinSpace-Org/GistPin/issues/869))
-- [ ] **Signed authorship:** `require_auth(author)` when an author is provided, so `author` is provably the caller — while keeping the anonymous (no-author) path working
-- [ ] **Efficient listing:** maintain a secondary index of gist IDs per `location_cell` to replace the current O(n) linear scan in `list_gists_by_cell`
-- [ ] Confirm overflow-safety of the ID counter (release profile already has `overflow-checks = true`)
-
-### 1.3 — Gist lifecycle & spatial rules
-- [ ] **Expiry:** store `expires_at` / TTL and expose active-vs-expired state (README promises this)
-- [ ] **Cooldown:** per-author posting cooldown per location cell (anti-spam)
-- [ ] **Edit/delete by author** (author-authorized only) — decide whether in scope for MVP or deferred
-
-### 1.4 — Moderation (contract level)
-- [ ] Flag/report mechanism
-- [ ] Admin/moderator ability to hide or remove a gist, with proper access control (`require_auth` on an admin/moderator address)
-
-### 1.5 — Incentives (companion contracts — optional within this wave)
-- [ ] **Tipping** contract: send a Stellar asset to a gist author
-- [ ] **Staking / reputation** — likely deferred to a later wave, stub the interface only
-
-### 1.6 — Quality & deploy
-- [ ] Unit tests for every method and edge case (auth failure, cooldown hit, expired gist, event emission, moderation permissions)
-- [ ] Deploy scripts for Stellar testnet
-- [ ] **Publish the interface spec** the backend consumes: method signatures, event schema, error codes, deployed contract IDs
+Tipping / staking (incentives) are intentionally deferred to a later wave.
 
 ---
 
-## 🌊 Wave 2 — Backend (index & serve)
+## 🌊 Wave 2 — Backend (index & serve) — **IN PROGRESS**
 
-**Goal:** Connect the backend to the deployed Wave 1 contract, run the indexer for real, and expose every capability the frontend needs over the REST API.
+**Goal:** Connect the backend to the deployed Wave 1 contract, run the indexer for real, exit mock mode, and expose the contract's capabilities over the REST API.
 
-**Definition of done:** Backend runs against the real testnet contract (out of mock mode) · indexer keeps Postgres in sync with on-chain state · e2e tests pass against the live contract interface.
+**Definition of done:** Backend runs against the real testnet contract (out of mock mode) · indexer keeps Postgres in sync with on-chain state · integration tests pass against the live contract.
 
-### 2.1 — Connect to the real contract
-- [ ] Set `CONTRACT_ID_GIST_REGISTRY` to the deployed testnet contract; exit mock mode
-- [ ] Align event decoding to the canonical event schema from Wave 1 (issue [#869](https://github.com/PinSpace-Org/GistPin/issues/869))
+**Key decision — signed posts (option A / wallet-direct):** the backend only ever submits **anonymous** posts and **reports**; all `require_auth` writes (signed posts, edit/delete, moderation) are signed and submitted by the user's/moderator's **wallet** (Wave 3) and reach the backend via the **indexer**.
 
-### 2.2 — Activate the indexer
-- [ ] Wire `IndexerModule` into the app so it actually runs (currently never imported)
-- [ ] Reconcile on-chain gists into Postgres so gists posted directly on-chain appear in query results
+Tracked issues (build order):
 
-### 2.3 — Serve new contract capabilities
-- [ ] Endpoints/filters for expiry (hide expired gists from queries)
-- [ ] Authorship verification via Stellar signature
-- [ ] Endpoints for moderation (report/hide) and tipping metadata
-
-### 2.4 — Auth & correctness cleanup
-- [ ] Decide the auth model: wire up the existing `ApiKeyGuard`/`ApiKeyService` or remove it as dead code
-- [ ] Fix `CreateGistDto` duplicate-field bug (issue [#862](https://github.com/PinSpace-Org/GistPin/issues/862))
-- [ ] e2e tests exercising the live (non-mock) Soroban path
+- [ ] [#1022](https://github.com/PinSpace-Org/GistPin/issues/1022) — **Deploy to testnet + verify WASM build** *(gate; needs a funded keypair)*
+- [ ] [#1023](https://github.com/PinSpace-Org/GistPin/issues/1023) — Update `soroban.service.ts` to the new ABI
+- [ ] [#1024](https://github.com/PinSpace-Org/GistPin/issues/1024) — Exit mock mode; connect to the deployed contract
+- [ ] [#1025](https://github.com/PinSpace-Org/GistPin/issues/1025) — Wire the indexer → Postgres (all 7 events)
+- [ ] [#1026](https://github.com/PinSpace-Org/GistPin/issues/1026) — Reflect `hidden`/expiry in the DB + query filtering
+- [ ] [#1027](https://github.com/PinSpace-Org/GistPin/issues/1027) — Read + report endpoints; surface moderation/expiry state
+- [ ] [#1028](https://github.com/PinSpace-Org/GistPin/issues/1028) — Write path anonymous-only (no unverified authorship)
+- [ ] [#1029](https://github.com/PinSpace-Org/GistPin/issues/1029) — API auth model *(default: open for MVP)*
+- [ ] [#1030](https://github.com/PinSpace-Org/GistPin/issues/1030) — Integration tests against the real contract path
+- [ ] [#1031](https://github.com/PinSpace-Org/GistPin/issues/1031) — Contracts CI + frontend build check *(do early)*
 
 ---
 
@@ -105,5 +88,5 @@ Wave 1: Contract  ──►  Wave 2: Backend  ──►  Wave 3: Frontend
 
 ---
 
-*This roadmap tracks direction, not commitments. Concrete work lives in [GitHub issues](https://github.com/PinSpace-Org/GistPin/issues); the fix-level issues (#860–#872) feed into the waves above.*
+*This roadmap tracks direction, not commitments. Concrete work lives in [GitHub issues](https://github.com/PinSpace-Org/GistPin/issues). Done so far: fixes #860–#873 and Wave 1 contract #874–#881 (all merged). In progress: Wave 2 #1022–#1031.*
 </content>
