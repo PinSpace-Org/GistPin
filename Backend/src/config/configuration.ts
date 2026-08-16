@@ -23,4 +23,8 @@ export default () => ({
     pinataSecretKey: process.env.PINATA_SECRET_KEY ?? '',
     gateway: process.env.IPFS_GATEWAY ?? 'https://gateway.pinata.cloud/ipfs',
   },
+
+  moderator: {
+    address: process.env.MODERATOR_ADDRESS ?? '',
+  },
 });

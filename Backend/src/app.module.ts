@@ -8,6 +8,7 @@ import { GeoModule } from './geo/geo.module';
 import { IpfsModule } from './ipfs/ipfs.module';
 import { SorobanModule } from './soroban/soroban.module';
 import { GistsModule } from './gists/gists.module';
+import { ModeratorModule } from './moderator/moderator.module';
 import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { ShutdownModule } from './common/shutdown/shutdown.module';
@@ -47,6 +48,7 @@ import { buildWinstonOptions } from './common/logger/winston.config';
     IpfsModule,
     SorobanModule,
     GistsModule,
+    ModeratorModule,
     HealthModule,
     MetricsModule,
     ShutdownModule,

@@ -1,9 +1,10 @@
 import { Controller, Get, Post, Body, Param, Query, ParseUUIDPipe } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
-import { ApiOperation, ApiTags, ApiParam } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiParam, ApiOkResponse } from '@nestjs/swagger';
 import { GistsService } from './gists.service';
 import { CreateGistDto } from './dto/create-gist.dto';
 import { QueryGistsDto } from './dto/query-gists.dto';
+import { GistResponseDto } from './dto/gist-response.dto';
 import { Gist } from './entities/gist.entity';
 import { PaginatedResponse } from '../common/utils/pagination.helper';
 
@@ -15,6 +16,7 @@ export class GistsController {
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Post a new anonymous gist at a location' })
+  @ApiOkResponse({ type: GistResponseDto })
   async create(@Body() dto: CreateGistDto) {
     return this.decorateGist(await this.gistsService.create(dto));
   }
@@ -48,6 +50,7 @@ export class GistsController {
   @SkipThrottle()
   @ApiOperation({ summary: 'Get a single gist by ID' })
   @ApiParam({ name: 'id', description: 'Gist UUID' })
+  @ApiOkResponse({ type: GistResponseDto })
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.decorateGist(await this.gistsService.findOne(id));
   }

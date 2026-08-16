@@ -61,7 +61,8 @@ export class GistRepository {
       )
       RETURNING
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
+        stellar_gist_id, tx_hash, author_address, is_active, report_count,
+        created_at, expires_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       `,
@@ -102,6 +103,8 @@ export class GistRepository {
         g.stellar_gist_id,
         g.tx_hash,
         g.author_address,
+        g.is_active,
+        g.report_count,
         g.created_at,
         g.expires_at,
         ST_X(g.location::geometry)                              AS lon,
@@ -137,7 +140,8 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
+        stellar_gist_id, tx_hash, author_address, is_active, report_count,
+        created_at, expires_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists
@@ -155,7 +159,8 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
+        stellar_gist_id, tx_hash, author_address, is_active, report_count,
+        created_at, expires_at,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists

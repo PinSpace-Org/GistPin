@@ -27,6 +27,21 @@ export class Gist {
   author_address: string | null;
 
   /**
+   * Mirror of on-chain state, kept fresh by the indexer (contracts:
+   * `is_active(gist_id)`). Defaults to true so rows created before the
+   * column existed are treated as active until the indexer backfills.
+   */
+  @Column({ type: 'boolean', default: true })
+  is_active: boolean;
+
+  /**
+   * Mirror of on-chain state, kept fresh by the indexer (contracts:
+   * `report_count(gist_id)`).
+   */
+  @Column({ type: 'int', default: 0 })
+  report_count: number;
+
+  /**
    * PostGIS geography(Point, 4326) column.
    * TypeORM has no native geography type — the real column is created
    * via migration. This text placeholder keeps TypeORM happy while

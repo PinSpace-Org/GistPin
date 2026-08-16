@@ -33,6 +33,8 @@ describe('GistsService', () => {
     tx_hash: 'mock_tx',
     author_address: null,
     location: null,
+    is_active: true,
+    report_count: 0,
     created_at: new Date('2026-01-01T00:00:00Z'),
     expires_at: new Date('2026-01-02T00:00:00Z'),
     ...overrides,

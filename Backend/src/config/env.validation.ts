@@ -33,6 +33,9 @@ export const envValidationSchema = Joi.object({
   PINATA_SECRET_KEY: Joi.string().allow('').default(''),
   IPFS_GATEWAY: Joi.string().uri().default('https://gateway.pinata.cloud/ipfs'),
 
+  // Moderator — optional; GET /v1/moderator returns 503 when unset
+  MODERATOR_ADDRESS: Joi.string().allow('').default(''),
+
   // CORS
   CORS_ORIGINS: Joi.string().allow('').default(''),
 
