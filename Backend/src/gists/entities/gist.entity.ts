@@ -40,4 +40,7 @@ export class Gist {
 
   @Column({ type: 'timestamptz' })
   expires_at: Date;
+
+  @Column({ type: 'boolean', default: false })
+  hidden: boolean;
 }
