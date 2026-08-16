@@ -425,6 +425,21 @@ export class SorobanService {
     );
   }
 
+  async reportGist(gistId: string): Promise<{ count: number; mock: boolean }> {
+    if (this.mockMode) {
+      await this.simulateDelay();
+      this.logger.debug(`MOCK reportGist(${gistId}) → count=1`);
+      return { count: 1, mock: true };
+    }
+
+    return withRetry(
+      async () => this.reportGistLive(gistId),
+      'Soroban.reportGist',
+      this.maxRetries,
+      this.logger,
+    );
+  }
+
   async getEventsSince(ledger: number): Promise<GistRegistryEvent[]> {
     if (this.mockMode) {
       this.logger.debug(`MOCK getEventsSince(${ledger}) → []`);
@@ -657,6 +672,54 @@ export class SorobanService {
     return response.events
       .map((event) => this.decodeGistEvent(event))
       .filter((event): event is GistRegistryEvent => event !== null);
+  }
+
+  private async reportGistLive(gistId: string): Promise<{ count: number; mock: boolean }> {
+    const rpcServer = this.getRpcServer();
+    const contract = this.getContract();
+    const signer = this.getSigner();
+    const sourceAccount = await rpcServer.getAccount(signer.publicKey());
+
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        contract.call('report_gist', nativeToScVal(BigInt(gistId), { type: 'u64' })),
+      )
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await rpcServer.prepareTransaction(tx);
+    preparedTx.sign(signer);
+
+    const sendResult = await rpcServer.sendTransaction(preparedTx);
+    if (sendResult.status === 'ERROR') {
+      throw new Error(
+        `Soroban report_gist rejected: ${sendResult.errorResult?.toXDR('base64') ?? 'unknown error'}`,
+      );
+    }
+
+    const txResult = await this.waitForTransaction(rpcServer, sendResult.hash);
+    if (txResult.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS || !txResult.returnValue) {
+      throw new Error(`Soroban report_gist did not return a successful result for ${sendResult.hash}`);
+    }
+
+    return {
+      count: this.scValToNumber(txResult.returnValue),
+      mock: false,
+    };
+  }
+
+  private scValToNumber(value: xdr.ScVal): number {
+    const native = scValToNative(value);
+    if (typeof native === 'bigint') {
+      return Number(native);
+    }
+    if (typeof native === 'number') {
+      return native;
+    }
+    return Number(native);
   }
 
   private async waitForTransaction(

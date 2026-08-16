@@ -70,7 +70,10 @@ describe('GistsService', () => {
         { provide: IpfsService, useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'Qmrealcid' }) } },
         {
           provide: SorobanService,
-          useValue: { postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }) },
+          useValue: {
+            postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }),
+            reportGist: jest.fn().mockResolvedValue({ count: 3, mock: true }),
+          },
         },
       ],
     }).compile();
@@ -185,6 +188,28 @@ describe('GistsService', () => {
 
       await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundException);
       await expect(service.findOne(id)).rejects.toThrow(`Gist with ID ${id} not found`);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // report
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('report', () => {
+    it('returns the on-chain report count when the gist exists', async () => {
+      const gist = buildGist();
+      gistRepository.findByGistId.mockResolvedValue(gist);
+
+      const result = await service.report(gist.id);
+
+      expect(gistRepository.findByGistId).toHaveBeenCalledWith(gist.id);
+      expect(result).toEqual({ count: 3 });
+    });
+
+    it('throws NotFoundException when the gist does not exist', async () => {
+      const id = '00000000-0000-0000-0000-000000000000';
+      gistRepository.findByGistId.mockResolvedValue(null);
+
+      await expect(service.report(id)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

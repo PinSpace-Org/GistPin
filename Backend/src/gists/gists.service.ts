@@ -128,6 +128,17 @@ export class GistsService {
     return this.ipfsService.getJson(gist.content_hash);
   }
 
+  async report(id: string): Promise<{ count: number }> {
+    const gist = await this.gistRepository.findByGistId(id);
+    if (!gist) {
+      throw new NotFoundException(`Gist with ID ${id} not found`);
+    }
+
+    const { count } = await this.sorobanService.reportGist(id);
+    this.logger.log(`Gist reported → id=${id} count=${count}`);
+    return { count };
+  }
+
   async countNearby(query: QueryGistsDto): Promise<CountNearbyResult> {
     const { lat, lon, radius = 500, breakdown } = query;
 
