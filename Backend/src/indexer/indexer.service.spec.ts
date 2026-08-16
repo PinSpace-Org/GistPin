@@ -3,21 +3,26 @@ import { IndexerService } from './indexer.service';
 import { SorobanService } from '../soroban/soroban.service';
 import { GistRepository } from '../gists/gist.repository';
 import { GeoService } from '../geo/geo.service';
-import { GistEvent } from '../soroban/soroban.service';
+import { GistPostedEvent } from '../soroban/soroban.service';
 
 jest.mock('../soroban/soroban.service', () => ({
   SorobanService: class SorobanService {},
 }));
 
-function makeEvent(overrides: Partial<GistEvent> = {}): GistEvent {
+function makeEvent(overrides: Partial<GistPostedEvent['gist']> = {}): GistPostedEvent {
   return {
-    gistId: 'gist-1',
-    locationCell: 'u4pruyd',
-    contentHash: 'QmAbc123',
-    author: 'GABCD',
+    type: 'gist_posted',
     ledger: 100,
-    createdAt: 1700000000,
-    ...overrides,
+    gist: {
+      gistId: 'gist-1',
+      locationCell: 'u4pruyd',
+      contentHash: 'QmAbc123',
+      author: 'GABCD',
+      createdAt: 1700000000,
+      expiresAt: 1700086400,
+      hidden: false,
+      ...overrides,
+    },
   };
 }
 
@@ -103,9 +108,9 @@ describe('IndexerService', () => {
 
     it('advances lastProcessedLedger to the highest event ledger', async () => {
       const events = [
-        makeEvent({ gistId: 'g1', ledger: 200 }),
-        makeEvent({ gistId: 'g2', ledger: 350 }),
-        makeEvent({ gistId: 'g3', ledger: 275 }),
+        { ...makeEvent({ gistId: 'g1' }), ledger: 200 },
+        { ...makeEvent({ gistId: 'g2' }), ledger: 350 },
+        { ...makeEvent({ gistId: 'g3' }), ledger: 275 },
       ];
       soroban.getEventsSince.mockResolvedValue(events);
       gistRepo.findByStellarGistId.mockResolvedValue(null);
@@ -121,7 +126,7 @@ describe('IndexerService', () => {
     });
 
     it('also advances lastProcessedLedger for already-indexed events', async () => {
-      soroban.getEventsSince.mockResolvedValue([makeEvent({ ledger: 500 })]);
+      soroban.getEventsSince.mockResolvedValue([{ ...makeEvent(), ledger: 500 }]);
       gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(true);
 

@@ -37,43 +37,45 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
       );
 
       for (const event of events) {
-        const existing = await this.gistRepository.findByStellarGistId(event.gistId);
-        if (existing) {
-          this.logger.debug(`Skipping already-indexed gist ${event.gistId}`);
+        if (event.type !== 'gist_posted' && event.type !== 'gist_edited') {
+          this.logger.debug(`Skipping non-indexable event: ${event.type}`);
           this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.ledger);
           continue;
         }
 
-        this.logger.debug(`Indexed gist ${event.gistId} @ cell ${event.locationCell}`);
-        const alreadyIndexed = await this.gistRepository.existsByStellarGistId(event.gistId);
+        const { gist } = event;
+        const existing = await this.gistRepository.findByStellarGistId(gist.gistId);
+        if (existing) {
+          this.logger.debug(`Skipping already-indexed gist ${gist.gistId}`);
+          this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.ledger);
+          continue;
+        }
+
+        this.logger.debug(`Indexed gist ${gist.gistId} @ cell ${gist.locationCell}`);
+        const alreadyIndexed = await this.gistRepository.existsByStellarGistId(gist.gistId);
 
         if (alreadyIndexed) {
           this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.ledger);
           continue;
         }
 
-        const { lat, lon } = this.geoService.decode(event.locationCell);
+        const { lat, lon } = this.geoService.decode(gist.locationCell);
 
         try {
           await this.gistRepository.create({
             content: '',
             lat,
             lon,
-            location_cell: event.locationCell,
-            content_hash: event.contentHash,
-            stellar_gist_id: event.gistId,
+            location_cell: gist.locationCell,
+            content_hash: gist.contentHash,
+            stellar_gist_id: gist.gistId,
             tx_hash: null,
           });
         } catch (err) {
-          // Issue #98 — concurrent pollers race on the same stellar_gist_id.
-          // The companion migration adds a UNIQUE(stellar_gist_id) constraint,
-          // so the loser of the race surfaces Postgres SQLSTATE 23505. Treat
-          // it as "already indexed by another writer" and advance the cursor
-          // instead of aborting the poll loop.
           const code = (err as { code?: string })?.code;
           if (code === PG_UNIQUE_VIOLATION) {
             this.logger.debug(
-              `Gist ${event.gistId} already indexed (SQLSTATE ${PG_UNIQUE_VIOLATION}); advancing cursor`,
+              `Gist ${gist.gistId} already indexed (SQLSTATE ${PG_UNIQUE_VIOLATION}); advancing cursor`,
             );
             this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.ledger);
             continue;
@@ -82,7 +84,7 @@ export class IndexerService implements OnModuleInit, OnModuleDestroy {
         }
 
         this.logger.debug(
-          `Indexed gist ${event.gistId} @ cell ${event.locationCell} (ledger ${event.ledger})`,
+          `Indexed gist ${gist.gistId} @ cell ${gist.locationCell} (ledger ${event.ledger})`,
         );
 
         this.lastProcessedLedger = Math.max(this.lastProcessedLedger, event.ledger);
