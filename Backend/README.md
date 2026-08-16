@@ -128,6 +128,13 @@ API available at: `http://localhost:3000`
 
 ## API Overview
 
+### Authentication & Rate Limiting
+
+The GistPin MVP deliberately adopts an **anonymous-first architecture**:
+- Endpoints do not require API keys or token authentication, allowing seamless, permissionless reading and posting.
+- Abuse protection and denial-of-service mitigation are enforced via global and route-level rate limiting (`@nestjs/throttler` via `ThrottlerGuard` in `AppModule`), alongside in-flight request tracking and payload validation.
+- Per-key API authorization was evaluated during early MVP architecture and removed to keep the core API lightweight and aligned with anonymous decentralized interaction. Fine-grained API authentication / developer keys may be reintroduced in a future pre-launch milestone if required for dedicated partner integrations.
+
 ### Health
 
 ```
