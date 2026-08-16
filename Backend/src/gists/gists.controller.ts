@@ -52,6 +52,14 @@ export class GistsController {
     return this.decorateGist(await this.gistsService.findOne(id));
   }
 
+  @Post(':id/report')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @ApiOperation({ summary: 'Report a gist for review' })
+  @ApiParam({ name: 'id', description: 'Gist UUID' })
+  async report(@Param('id', ParseUUIDPipe) id: string) {
+    return this.gistsService.report(id);
+  }
+
   private decorateGist(gist: Gist) {
     return {
       ...gist,
