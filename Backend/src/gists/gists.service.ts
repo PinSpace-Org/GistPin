@@ -53,7 +53,13 @@ export class GistsService {
     });
 
     const author = dto.authorAddress;
-    const { gistId, txHash } = await this.sorobanService.postGist(locationCell, cid, author);
+    const ttlSecs = dto.ttlHours ? dto.ttlHours * 3600 : undefined;
+    const { gistId, txHash } = await this.sorobanService.postGist(
+      author,
+      locationCell,
+      cid,
+      ttlSecs,
+    );
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
 
