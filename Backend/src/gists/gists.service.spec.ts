@@ -35,6 +35,7 @@ describe('GistsService', () => {
     location: null,
     created_at: new Date('2026-01-01T00:00:00Z'),
     expires_at: new Date('2026-01-02T00:00:00Z'),
+    hidden: false,
     ...overrides,
   });
 
@@ -229,6 +230,27 @@ describe('GistsService', () => {
 
       expect(result.count).toBe(0);
       expect(result.breakdown).toHaveLength(0);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // hidden gists (Issue #1037)
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('hidden gists', () => {
+    it('findOne throws NotFoundException when the gist is hidden (repository filters it out)', async () => {
+      gistRepository.findByGistId.mockResolvedValue(null);
+
+      await expect(
+        service.findOne('00000000-0000-0000-0000-000000000001'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('create returns a gist with hidden=false', async () => {
+      const created = buildGist({ hidden: false });
+      gistRepository.create.mockResolvedValue(created);
+
+      const result = await service.create(buildDto());
+      expect(result.hidden).toBe(false);
     });
   });
 });
