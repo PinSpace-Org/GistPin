@@ -167,6 +167,17 @@ export class GistRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * Persist the report count mirrored from the contract after a successful
+   * `report_gist` call (issue #1039).
+   */
+  async updateReportCount(id: string, reportCount: number): Promise<void> {
+    await this.dataSource.query(
+      `UPDATE gists SET report_count = $1 WHERE id = $2`,
+      [reportCount, id],
+    );
+  }
+
   async existsByStellarGistId(stellarGistId: string): Promise<boolean> {
     const [row] = await this.dataSource.query<Array<{ cnt: string }>>(
       `SELECT COUNT(*) AS cnt FROM gists WHERE stellar_gist_id = $1`,

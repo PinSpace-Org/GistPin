@@ -1,9 +1,10 @@
 import { Controller, Get, Post, Body, Param, Query, ParseUUIDPipe } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
-import { ApiOperation, ApiTags, ApiParam } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiParam, ApiCreatedResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { GistsService } from './gists.service';
 import { CreateGistDto } from './dto/create-gist.dto';
 import { QueryGistsDto } from './dto/query-gists.dto';
+import { ReportGistResponseDto } from './dto/report-gist-response.dto';
 import { Gist } from './entities/gist.entity';
 import { PaginatedResponse } from '../common/utils/pagination.helper';
 
@@ -25,6 +26,16 @@ export class GistsController {
   async findNearby(@Query() query: QueryGistsDto) {
     const response = await this.gistsService.findNearby(query);
     return this.decoratePaginatedResponse(response);
+  }
+
+  @Post(':id/report')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Report a gist for off-chain review' })
+  @ApiParam({ name: 'id', description: 'Gist UUID' })
+  @ApiCreatedResponse({ type: ReportGistResponseDto })
+  @ApiNotFoundResponse({ description: 'Gist not found' })
+  async report(@Param('id', ParseUUIDPipe) id: string) {
+    return this.gistsService.report(id);
   }
 
   // IMPORTANT: must be registered before @Get(':id') so NestJS does not

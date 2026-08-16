@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Logger, NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { GistsService } from './gists.service';
 import { GistRepository, PG_UNIQUE_VIOLATION } from './gist.repository';
@@ -20,6 +20,7 @@ jest.mock('../soroban/soroban.service', () => ({
  */
 describe('GistsService', () => {
   let service: GistsService;
+  let module: TestingModule;
   let gistRepository: jest.Mocked<GistRepository>;
   let ipfsService: jest.Mocked<IpfsService>;
   let transactionMock: jest.Mock;
@@ -58,9 +59,10 @@ describe('GistsService', () => {
       countNearby: jest.fn(),
       countNearbyByCell: jest.fn(),
       deleteExpired: jest.fn(),
+      updateReportCount: jest.fn(),
     };
 
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         GistsService,
         { provide: DataSource, useValue: { transaction: transactionMock } },
@@ -69,7 +71,10 @@ describe('GistsService', () => {
         { provide: IpfsService, useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'Qmrealcid' }) } },
         {
           provide: SorobanService,
-          useValue: { postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }) },
+          useValue: {
+            postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }),
+            reportGist: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -184,6 +189,47 @@ describe('GistsService', () => {
 
       await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundException);
       await expect(service.findOne(id)).rejects.toThrow(`Gist with ID ${id} not found`);
+    });
+  });
+
+  describe('report', () => {
+    it('calls report_gist with the on-chain id and mirrors the count into Postgres', async () => {
+      const gist = buildGist({ stellar_gist_id: 'gist-7' });
+      gistRepository.findByGistId.mockResolvedValue(gist);
+      const sorobanService = module.get(SorobanService) as jest.Mocked<SorobanService>;
+      sorobanService.reportGist.mockResolvedValue(4);
+
+      const result = await service.report(gist.id);
+
+      expect(gistRepository.findByGistId).toHaveBeenCalledWith(gist.id);
+      expect(sorobanService.reportGist).toHaveBeenCalledWith('gist-7');
+      expect(gistRepository.updateReportCount).toHaveBeenCalledWith(gist.id, 4);
+      expect(result).toEqual({ gist_id: 'gist-7', report_count: 4 });
+    });
+
+    it('throws NotFoundException when the gist does not exist', async () => {
+      const id = '00000000-0000-0000-0000-000000000000';
+      gistRepository.findByGistId.mockResolvedValue(null);
+
+      await expect(service.report(id)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.report(id)).rejects.toThrow(`Gist with ID ${id} not found`);
+    });
+
+    it('does not touch the chain when the gist does not exist', async () => {
+      gistRepository.findByGistId.mockResolvedValue(null);
+      const sorobanService = module.get(SorobanService) as jest.Mocked<SorobanService>;
+
+      await service.report('00000000-0000-0000-0000-000000000000').catch(() => undefined);
+
+      expect(sorobanService.reportGist).not.toHaveBeenCalled();
+      expect(gistRepository.updateReportCount).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the gist has no on-chain id', async () => {
+      const gist = buildGist({ stellar_gist_id: null });
+      gistRepository.findByGistId.mockResolvedValue(gist);
+
+      await expect(service.report(gist.id)).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 

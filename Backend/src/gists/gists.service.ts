@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { CreateGistDto } from './dto/create-gist.dto';
@@ -24,6 +24,11 @@ export interface CountNearbyResult {
   lat: number;
   lon: number;
   breakdown?: Array<{ cell: string; count: number }>;
+}
+
+export interface ReportGistResult {
+  gist_id: string;
+  report_count: number;
 }
 
 @Injectable()
@@ -120,6 +125,26 @@ export class GistsService {
     }
 
     return this.ipfsService.getJson(gist.content_hash);
+  }
+
+  /**
+   * Report a gist for off-chain review (issue #1039). The gist must exist
+   * (404 otherwise), then the contract's `report_gist` is called and the
+   * returned count is mirrored into Postgres.
+   */
+  async report(id: string): Promise<ReportGistResult> {
+    const gist = await this.gistRepository.findByGistId(id);
+    if (!gist) {
+      throw new NotFoundException(`Gist with ID ${id} not found`);
+    }
+    if (!gist.stellar_gist_id) {
+      throw new BadRequestException(`Gist with ID ${id} has no on-chain id`);
+    }
+
+    const reportCount = await this.sorobanService.reportGist(gist.stellar_gist_id);
+    await this.gistRepository.updateReportCount(id, reportCount);
+
+    return { gist_id: gist.stellar_gist_id, report_count: reportCount };
   }
 
   async countNearby(query: QueryGistsDto): Promise<CountNearbyResult> {
