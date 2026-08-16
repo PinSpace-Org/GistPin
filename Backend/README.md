@@ -168,12 +168,15 @@ Content-Type: application/json
 
 `authorAddress` is optional — anonymous posting is fully supported.
 
+> **Wallet-Direct Model & On-Chain Anonymity (Issue #1040):**
+> GistPin backend submissions to the Soroban smart contract are **always anonymous** (`author = None`). The `authorAddress` in the request body is preserved solely in Postgres as an off-chain display/filter hint (e.g. for `GET /v1/gists?authorAddress=...`). Signed, on-chain attributed posts will happen directly from the client wallet in a future Wave, as only the caller's wallet can satisfy `require_auth()` for their address on-chain.
+
 **What happens internally:**
 1. Validate + sanitise input
 2. Pin content to IPFS → receive CID
 3. Derive `locationCell` from `(lat, lon)` via geohash
-4. Submit `post_gist(author, locationCell, contentHash)` to Soroban
-5. Persist the record in Postgres
+4. Submit `post_gist(None, locationCell, contentHash)` anonymously to Soroban
+5. Persist the record (with optional off-chain `author_address` hint) in Postgres
 6. Return the created gist
 
 ---

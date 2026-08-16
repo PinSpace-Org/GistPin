@@ -90,7 +90,7 @@ describe('GistsService', () => {
   // create
   // ──────────────────────────────────────────────────────────────────────────
   describe('create', () => {
-    it('sanitizes, encodes, pins IPFS, posts Soroban, and inserts in a transaction', async () => {
+    it('sanitizes, encodes, pins IPFS, posts Soroban anonymously, and inserts in a transaction', async () => {
       const created = buildGist();
       gistRepository.create.mockResolvedValue(created);
 
@@ -110,6 +110,17 @@ describe('GistsService', () => {
       });
       expect(managerArg).toEqual({});
       expect(result).toBe(created);
+    });
+
+    // Issue #1040 — backend-submitted posts are always anonymous on-chain
+    it('always passes undefined/None author to sorobanService.postGist even if authorAddress is supplied', async () => {
+      const sorobanService = (service as any).sorobanService;
+      gistRepository.create.mockResolvedValue(buildGist());
+
+      await service.create(buildDto({ authorAddress: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN' }));
+
+      expect(sorobanService.postGist).toHaveBeenCalledTimes(1);
+      expect(sorobanService.postGist).toHaveBeenCalledWith('s1t7d8c', 'Qmrealcid', undefined);
     });
 
     // Issue #604 — expires_at is set based on ttlHours

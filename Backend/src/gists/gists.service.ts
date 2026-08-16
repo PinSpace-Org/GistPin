@@ -53,7 +53,9 @@ export class GistsService {
     });
 
     const author = dto.authorAddress;
-    const { gistId, txHash } = await this.sorobanService.postGist(locationCell, cid, author);
+    // Issue #1040: Guarantee backend-submitted posts are always anonymous on-chain (author = undefined / None).
+    // Client-supplied authorAddress is strictly an off-chain display/filter hint.
+    const { gistId, txHash } = await this.sorobanService.postGist(locationCell, cid, undefined);
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
 
