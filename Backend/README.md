@@ -124,6 +124,40 @@ npm run start:dev
 
 API available at: `http://localhost:3000`
 
+### 5. Connecting to the live testnet contract (optional)
+
+By default the backend runs in **mock mode** — `postGist` fabricates an id
+and never touches the chain. To exercise the real Soroban path:
+
+1. Generate a testnet identity (do **not** use the project moderator key):
+
+   ```bash
+   stellar keys generate my-backend-dev --network testnet --fund
+   stellar keys show my-backend-dev   # prints the secret key
+   ```
+
+2. Set these three env vars in your `.env`:
+
+   ```
+   CONTRACT_ID_GIST_REGISTRY=CCOVX5S3SYHVKUKM3NUXLH6COIYLV5BL3XD6HPFLLR4VLQEQGINJMDRV
+   SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+   STELLAR_SECRET_KEY=<secret from step 1>
+   ```
+
+3. Start the dev server and POST a gist:
+
+   ```bash
+   curl -X POST http://localhost:3000/v1/gists \
+     -H 'Content-Type: application/json' \
+     -d '{"content":"testing live mode","lat":9.05,"lon":7.49}'
+   ```
+
+   The response should include a real `tx_hash` (verifiable on
+   [stellar.expert](https://stellar.expert/explorer/testnet/contract/CCOVX5S3SYHVKUKM3NUXLH6COIYLV5BL3XD6HPFLLR4VLQEQGINJMDRV))
+   and an on-chain `gist_id`.
+
+4. To return to mock mode, remove or blank out `CONTRACT_ID_GIST_REGISTRY`.
+
 ---
 
 ## API Overview
