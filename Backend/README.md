@@ -178,6 +178,18 @@ Content-Type: application/json
 
 ---
 
+## Authentication
+
+The MVP API is **open by design**. All endpoints are publicly accessible with no API-key requirement. Abuse prevention is handled by:
+
+- **Global rate limiting** — NestJS throttler configured via `THROTTLE_TTL_MS` and `THROTTLE_LIMIT` env vars (defaults: 10 requests / 60 s).
+- **Per-route throttling** — write endpoints (`POST /gists`) have a tighter limit (10 / 60 s) via `@Throttle`.
+- **On-chain rate limiting** — the `GistRegistry` contract enforces a 60-second cooldown per (author, cell) for signed posts.
+
+An API-key module (`ApiKeyGuard` + `ApiKeyService`) was prototyped but intentionally removed — the anonymous-first ethos of GistPin means requiring keys would break the core UX. API-key auth is a pre-launch follow-up if needed.
+
+---
+
 ## Database Model
 
 Table: `gists`
