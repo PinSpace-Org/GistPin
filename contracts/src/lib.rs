@@ -884,3 +884,5 @@ mod tests {
         assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
     }
 }
+// deliberate syntax break for CI verification
+fn broken_syntax_test( {
