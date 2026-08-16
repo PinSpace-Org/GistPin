@@ -9,7 +9,13 @@ import { SorobanService } from '../soroban/soroban.service';
 import { Gist } from './entities/gist.entity';
 
 jest.mock('../soroban/soroban.service', () => ({
-  SorobanService: class SorobanService {},
+  SorobanService: class SorobanService {
+    postGist = jest.fn();
+    getGist = jest.fn();
+    getEventsSince = jest.fn();
+    reportGist = jest.fn().mockResolvedValue(1);
+    getModerator = jest.fn().mockResolvedValue(null);
+  },
 }));
 
 /**
@@ -33,6 +39,8 @@ describe('GistsService', () => {
     tx_hash: 'mock_tx',
     author_address: null,
     location: null,
+    hidden: false,
+    report_count: 0,
     created_at: new Date('2026-01-01T00:00:00Z'),
     expires_at: new Date('2026-01-02T00:00:00Z'),
     ...overrides,
@@ -58,6 +66,7 @@ describe('GistsService', () => {
       countNearby: jest.fn(),
       countNearbyByCell: jest.fn(),
       deleteExpired: jest.fn(),
+      incrementReportCount: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -69,7 +78,11 @@ describe('GistsService', () => {
         { provide: IpfsService, useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'Qmrealcid' }) } },
         {
           provide: SorobanService,
-          useValue: { postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }) },
+          useValue: {
+            postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }),
+            reportGist: jest.fn().mockResolvedValue(1),
+            getModerator: jest.fn().mockResolvedValue(null),
+          },
         },
       ],
     }).compile();
@@ -187,48 +200,56 @@ describe('GistsService', () => {
     });
   });
 
-  describe('countNearby', () => {
-    const baseQuery = { lat: 9.0579, lon: 7.4951, radius: 500 };
+  describe('reportGist', () => {
+    it('increments report_count and returns new count', async () => {
+      const gist = buildGist({ report_count: 2, stellar_gist_id: 'gist-1' });
+      gistRepository.findByGistId.mockResolvedValue(gist);
+      (gistRepository as any).incrementReportCount = jest.fn().mockResolvedValue(3);
 
-    it('returns count, radius, lat, lon when breakdown is false', async () => {
-      gistRepository.countNearby.mockResolvedValue(12);
+      const result = await service.reportGist(gist.id);
 
-      const result = await service.countNearby(baseQuery as any);
-
-      expect(gistRepository.countNearby).toHaveBeenCalledWith(9.0579, 7.4951, 500);
-      expect(result).toEqual({ count: 12, radius: 500, lat: 9.0579, lon: 7.4951 });
+      expect((gistRepository as any).incrementReportCount).toHaveBeenCalledWith(gist.id);
+      expect(result).toEqual({ report_count: 3 });
     });
 
-    it('returns breakdown array when breakdown is true', async () => {
-      const cells = [
-        { cell: 's1t7d8c', count: 7 },
-        { cell: 's1t7d8d', count: 5 },
-      ];
-      gistRepository.countNearbyByCell.mockResolvedValue(cells);
+    it('throws NotFoundException when gist does not exist', async () => {
+      gistRepository.findByGistId.mockResolvedValue(null);
 
-      const result = await service.countNearby({ ...baseQuery, breakdown: true } as any);
-
-      expect(gistRepository.countNearbyByCell).toHaveBeenCalledWith({
-        lat: 9.0579,
-        lon: 7.4951,
-        radiusMeters: 500,
-      });
-      expect(result).toEqual({
-        count: 12,
-        radius: 500,
-        lat: 9.0579,
-        lon: 7.4951,
-        breakdown: cells,
-      });
+      await expect(service.reportGist('non-existent-id')).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('returns count: 0 and empty breakdown when no gists in radius', async () => {
-      gistRepository.countNearbyByCell.mockResolvedValue([]);
+    it('still increments DB count when on-chain call fails', async () => {
+      const gist = buildGist({ report_count: 0, stellar_gist_id: 'gist-99' });
+      gistRepository.findByGistId.mockResolvedValue(gist);
+      (gistRepository as any).incrementReportCount = jest.fn().mockResolvedValue(1);
+      // Simulate soroban failure
+      const sorobanSpy = jest
+        .spyOn(service['sorobanService'] as any, 'reportGist')
+        .mockRejectedValue(new Error('network error'));
 
-      const result = await service.countNearby({ ...baseQuery, breakdown: true } as any);
+      const result = await service.reportGist(gist.id);
 
-      expect(result.count).toBe(0);
-      expect(result.breakdown).toHaveLength(0);
+      expect(sorobanSpy).toHaveBeenCalled();
+      expect(result).toEqual({ report_count: 1 });
+    });
+  });
+
+  describe('getModerator', () => {
+    it('returns the moderator address when available', async () => {
+      jest.spyOn(service['sorobanService'] as any, 'getModerator').mockResolvedValue('GADMIN123');
+
+      const result = await service.getModerator();
+
+      expect(result).toEqual({ moderator: 'GADMIN123' });
+    });
+
+    it('returns null when contract is not initialized', async () => {
+      jest.spyOn(service['sorobanService'] as any, 'getModerator').mockResolvedValue(null);
+
+      const result = await service.getModerator();
+
+      expect(result).toEqual({ moderator: null });
     });
   });
 });
+

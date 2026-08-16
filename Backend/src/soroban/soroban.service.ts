@@ -139,6 +139,43 @@ export class SorobanService {
     );
   }
 
+  /**
+   * Report a gist on-chain. Returns the new report count.
+   * Anyone can call this; it is advisory and does not hide the gist automatically.
+   */
+  async reportGist(gistId: string): Promise<number> {
+    if (this.mockMode) {
+      await this.simulateDelay();
+      this.logger.debug(`MOCK reportGist → gistId=${gistId}`);
+      return 1;
+    }
+
+    return withRetry(
+      async () => this.reportGistLive(gistId),
+      'Soroban.reportGist',
+      this.maxRetries,
+      this.logger,
+    );
+  }
+
+  /**
+   * Returns the current moderator (admin) address from the contract, or null
+   * if the contract has not been initialized yet.
+   */
+  async getModerator(): Promise<string | null> {
+    if (this.mockMode) {
+      await this.simulateDelay();
+      return null;
+    }
+
+    return withRetry(
+      async () => this.getModeratorLive(),
+      'Soroban.getModerator',
+      this.maxRetries,
+      this.logger,
+    );
+  }
+
   async getEventsSince(ledger: number): Promise<GistEvent[]> {
     if (this.mockMode) {
       this.logger.debug(`MOCK getEventsSince(${ledger}) → []`);
@@ -186,6 +223,62 @@ export class SorobanService {
       throw new Error('STELLAR_SECRET_KEY is required for Soroban live mode');
     }
     return this.signer;
+  }
+
+  private async reportGistLive(gistId: string): Promise<number> {
+    const rpcServer = this.getRpcServer();
+    const contract = this.getContract();
+    const signer = this.getSigner();
+    const sourceAccount = await rpcServer.getAccount(signer.publicKey());
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        contract.call('report_gist', nativeToScVal(BigInt(gistId), { type: 'u64' })),
+      )
+      .setTimeout(30)
+      .build();
+
+    const preparedTx = await rpcServer.prepareTransaction(tx);
+    preparedTx.sign(signer);
+
+    const sendResult = await rpcServer.sendTransaction(preparedTx);
+    if (sendResult.status === 'ERROR') {
+      throw new Error(
+        `Soroban report_gist rejected: ${sendResult.errorResult?.toXDR('base64') ?? 'unknown error'}`,
+      );
+    }
+
+    const txResult = await this.waitForTransaction(rpcServer, sendResult.hash);
+    if (txResult.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS || !txResult.returnValue) {
+      throw new Error(`Soroban report_gist did not return a successful result for ${sendResult.hash}`);
+    }
+
+    return Number(scValToNative(txResult.returnValue));
+  }
+
+  private async getModeratorLive(): Promise<string | null> {
+    const rpcServer = this.getRpcServer();
+    const contract = this.getContract();
+    const signer = this.getSigner();
+    const sourceAccount = await rpcServer.getAccount(signer.publicKey());
+    const tx = new TransactionBuilder(sourceAccount, {
+      fee: BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(contract.call('get_admin'))
+      .setTimeout(30)
+      .build();
+
+    const simulation = await rpcServer.simulateTransaction(tx);
+    if (SorobanRpc.Api.isSimulationError(simulation) || !simulation.result) {
+      throw new Error('Soroban get_admin simulation failed');
+    }
+
+    if (!simulation.result.retval) return null;
+    const native = scValToNative(simulation.result.retval);
+    return native ? String(native) : null;
   }
 
   private async postGistLive(

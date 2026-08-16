@@ -134,4 +134,30 @@ export class GistsService {
     const count = await this.gistRepository.countNearby(lat, lon, radius);
     return { count, radius, lat, lon };
   }
+
+  async reportGist(id: string): Promise<{ report_count: number }> {
+    // Verify the gist exists first
+    const gist = await this.gistRepository.findByGistId(id);
+    if (!gist) {
+      throw new NotFoundException(`Gist with ID ${id} not found`);
+    }
+
+    // Best-effort on-chain report (fire-and-forget if contract not configured)
+    try {
+      if (gist.stellar_gist_id) {
+        await this.sorobanService.reportGist(gist.stellar_gist_id);
+      }
+    } catch (err) {
+      this.logger.warn(`On-chain report_gist failed for ${id}: ${(err as Error).message}`);
+    }
+
+    // Always increment the DB counter — this is the authoritative view for the API
+    const newCount = await this.gistRepository.incrementReportCount(id);
+    return { report_count: newCount ?? (gist.report_count ?? 0) + 1 };
+  }
+
+  async getModerator(): Promise<{ moderator: string | null }> {
+    const moderator = await this.sorobanService.getModerator();
+    return { moderator };
+  }
 }

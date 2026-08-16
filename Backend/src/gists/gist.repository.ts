@@ -133,21 +133,32 @@ export class GistRepository {
   }
 
   async findByGistId(id: string): Promise<Gist | null> {
-    const rows = await this.dataSource.query<Gist[]>(
+    const rows = await this.dataSource.query<Array<Gist & { is_active_computed: boolean }>>(
       `
       SELECT
         id, content, location_cell, content_hash,
         stellar_gist_id, tx_hash, author_address, created_at, expires_at,
+        hidden, report_count,
         ST_X(location::geometry) AS lon,
-        ST_Y(location::geometry) AS lat
+        ST_Y(location::geometry) AS lat,
+        (expires_at > NOW() AND hidden = false) AS is_active_computed
       FROM gists
       WHERE id = $1
-        AND expires_at > NOW()
       LIMIT 1
       `,
       [id],
     );
-    return rows[0] ?? null;
+    if (!rows[0]) return null;
+    const row = rows[0];
+    return { ...row, is_active: row.is_active_computed };
+  }
+
+  async incrementReportCount(id: string): Promise<number | null> {
+    const rows = await this.dataSource.query<Array<{ report_count: number }>>(
+      `UPDATE gists SET report_count = report_count + 1 WHERE id = $1 RETURNING report_count`,
+      [id],
+    );
+    return rows[0]?.report_count ?? null;
   }
 
   async findByStellarGistId(stellarGistId: string): Promise<Gist | null> {

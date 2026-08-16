@@ -35,6 +35,18 @@ export class Gist {
   @Column({ type: 'text', nullable: true, select: false })
   location: string | null;
 
+  @Column({ type: 'boolean', default: false })
+  hidden: boolean;
+
+  @Column({ type: 'integer', default: 0 })
+  report_count: number;
+
+  /**
+   * Derived field: gist is active when it is not expired and not hidden.
+   * Populated by repository queries; not stored as a separate column.
+   */
+  is_active?: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
