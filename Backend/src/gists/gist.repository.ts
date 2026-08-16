@@ -26,6 +26,7 @@ export interface CreateGistData {
   tx_hash?: string;
   author_address?: string;
   expires_at?: Date;
+  hidden?: boolean;
 }
 
 @Injectable()
@@ -43,6 +44,7 @@ export class GistRepository {
       tx_hash = null,
       author_address = null,
       expires_at,
+      hidden = false,
     } = data;
 
     const expiresAt = expires_at ?? new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -52,20 +54,20 @@ export class GistRepository {
       `
       INSERT INTO gists (
         content, location, location_cell,
-        content_hash, stellar_gist_id, tx_hash, author_address, expires_at
+        content_hash, stellar_gist_id, tx_hash, author_address, expires_at, hidden
       )
       VALUES (
         $1,
         ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
-        $4, $5, $6, $7, $8, $9
+        $4, $5, $6, $7, $8, $9, $10
       )
       RETURNING
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       `,
-      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash, author_address, expiresAt],
+      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash, author_address, expiresAt, hidden],
     );
 
     return result[0];
@@ -78,6 +80,7 @@ export class GistRepository {
     const clauses: string[] = [];
 
     clauses.push(`g.expires_at > NOW()`);
+    clauses.push(`g.hidden = false`);
 
     if (cursor) {
       const decoded = PaginationHelper.decodeCursor(cursor) ?? cursor;
@@ -104,6 +107,7 @@ export class GistRepository {
         g.author_address,
         g.created_at,
         g.expires_at,
+        g.hidden,
         ST_X(g.location::geometry)                              AS lon,
         ST_Y(g.location::geometry)                              AS lat,
         ST_Distance(
@@ -117,6 +121,7 @@ export class GistRepository {
         $3
       )
       AND g.expires_at > NOW()
+      AND g.hidden = false
       ${extraWhere}
       ORDER BY distance_meters ASC, g.created_at DESC
       LIMIT $4
@@ -137,12 +142,13 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists
       WHERE id = $1
         AND expires_at > NOW()
+        AND hidden = false
       LIMIT 1
       `,
       [id],
@@ -155,7 +161,7 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists
@@ -190,7 +196,7 @@ export class GistRepository {
          location::geography,
          ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
          $3
-       ) AND expires_at > NOW()`,
+       ) AND expires_at > NOW() AND hidden = false`,
       [lon, lat, radiusMeters],
     );
     return parseInt(row.count, 10);
@@ -206,7 +212,7 @@ export class GistRepository {
          location::geography,
          ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
          $3
-       ) AND expires_at > NOW()
+       ) AND expires_at > NOW() AND hidden = false
        GROUP BY location_cell ORDER BY count DESC`,
       [lon, lat, radiusMeters],
     );

@@ -149,6 +149,18 @@ describe('GistRepository (integration)', () => {
       const result = await repository.findByGistId('00000000-0000-0000-0000-000000000000');
       expect(result).toBeNull();
     });
+
+    it('should return null for a hidden gist ID', async () => {
+      const created = await repository.create({
+        content: 'hidden findById test',
+        lat: 9.0579,
+        lon: 7.4951,
+        hidden: true,
+      });
+
+      const found = await repository.findByGistId(created.id);
+      expect(found).toBeNull();
+    });
   });
 
   describe('findByStellarGistId', () => {
@@ -294,6 +306,27 @@ describe('GistRepository (integration)', () => {
       }
     });
 
+    it('should exclude hidden gists from findNearby', async () => {
+      const hiddenContent = `hidden-nearby-${Date.now()}`;
+      await repository.create({
+        content: hiddenContent,
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        hidden: true,
+      });
+
+      const result = await repository.findNearby({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+        limit: 50,
+      });
+
+      const found = result.data.find((g) => g.content === hiddenContent);
+      expect(found).toBeUndefined();
+    });
+
     it('should return empty result when authorAddress matches no gists in radius', async () => {
       await repository.create({
         content: 'far-away alice',
@@ -409,6 +442,20 @@ describe('GistRepository (integration)', () => {
     it('should return 0 when no gists are in radius', async () => {
       const count = await repository.countNearby(51.5074, -0.1278, 100);
       expect(count).toBe(0);
+    });
+
+    it('should exclude hidden gists from countNearby', async () => {
+      const beforeCount = await repository.countNearby(9.0579, 7.4951, 500);
+      await repository.create({
+        content: `hidden-count-${Date.now()}`,
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        hidden: true,
+      });
+
+      const afterCount = await repository.countNearby(9.0579, 7.4951, 500);
+      expect(afterCount).toBe(beforeCount);
     });
   });
 
