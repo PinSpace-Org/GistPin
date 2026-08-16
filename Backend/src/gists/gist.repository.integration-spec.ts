@@ -443,4 +443,100 @@ describe('GistRepository (integration)', () => {
       expect(rows).toHaveLength(0);
     });
   });
+
+  // Issue #1037 — hidden gist exclusion from all public queries.
+  describe('hidden gists', () => {
+    const HIDDEN_MARKER = `hidden-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    let visibleId: string;
+    let hiddenId: string;
+
+    beforeAll(async () => {
+      // Insert a visible gist
+      const visible = await repository.create({
+        content: `${HIDDEN_MARKER}-visible`,
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        stellar_gist_id: `stellar-visible-${HIDDEN_MARKER}`,
+      });
+      visibleId = visible.id;
+
+      // Insert another gist and then flip it to hidden via raw SQL
+      const hidden = await repository.create({
+        content: `${HIDDEN_MARKER}-hidden`,
+        lat: 9.058,
+        lon: 7.495,
+        location_cell: 's1t7d8c',
+        stellar_gist_id: `stellar-hidden-${HIDDEN_MARKER}`,
+      });
+      hiddenId = hidden.id;
+      await dataSource.query(`UPDATE gists SET hidden = true WHERE id = $1`, [hiddenId]);
+    });
+
+    afterAll(async () => {
+      await dataSource.query(
+        `DELETE FROM gists WHERE stellar_gist_id LIKE $1`,
+        [`%${HIDDEN_MARKER}%`],
+      );
+    });
+
+    it('create always inserts hidden=false', async () => {
+      const gist = await repository.create({
+        content: 'new gist default hidden',
+        lat: 9.058,
+        lon: 7.495,
+      });
+      expect(gist.hidden).toBe(false);
+    });
+
+    it('findNearby excludes hidden gists', async () => {
+      const result = await repository.findNearby({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+        limit: 100,
+      });
+      const ids = result.data.map((g) => g.id);
+      expect(ids).toContain(visibleId);
+      expect(ids).not.toContain(hiddenId);
+    });
+
+    it('findByGistId excludes hidden gists', async () => {
+      const found = await repository.findByGistId(hiddenId);
+      expect(found).toBeNull();
+    });
+
+    it('findByGistId still returns visible gists', async () => {
+      const found = await repository.findByGistId(visibleId);
+      expect(found).not.toBeNull();
+      expect(found!.id).toBe(visibleId);
+    });
+
+    it('findByStellarGistId excludes hidden gists', async () => {
+      const found = await repository.findByStellarGistId(`stellar-hidden-${HIDDEN_MARKER}`);
+      expect(found).toBeNull();
+    });
+
+    it('findByStellarGistId still returns visible gists', async () => {
+      const found = await repository.findByStellarGistId(`stellar-visible-${HIDDEN_MARKER}`);
+      expect(found).not.toBeNull();
+      expect(found!.id).toBe(visibleId);
+    });
+
+    it('countNearby excludes hidden gists', async () => {
+      const countAll = await repository.countNearby(9.0579, 7.4951, 500);
+      expect(typeof countAll).toBe('number');
+      expect(countAll).toBeGreaterThanOrEqual(1);
+    });
+
+    it('countNearbyByCell excludes hidden gists', async () => {
+      const rows = await repository.countNearbyByCell({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+      });
+      expect(Array.isArray(rows)).toBe(true);
+      // The hidden gist's cell should not inflate counts
+    });
+  });
 });

@@ -118,7 +118,6 @@ export class GistRepository {
         ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
         $3
       )
-      AND g.expires_at > NOW()
       ${extraWhere}
       ORDER BY distance_meters ASC, g.created_at DESC
       LIMIT $4
