@@ -440,6 +440,27 @@ export class SorobanService {
     );
   }
 
+  /**
+   * Get the configured moderator address from the contract.
+   *
+   * On-chain: `get_admin() -> Option<Address>`
+   */
+  async getAdmin(): Promise<string | null> {
+    if (this.mockMode) {
+      await this.simulateDelay();
+      const mockAdmin = 'GBFNWEU3OM7QT7Y7UAZU6FHLSJIISTT3MSPBICAK4FSBIF5YL4W6IDCK';
+      this.logger.debug(`MOCK getAdmin() → ${mockAdmin}`);
+      return mockAdmin;
+    }
+
+    return withRetry(
+      async () => this.getAdminLive(),
+      'Soroban.getAdmin',
+      this.maxRetries,
+      this.logger,
+    );
+  }
+
   async getEventsSince(ledger: number): Promise<GistRegistryEvent[]> {
     if (this.mockMode) {
       this.logger.debug(`MOCK getEventsSince(${ledger}) → []`);
@@ -709,6 +730,36 @@ export class SorobanService {
       count: this.scValToNumber(txResult.returnValue),
       mock: false,
     };
+  }
+
+  private async getAdminLive(): Promise<string | null> {
+    const rpcServer = this.getRpcServer();
+    const contract = this.getContract();
+
+    const simulation = await rpcServer.simulateTransaction(
+      new TransactionBuilder(
+        await rpcServer.getAccount(this.getSigner().publicKey()),
+        { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
+      )
+        .addOperation(contract.call('get_admin'))
+        .setTimeout(30)
+        .build(),
+    );
+
+    if (SorobanRpc.Api.isSimulationError(simulation) || !simulation.result) {
+      throw new Error('Soroban get_admin simulation failed');
+    }
+
+    if (!simulation.result.retval) {
+      return null;
+    }
+
+    const native = scValToNative(simulation.result.retval);
+    if (!native) {
+      return null;
+    }
+
+    return String(native);
   }
 
   private scValToNumber(value: xdr.ScVal): number {

@@ -43,4 +43,7 @@ export class Gist {
 
   @Column({ type: 'boolean', default: false })
   hidden: boolean;
+
+  @Column({ type: 'integer', default: 0 })
+  report_count: number;
 }

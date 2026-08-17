@@ -52,20 +52,20 @@ export class GistRepository {
       `
       INSERT INTO gists (
         content, location, location_cell,
-        content_hash, stellar_gist_id, tx_hash, author_address, expires_at, hidden
+        content_hash, stellar_gist_id, tx_hash, author_address, expires_at, hidden, report_count
       )
       VALUES (
         $1,
         ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography,
-        $4, $5, $6, $7, $8, $9, $10
+        $4, $5, $6, $7, $8, $9, $10, $11
       )
       RETURNING
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden, report_count,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       `,
-      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash, author_address, expiresAt, false],
+      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash, author_address, expiresAt, false, 0],
     );
 
     return result[0];
@@ -106,6 +106,7 @@ export class GistRepository {
         g.created_at,
         g.expires_at,
         g.hidden,
+        g.report_count,
         ST_X(g.location::geometry)                              AS lon,
         ST_Y(g.location::geometry)                              AS lat,
         ST_Distance(
@@ -138,7 +139,7 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden, report_count,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists
@@ -157,7 +158,7 @@ export class GistRepository {
       `
       SELECT
         id, content, location_cell, content_hash,
-        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden,
+        stellar_gist_id, tx_hash, author_address, created_at, expires_at, hidden, report_count,
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       FROM gists

@@ -36,6 +36,14 @@ export class GistsController {
     return this.gistsService.countNearby(query);
   }
 
+  // NOTE: Must be registered before @Get(':id') so NestJS does not match 'moderator' as a UUID parameter.
+  @Get('moderator')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Get the current moderator address' })
+  async getModerator() {
+    return this.gistsService.getModerator();
+  }
+
   @Get(':id/content')
   @SkipThrottle()
   @ApiOperation({ summary: 'Get the raw IPFS content for a gist' })
@@ -61,10 +69,15 @@ export class GistsController {
   }
 
   private decorateGist(gist: Gist) {
+    const expiresAtMs = gist.expires_at ? new Date(gist.expires_at).getTime() : 0;
+    const isActive = !gist.hidden && expiresAtMs > Date.now();
+
     return {
       ...gist,
       gist_id: gist.stellar_gist_id,
       content_cid: gist.content_hash,
+      is_active: isActive,
+      report_count: gist.report_count ?? 0,
     };
   }
 

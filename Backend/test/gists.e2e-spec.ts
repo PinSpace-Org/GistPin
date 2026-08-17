@@ -263,6 +263,8 @@ describe('Gists lifecycle (e2e)', () => {
         content_cid: created.body.content_cid,
         content_hash: created.body.content_hash,
         tx_hash: created.body.tx_hash,
+        is_active: true,
+        report_count: 0,
       });
     });
 
@@ -356,6 +358,15 @@ describe('Gists lifecycle (e2e)', () => {
 
       expect(res.body.count).toBe(2);
       expect(res.body.breakdown).toBeUndefined();
+    });
+  });
+
+  describe('GET /gists/moderator', () => {
+    it('returns the moderator address', async () => {
+      const res = await request(app.getHttpServer()).get(`${API_ROOT}/moderator`).expect(200);
+      expect(res.body).toEqual({
+        moderator: 'GBFNWEU3OM7QT7Y7UAZU6FHLSJIISTT3MSPBICAK4FSBIF5YL4W6IDCK',
+      });
     });
   });
 

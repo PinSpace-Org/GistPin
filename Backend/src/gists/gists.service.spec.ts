@@ -36,6 +36,7 @@ describe('GistsService', () => {
     created_at: new Date('2026-01-01T00:00:00Z'),
     expires_at: new Date('2026-01-02T00:00:00Z'),
     hidden: false,
+    report_count: 0,
     ...overrides,
   });
 
@@ -73,6 +74,7 @@ describe('GistsService', () => {
           useValue: {
             postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }),
             reportGist: jest.fn().mockResolvedValue({ count: 3, mock: true }),
+            getAdmin: jest.fn().mockResolvedValue('GBFNWEU3OM7QT7Y7UAZU6FHLSJIISTT3MSPBICAK4FSBIF5YL4W6IDCK'),
           },
         },
       ],
@@ -210,6 +212,18 @@ describe('GistsService', () => {
       gistRepository.findByGistId.mockResolvedValue(null);
 
       await expect(service.report(id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // getModerator
+  // ──────────────────────────────────────────────────────────────────────────
+  describe('getModerator', () => {
+    it('returns the moderator address from SorobanService', async () => {
+      const result = await service.getModerator();
+      expect(result).toEqual({
+        moderator: 'GBFNWEU3OM7QT7Y7UAZU6FHLSJIISTT3MSPBICAK4FSBIF5YL4W6IDCK',
+      });
     });
   });
 

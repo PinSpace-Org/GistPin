@@ -153,6 +153,15 @@ describe('SorobanService', () => {
       });
     });
 
+    // ── getAdmin (mock) ─────────────────────────────────────────────────
+
+    describe('getAdmin in mock mode', () => {
+      it('returns mock moderator address', async () => {
+        const result = await service.getAdmin();
+        expect(result).toBe('GBFNWEU3OM7QT7Y7UAZU6FHLSJIISTT3MSPBICAK4FSBIF5YL4W6IDCK');
+      });
+    });
+
     // ── getEventsSince (mock) ────────────────────────────────────────────
 
     describe('getEventsSince in mock mode', () => {

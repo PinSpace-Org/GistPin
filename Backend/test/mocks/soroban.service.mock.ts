@@ -4,6 +4,7 @@ export interface SorobanServiceMock {
     Promise<{ gistId: string; locationCell: string; contentHash: string; createdAt: number; mock: true }>,
     [string]
   >;
+  getAdmin: jest.Mock<Promise<string | null>, []>;
   getEventsSince: jest.Mock<Promise<never[]>, [number]>;
   reset: () => void;
 }
@@ -27,12 +28,14 @@ export function createSorobanServiceMock(): SorobanServiceMock {
       createdAt: Date.now(),
       mock: true as const,
     })),
+    getAdmin: jest.fn(async () => 'GBFNWEU3OM7QT7Y7UAZU6FHLSJIISTT3MSPBICAK4FSBIF5YL4W6IDCK'),
     getEventsSince: jest.fn<Promise<never[]>, [number]>(async (_sinceBlock: number) => [] as never[]),
     reset() {
       nextGistId = 1;
       nextTx = 1;
       this.postGist.mockClear();
       this.getGist.mockClear();
+      this.getAdmin.mockClear();
       this.getEventsSince.mockClear();
     },
   };

@@ -139,6 +139,11 @@ export class GistsService {
     return { count };
   }
 
+  async getModerator(): Promise<{ moderator: string | null }> {
+    const moderator = await this.sorobanService.getAdmin();
+    return { moderator };
+  }
+
   async countNearby(query: QueryGistsDto): Promise<CountNearbyResult> {
     const { lat, lon, radius = 500, breakdown } = query;
 
