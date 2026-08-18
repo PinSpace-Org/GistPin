@@ -54,8 +54,11 @@ export class GistsService {
 
     const author = dto.authorAddress;
     const ttlSecs = dto.ttlHours ? dto.ttlHours * 3600 : undefined;
+    // Security (#1040): Backend-submitted on-chain posts are ALWAYS anonymous (author = undefined).
+    // The backend cannot verify ownership of a client-supplied authorAddress.
+    // Signed posts must be submitted wallet-direct client-side by the user's wallet.
     const { gistId, txHash } = await this.sorobanService.postGist(
-      author,
+      undefined,
       locationCell,
       cid,
       ttlSecs,

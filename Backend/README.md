@@ -200,7 +200,10 @@ Content-Type: application/json
 }
 ```
 
-`authorAddress` is optional — anonymous posting is fully supported.
+`authorAddress` is optional — used only as an off-chain display/filter hint.
+
+> **Security Note — Wallet-Direct Model for Signed Posts:**
+> All backend-submitted on-chain posts (`POST /gists`) are provably anonymous (`author = None`) on-chain. The backend cannot verify ownership of a client-supplied `authorAddress` without a signed transaction, so it never attributes posts on-chain on the caller's behalf. Signed/attributed posts must be submitted directly client-side by the user's wallet.
 
 **What happens internally:**
 1. Validate + sanitise input

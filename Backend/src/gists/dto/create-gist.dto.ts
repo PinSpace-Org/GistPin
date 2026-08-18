@@ -21,7 +21,8 @@ export class CreateGistDto {
   lon: number;
 
   @ApiPropertyOptional({
-    description: 'Optional Stellar public key of the author (Ed25519, starts with G, 56 chars)',
+    description:
+      'Optional Stellar public key of the author (Ed25519, starts with G, 56 chars). Used only as an off-chain display/filter hint; backend on-chain posts remain anonymous.',
     example: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
   })
   @IsOptional()
