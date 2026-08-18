@@ -217,4 +217,36 @@ export class GistRepository {
     );
     return rows.map((r) => ({ cell: r.location_cell, count: parseInt(r.count, 10) }));
   }
+
+  async updateContentHash(stellarGistId: string, contentHash: string): Promise<boolean> {
+    const result = await this.dataSource.query<Array<{ id: string }>>(
+      `UPDATE gists SET content_hash = $2 WHERE stellar_gist_id = $1 RETURNING id`,
+      [stellarGistId, contentHash],
+    );
+    return result.length > 0;
+  }
+
+  async setGistActive(stellarGistId: string, isActive: boolean): Promise<boolean> {
+    const result = await this.dataSource.query<Array<{ id: string }>>(
+      `UPDATE gists SET is_active = $2 WHERE stellar_gist_id = $1 RETURNING id`,
+      [stellarGistId, isActive],
+    );
+    return result.length > 0;
+  }
+
+  async setGistHidden(stellarGistId: string, hidden: boolean): Promise<boolean> {
+    const result = await this.dataSource.query<Array<{ id: string }>>(
+      `UPDATE gists SET hidden = $2 WHERE stellar_gist_id = $1 RETURNING id`,
+      [stellarGistId, hidden],
+    );
+    return result.length > 0;
+  }
+
+  async updateReportCount(stellarGistId: string, count: number): Promise<boolean> {
+    const result = await this.dataSource.query<Array<{ id: string }>>(
+      `UPDATE gists SET report_count = $2 WHERE stellar_gist_id = $1 RETURNING id`,
+      [stellarGistId, count],
+    );
+    return result.length > 0;
+  }
 }

@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { SorobanService } from '../soroban/soroban.service';
-import { GistRepository } from '../gists/gist.repository';
+import { GistRepository, PG_UNIQUE_VIOLATION } from '../gists/gist.repository';
 import { GeoService } from '../geo/geo.service';
 import { IndexerState } from './indexer-state.entity';
 
@@ -120,75 +120,81 @@ export class IndexerService {
    * dedicated persistence handler when that issue lands.
    */
   private async handleEvent(event: any): Promise<void> {
-    if (
-      event.type !== 'gist_posted' &&
-      event.type !== 'gist_edited'
-    ) {
-      this.logger.debug(
-        `Skipping non-indexable event: ${event.type}`,
-      );
-      return;
+    switch (event.type) {
+      case 'gist_posted': {
+        const { gist } = event;
+        if (!gist) {
+          throw new Error(`Missing gist payload for ${event.type} event`);
+        }
+        if (!gist.gistId || !gist.locationCell) {
+          throw new Error(`Malformed gist event at ledger ${event.ledger}`);
+        }
+        const alreadyIndexed = await this.gistRepository.existsByStellarGistId(gist.gistId);
+        if (alreadyIndexed) {
+          this.logger.debug(`Gist ${gist.gistId} already indexed — skipping duplicate insert`);
+          break;
+        }
+        const { lat, lon } = this.geoService.decode(gist.locationCell);
+        try {
+          await this.gistRepository.create({
+            content: '',
+            lat,
+            lon,
+            location_cell: gist.locationCell,
+            content_hash: gist.contentHash,
+            stellar_gist_id: gist.gistId,
+            tx_hash: null,
+          });
+          this.logger.debug(`Indexed gist_posted: ${gist.gistId}`);
+        } catch (err) {
+          const code = (err as { code?: string })?.code;
+          if (code === PG_UNIQUE_VIOLATION) {
+            this.logger.debug(`Gist ${gist.gistId} unique violation — duplicate event handled`);
+          } else {
+            throw err;
+          }
+        }
+        break;
+      }
+
+      case 'gist_edited': {
+        const { gist } = event;
+        if (!gist?.gistId) {
+          throw new Error(`Malformed gist_edited event at ledger ${event.ledger}`);
+        }
+        await this.gistRepository.updateContentHash(gist.gistId, gist.contentHash);
+        this.logger.debug(`Indexed gist_edited: ${gist.gistId}`);
+        break;
+      }
+
+      case 'gist_deleted':
+      case 'gist_removed': {
+        await this.gistRepository.setGistActive(event.gistId, false);
+        this.logger.debug(`Indexed ${event.type}: ${event.gistId}`);
+        break;
+      }
+
+      case 'gist_hidden': {
+        await this.gistRepository.setGistHidden(event.gistId, true);
+        this.logger.debug(`Indexed gist_hidden: ${event.gistId}`);
+        break;
+      }
+
+      case 'gist_unhidden': {
+        await this.gistRepository.setGistHidden(event.gistId, false);
+        this.logger.debug(`Indexed gist_unhidden: ${event.gistId}`);
+        break;
+      }
+
+      case 'gist_reported': {
+        await this.gistRepository.updateReportCount(event.gistId, event.count);
+        this.logger.debug(`Indexed gist_reported: ${event.gistId} count=${event.count}`);
+        break;
+      }
+
+      default:
+        this.logger.debug(`Skipping non-indexable event: ${event.type}`);
     }
-
-    const { gist } = event;
-
-    if (!gist) {
-      throw new Error(
-        `Missing gist payload for ${event.type} event`,
-      );
-    }
-
-    if (
-      !gist.gistId ||
-      !gist.locationCell
-    ) {
-      throw new Error(
-        `Malformed gist event at ledger ${event.ledger}`,
-      );
-    }
-
-    const existing =
-      await this.gistRepository.findByStellarGistId(
-        gist.gistId,
-      );
-
-    if (existing) {
-      this.logger.debug(
-        `Skipping already-indexed gist ${gist.gistId}`,
-      );
-      return;
-    }
-
-    const alreadyIndexed =
-      await this.gistRepository.existsByStellarGistId(
-        gist.gistId,
-      );
-
-    if (alreadyIndexed) {
-      this.logger.debug(
-        `Gist ${gist.gistId} already indexed`,
-      );
-      return;
-    }
-
-    const { lat, lon } =
-      this.geoService.decode(
-        gist.locationCell,
-      );
-
-    await this.gistRepository.create({
-      content: '',
-      lat,
-      lon,
-      location_cell: gist.locationCell,
-      content_hash: gist.contentHash,
-      stellar_gist_id: gist.gistId,
-      tx_hash: null,
-    });
-
-    this.logger.debug(
-      `Indexed gist ${gist.gistId} @ cell ${gist.locationCell} (ledger ${event.ledger})`,
-    );
   }
 
   /**
