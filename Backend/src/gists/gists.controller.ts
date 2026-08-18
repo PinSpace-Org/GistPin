@@ -28,12 +28,19 @@ export class GistsController {
   }
 
   // IMPORTANT: must be registered before @Get(':id') so NestJS does not
-  // match the literal string "count" as a UUID parameter.
+  // match literal strings as UUID parameters.
   @Get('count')
   @SkipThrottle()
   @ApiOperation({ summary: 'Count gists near a location (optionally broken down by cell)' })
   countNearby(@Query() query: QueryGistsDto) {
     return this.gistsService.countNearby(query);
+  }
+
+  @Get('moderator')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Get the current moderator address' })
+  getModerator() {
+    return this.gistsService.getModerator();
   }
 
   @Get(':id/content')
@@ -65,6 +72,8 @@ export class GistsController {
       ...gist,
       gist_id: gist.stellar_gist_id,
       content_cid: gist.content_hash,
+      is_active: gist.is_active ?? true,
+      report_count: gist.report_count ?? 0,
     };
   }
 
