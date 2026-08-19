@@ -7,6 +7,7 @@
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
 import { Gist } from '../gists/entities/gist.entity';
+import { IndexerState } from '../indexer/indexer-state.entity';
 
 const AppDataSource = new DataSource({
   type: 'postgres',
@@ -15,7 +16,7 @@ const AppDataSource = new DataSource({
   username: process.env.DATABASE_USER ?? 'gist',
   password: process.env.DATABASE_PASSWORD ?? 'gist',
   database: process.env.DATABASE_NAME ?? 'gist',
-  entities: [Gist],
+  entities: [Gist, IndexerState],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
   synchronize: false,
 });

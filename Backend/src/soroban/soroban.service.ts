@@ -454,6 +454,19 @@ export class SorobanService {
     );
   }
 
+    async getLatestLedger(): Promise<number> {
+    if (this.mockMode) {
+      this.logger.debug('MOCK getLatestLedger() → 1');
+      return 1;
+    }
+    return withRetry(
+      async () => this.getLatestLedgerLive(),
+      'Soroban.getLatestLedger',
+      this.maxRetries,
+      this.logger,
+    );
+  }
+
   // ── Private: signers & guards ─────────────────────────────────────────────
 
   private resolveSigner(): Keypair | null {
@@ -672,6 +685,11 @@ export class SorobanService {
     return response.events
       .map((event) => this.decodeGistEvent(event))
       .filter((event): event is GistRegistryEvent => event !== null);
+  }
+
+  private async getLatestLedgerLive(): Promise<number> {
+    const response = await this.getRpcServer().getLatestLedger();
+    return response.sequence;
   }
 
   private async reportGistLive(gistId: string): Promise<{ count: number; mock: boolean }> {
