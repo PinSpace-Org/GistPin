@@ -145,6 +145,22 @@ describe('GistsService', () => {
       expect(delta).toBeLessThanOrEqual(2 * 60 * 60 * 1000 + (after - before) + 100);
     });
 
+    it('always passes undefined as author to SorobanService.postGist even if authorAddress is provided in DTO (#1040)', async () => {
+      const sorobanService = (service as any).sorobanService;
+      gistRepository.create.mockResolvedValue(buildGist());
+
+      await service.create(
+        buildDto({ authorAddress: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN' }),
+      );
+
+      expect(sorobanService.postGist).toHaveBeenCalledWith(
+        undefined,
+        's1t7d8c',
+        'Qmrealcid',
+        undefined,
+      );
+    });
+
     it('returns the existing gist when the INSERT collides on stellar_gist_id (SQLSTATE 23505)', async () => {
       const existing = buildGist({ id: 'existing-uuid', stellar_gist_id: 'gist-1' });
       const driverError: Error & { code?: string } = new Error('duplicate key value');
