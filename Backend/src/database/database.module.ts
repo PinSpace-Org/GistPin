@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Gist } from '../gists/entities/gist.entity';
+import { IndexerState } from '../indexer/indexer-state.entity';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { Gist } from '../gists/entities/gist.entity';
         username: config.get<string>('DATABASE_USER', 'gist'),
         password: config.get<string>('DATABASE_PASSWORD', 'gist'),
         database: config.get<string>('DATABASE_NAME', 'gist'),
-        entities: [Gist],
+        entities: [Gist, IndexerState],
         migrations: [__dirname + '/migrations/*{.ts,.js}'],
         migrationsRun: false,
         synchronize: false,

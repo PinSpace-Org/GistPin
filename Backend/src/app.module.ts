@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { WinstonModule } from 'nest-winston';
+import { ScheduleModule } from '@nestjs/schedule';
+
 import { DatabaseModule } from './database/database.module';
 import { GeoModule } from './geo/geo.module';
 import { IpfsModule } from './ipfs/ipfs.module';
@@ -15,14 +17,18 @@ import { envValidationSchema } from './config/env.validation';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { InFlightRequestMiddleware } from './common/shutdown/in-flight.middleware';
 import { buildWinstonOptions } from './common/logger/winston.config';
+import { IndexerModule } from './indexer/indexer.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: envValidationSchema,
-      validationOptions: { abortEarly: false },
+      validationOptions: {
+        abortEarly: false,
+      },
     }),
+
     WinstonModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -32,6 +38,7 @@ import { buildWinstonOptions } from './common/logger/winston.config';
           config.get<string>('LOG_DIR', 'logs'),
         ),
     }),
+
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -42,6 +49,10 @@ import { buildWinstonOptions } from './common/logger/winston.config';
         },
       ],
     }),
+
+    // Enable NestJS scheduled jobs such as @Interval()
+    ScheduleModule.forRoot(),
+
     DatabaseModule,
     GeoModule,
     IpfsModule,
@@ -50,7 +61,11 @@ import { buildWinstonOptions } from './common/logger/winston.config';
     HealthModule,
     MetricsModule,
     ShutdownModule,
+
+    // Enables the Soroban indexer when the application starts
+    IndexerModule,
   ],
+
   providers: [
     {
       provide: APP_GUARD,
@@ -63,7 +78,10 @@ export class AppModule implements NestModule {
     // In-flight-request middleware must run before correlation-id so that
     // every response (including 404s) is counted toward the drain window.
     consumer
-      .apply(InFlightRequestMiddleware, CorrelationIdMiddleware)
+      .apply(
+        InFlightRequestMiddleware,
+        CorrelationIdMiddleware,
+      )
       .forRoutes('*');
   }
 }
