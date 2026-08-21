@@ -82,6 +82,10 @@ describe('IndexerService', () => {
       findByStellarGistId: jest.fn(),
       existsByStellarGistId: jest.fn(),
       create: jest.fn(),
+      updateContentHash: jest.fn(),
+      setGistActive: jest.fn(),
+      setGistHidden: jest.fn(),
+      updateReportCount: jest.fn(),
     } as unknown as jest.Mocked<GistRepository>;
 
     geoService = {
@@ -443,13 +447,9 @@ describe('IndexerService', () => {
         secondEvent,
       ]);
 
-      gistRepo.findByStellarGistId
-        .mockRejectedValueOnce(
-          new Error('Database failure'),
-        )
-        .mockResolvedValueOnce(null);
-
-      gistRepo.existsByStellarGistId.mockResolvedValue(false);
+      gistRepo.existsByStellarGistId
+        .mockRejectedValueOnce(new Error('Database failure'))
+        .mockResolvedValueOnce(false);
       gistRepo.create.mockResolvedValue({} as never);
 
       await expect(
@@ -569,6 +569,62 @@ describe('IndexerService', () => {
       resolveEvents?.([]);
 
       await firstPoll;
+    });
+
+    it('handles gist_edited event by updating content_hash', async () => {
+      soroban.getEventsSince.mockResolvedValue([
+        {
+          type: 'gist_edited',
+          ledger: 105,
+          gist: {
+            gistId: 'gist-1',
+            locationCell: 'u4pruyd',
+            contentHash: 'QmUpdatedHash',
+            author: 'GABCD',
+            createdAt: 1700000000,
+            expiresAt: 1700086400,
+            hidden: false,
+          },
+        },
+      ]);
+
+      await service.poll();
+
+      expect(gistRepo.updateContentHash).toHaveBeenCalledWith('gist-1', 'QmUpdatedHash');
+    });
+
+    it('handles gist_deleted and gist_removed events by setting is_active = false', async () => {
+      soroban.getEventsSince.mockResolvedValue([
+        { type: 'gist_deleted', ledger: 106, gistId: 'gist-1' },
+        { type: 'gist_removed', ledger: 107, gistId: 'gist-2' },
+      ]);
+
+      await service.poll();
+
+      expect(gistRepo.setGistActive).toHaveBeenCalledWith('gist-1', false);
+      expect(gistRepo.setGistActive).toHaveBeenCalledWith('gist-2', false);
+    });
+
+    it('handles gist_hidden and gist_unhidden events by updating hidden column', async () => {
+      soroban.getEventsSince.mockResolvedValue([
+        { type: 'gist_hidden', ledger: 108, gistId: 'gist-1' },
+        { type: 'gist_unhidden', ledger: 109, gistId: 'gist-1' },
+      ]);
+
+      await service.poll();
+
+      expect(gistRepo.setGistHidden).toHaveBeenCalledWith('gist-1', true);
+      expect(gistRepo.setGistHidden).toHaveBeenCalledWith('gist-1', false);
+    });
+
+    it('handles gist_reported event by updating report count', async () => {
+      soroban.getEventsSince.mockResolvedValue([
+        { type: 'gist_reported', ledger: 110, gistId: 'gist-1', count: 3 },
+      ]);
+
+      await service.poll();
+
+      expect(gistRepo.updateReportCount).toHaveBeenCalledWith('gist-1', 3);
     });
   });
 });
