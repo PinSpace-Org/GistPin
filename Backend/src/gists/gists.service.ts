@@ -154,4 +154,9 @@ export class GistsService {
     const count = await this.gistRepository.countNearby(lat, lon, radius);
     return { count, radius, lat, lon };
   }
+
+  async getModerator(): Promise<{ moderatorAddress: string | null }> {
+    const { admin } = await this.sorobanService.getAdmin();
+    return { moderatorAddress: admin };
+  }
 }

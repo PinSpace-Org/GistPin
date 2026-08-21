@@ -454,7 +454,7 @@ export class SorobanService {
     );
   }
 
-    async getLatestLedger(): Promise<number> {
+  async getLatestLedger(): Promise<number> {
     if (this.mockMode) {
       this.logger.debug('MOCK getLatestLedger() → 1');
       return 1;
@@ -465,6 +465,59 @@ export class SorobanService {
       this.maxRetries,
       this.logger,
     );
+  }
+
+  async getAdmin(): Promise<{ admin: string | null; mock: boolean }> {
+    if (this.mockMode) {
+      await this.simulateDelay();
+      const admin =
+        this.config.get<string>('MODERATOR_ADDRESS') ??
+        'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+      return { admin, mock: true };
+    }
+
+    return withRetry(
+      async () => this.getAdminLive(),
+      'Soroban.getAdmin',
+      this.maxRetries,
+      this.logger,
+    );
+  }
+
+  private async getAdminLive(): Promise<{ admin: string | null; mock: boolean }> {
+    const rpcServer = this.getRpcServer();
+    const contract = this.getContract();
+
+    const simulation = await rpcServer.simulateTransaction(
+      new TransactionBuilder(
+        await rpcServer.getAccount(this.getSigner().publicKey()),
+        { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
+      )
+        .addOperation(contract.call('get_admin'))
+        .setTimeout(30)
+        .build(),
+    );
+
+    if (SorobanRpc.Api.isSimulationError(simulation) || !simulation.result) {
+      throw new Error('Soroban get_admin failed');
+    }
+
+    if (!simulation.result.retval) {
+      throw new Error('Soroban get_admin returned no value');
+    }
+
+    const native = scValToNative(simulation.result.retval);
+    if (native == null) {
+      return { admin: null, mock: false };
+    }
+
+    const addr = typeof native === 'string'
+      ? native
+      : typeof native === 'object' && native !== null && 'toString' in native
+        ? String(native)
+        : null;
+
+    return { admin: addr, mock: false };
   }
 
   // ── Private: signers & guards ─────────────────────────────────────────────

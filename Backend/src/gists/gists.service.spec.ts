@@ -36,6 +36,8 @@ describe('GistsService', () => {
     created_at: new Date('2026-01-01T00:00:00Z'),
     expires_at: new Date('2026-01-02T00:00:00Z'),
     hidden: false,
+    report_count: 0,
+    is_active: true,
     ...overrides,
   });
 
@@ -292,6 +294,21 @@ describe('GistsService', () => {
 
       const result = await service.create(buildDto());
       expect(result.hidden).toBe(false);
+    });
+  });
+
+  describe('getModerator', () => {
+    it('returns the moderator address from SorobanService', async () => {
+      const sorobanService = (service as any).sorobanService;
+      sorobanService.getAdmin = jest.fn().mockResolvedValue({
+        admin: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+        mock: true,
+      });
+
+      const res = await service.getModerator();
+      expect(res).toEqual({
+        moderatorAddress: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+      });
     });
   });
 });
