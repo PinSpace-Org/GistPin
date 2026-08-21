@@ -262,6 +262,7 @@ Table: `gists`
 | `npm run start:prod` | Run compiled output |
 | `npm test` | Unit tests |
 | `npm run test:e2e` | End-to-end tests |
+| `npm run test:integration` | Integration tests (including contract-indexer end-to-end flow) |
 
 ---
 

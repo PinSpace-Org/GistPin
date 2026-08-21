@@ -40,6 +40,11 @@ jobs:
         env:
           NODE_ENV: test
 
+      - name: Run integration tests
+        run: npx jest --testRegex=".*\\.integration-spec\\.ts$" --testPathPattern="contract-indexer"
+        env:
+          NODE_ENV: test
+
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
