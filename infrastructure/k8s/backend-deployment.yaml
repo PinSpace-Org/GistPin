@@ -36,11 +36,23 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
+          # Startup probe gates the liveness/readiness probes below: the kubelet
+          # will not kill or restart the container for failing liveness/readiness
+          # checks until this probe succeeds. Allows slow starts (migrations,
+          # warmup) of up to 300s without triggering restart loops.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+            successThreshold: 1
           livenessProbe:
             httpGet:
               path: /health
               port: 3000
-            initialDelaySeconds: 30
+            initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
@@ -48,7 +60,7 @@ spec:
             httpGet:
               path: /health
               port: 3000
-            initialDelaySeconds: 10
+            initialDelaySeconds: 1
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3

@@ -1,0 +1,96 @@
+# Alertmanager/Prometheus alert rules for AWS Macie sensitive-data findings.
+#
+# Macie publishes findings to EventBridge/SNS (see terraform/macie.tf); the
+# gistpin-exporter relays them as Prometheus metrics:
+#
+#   macie_findings_total{bucket,identifier_type,severity}  – counter of findings
+#   macie_scan_job_last_success_timestamp_seconds{job}     – last successful scan
+#   macie_scan_job_status{job,status}                      – 1 when job healthy
+#
+# Severity routing mirrors the EventBridge rules in terraform/macie.tf:
+#   Critical/High -> slack-critical receiver (page on-call)
+#   Medium        -> slack-warnings receiver
+#   Low           -> weekly digest review
+
+groups:
+  - name: gistpin-macie-alerts
+    rules:
+      # ---------------------------------------------------------------------
+      # Exposed Stellar secret keys – immediate page, credentials can move funds
+      # ---------------------------------------------------------------------
+      - alert: MacieStellarSecretKeyDetected
+        expr: increase(macie_findings_total{identifier_type="gistpin-stellar-secret-key"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: gistpin
+          page: "true"
+        annotations:
+          summary: "Stellar secret key exposed in S3 ({{ $labels.bucket }})"
+          description: "Macie found a Stellar secret key in bucket {{ $labels.bucket }}. Live credential material is exposed — rotate the key and quarantine the object immediately."
+          runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/macie-finding-remediation"
+
+      # ---------------------------------------------------------------------
+      # Any high/critical finding routes to on-call paging
+      # ---------------------------------------------------------------------
+      - alert: MacieHighSeverityFinding
+        expr: increase(macie_findings_total{severity=~"critical|high"}[15m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: gistpin
+          page: "true"
+        annotations:
+          summary: "Macie {{ $labels.severity }} finding in {{ $labels.bucket }}"
+          description: "{{ $value }} high-severity sensitive-data findings reported for {{ $labels.bucket }} (type: {{ $labels.identifier_type }})."
+          runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/macie-finding-remediation"
+
+      # ---------------------------------------------------------------------
+      # Medium findings – triage during business hours
+      # ---------------------------------------------------------------------
+      - alert: MacieMediumSeverityFinding
+        expr: increase(macie_findings_total{severity="medium"}[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: gistpin
+        annotations:
+          summary: "Macie medium-severity finding in {{ $labels.bucket }}"
+          description: "{{ $value }} medium-severity findings for {{ $labels.bucket }} (type: {{ $labels.identifier_type }}). Review in next triage window."
+
+      # ---------------------------------------------------------------------
+      # Scan pipeline health – scheduled job missed its daily run
+      # ---------------------------------------------------------------------
+      - alert: MacieDailyScanOverdue
+        expr: (time() - macie_scan_job_last_success_timestamp_seconds) > 90000
+        for: 1h
+        labels:
+          severity: warning
+          team: gistpin
+        annotations:
+          summary: "Macie daily scan job '{{ $labels.job }}' overdue"
+          description: "The scheduled Macie classification job has not completed successfully in over 25 hours. Verify the job state in the Macie console and IAM permissions."
+          runbook_url: "https://github.com/PinSpace-Org/GistPin/wiki/runbooks/macie-scan-job-health"
+
+      - alert: MacieScanJobFailing
+        expr: macie_scan_job_status{status="healthy"} == 0
+        for: 30m
+        labels:
+          severity: warning
+          team: gistpin
+        annotations:
+          summary: "Macie scan job '{{ $labels.job }}' unhealthy"
+          description: "Macie reports job status failures for 30 minutes. Check CloudWatch logs for the classification job errors."
+
+      # ---------------------------------------------------------------------
+      # Findings export pipeline stalled – findings not landing in S3
+      # ---------------------------------------------------------------------
+      - alert: MacieFindingsExportStalled
+        expr: rate(macie_findings_exported_total[6h]) == 0 and increase(macie_findings_total[6h]) > 0
+        for: 2h
+        labels:
+          severity: info
+          team: gistpin
+        annotations:
+          summary: "Macie findings are not being exported"
+          description: "Findings are being generated but no exports landed in the findings bucket for 6h. Check the classification export configuration and bucket policy."

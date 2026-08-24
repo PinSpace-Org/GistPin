@@ -1,0 +1,66 @@
+# Startup probes for all GistPin services.
+#
+# Startup probes gate liveness/readiness probes: a container is neither marked
+# unhealthy nor restarted by the kubelet until its startup probe succeeds. This
+# protects slow-starting services (JVM warmup, DB migrations, cache hydration)
+# from the restart loop that aggressive liveness probes can cause.
+#
+# Usage: these snippets are applied inside each service's Deployment spec under
+# `spec.template.spec.containers[].startupProbe`. They are kept here as the
+# canonical reference configuration; backend-deployment.yaml applies them
+# directly (see infrastructure/k8s/backend-deployment.yaml).
+#
+# Rule of thumb:
+#   failureThreshold * periodSeconds >= worst-case startup time
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: startup-probe-config
+  namespace: gistpin
+  labels:
+    app.kubernetes.io/part-of: gistpin
+    app.kubernetes.io/component: probe-reference
+data:
+  # Backend API: migrations + dependency warmup can take up to ~5 minutes on cold start
+  backend.startup-probe.yaml: |-
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 3000
+      periodSeconds: 10          # check every 10s during startup
+      timeoutSeconds: 3
+      failureThreshold: 30       # 30 x 10s = up to 300s before being declared dead
+      successThreshold: 1
+
+  # Frontend SSR: image/asset hydration is fast, but allow for cache-cold builds
+  frontend.startup-probe.yaml: |-
+    startupProbe:
+      httpGet:
+        path: /
+        port: 3000
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 24       # 24 x 5s = up to 120s
+
+  # Analytics service: chart aggregations and query-cache warmup
+  analytics.startup-probe.yaml: |-
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 4000
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 18       # 18 x 10s = up to 180s
+
+  # PostgreSQL: WAL replay after restore can be slow — use exec to avoid TCP checks before initdb finishes
+  postgres.startup-probe.yaml: |-
+    startupProbe:
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - pg_isready -U ${POSTGRES_USER:-gistpin} -d ${POSTGRES_DB:-gistpin}
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 60       # 60 x 10s = up to 600s for crash recovery
