@@ -1,0 +1,191 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "OpenCost Kubernetes Cost Visibility Dashboard",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Total Cluster Cost (Monthly)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "red", "value": 10000 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(opencost_cluster_costs_total) * 730",
+          "legendFormat": "Monthly Cost"
+        }
+      ]
+    },
+    {
+      "title": "Cost Efficiency Score",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "green", "value": 80 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "100 - (sum(opencost_container_memory_allocation_bytes) / sum(opencost_node_memory_allocatable_bytes) * 100)",
+          "legendFormat": "Efficiency"
+        }
+      ]
+    },
+    {
+      "title": "Idle Cost",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 2000 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(opencost_idle_total) * 730",
+          "legendFormat": "Idle Cost"
+        }
+      ]
+    },
+    {
+      "title": "Namespace Cost Breakdown",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "topk(10, sum by (namespace) (opencost_namespace_costs_total))",
+          "legendFormat": "{{namespace}}"
+        }
+      ]
+    },
+    {
+      "title": "Cost by Service",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (namespace, pod) (opencost_pod_costs_total))",
+          "legendFormat": "{{namespace}}/{{pod}}"
+        }
+      ]
+    },
+    {
+      "title": "CPU vs Memory Cost Ratio",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(opencost_container_cpu_core_cost)",
+          "legendFormat": "CPU Cost"
+        },
+        {
+          "expr": "sum(opencost_container_memory_byte_cost)",
+          "legendFormat": "Memory Cost"
+        }
+      ]
+    },
+    {
+      "title": "Cost Trend (30d)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(opencost_cluster_costs_total)",
+          "legendFormat": "Total Cluster Cost"
+        },
+        {
+          "expr": "sum(opencost_container_cpu_core_cost) + sum(opencost_container_memory_byte_cost)",
+          "legendFormat": "Compute Cost"
+        },
+        {
+          "expr": "sum(opencost_idle_total)",
+          "legendFormat": "Idle Cost"
+        }
+      ]
+    }
+  ],
+  "time": { "from": "now-30d", "to": "now" },
+  "refresh": "5m",
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "query",
+        "query": "label_values(opencost_namespace_costs_total, namespace)",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true,
+        "hide": 0
+      }
+    ]
+  },
+  "title": "OpenCost Cost Visibility",
+  "uid": "opencost-dashboard",
+  "version": 1
+}

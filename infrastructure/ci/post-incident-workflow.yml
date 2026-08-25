@@ -1,0 +1,105 @@
+name: Post-Incident Review Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      incident_id:
+        description: 'Incident ID'
+        required: true
+      start_time:
+        description: 'Incident start time (ISO 8601)'
+        required: true
+      end_time:
+        description: 'Incident end time (ISO 8601)'
+        required: false
+      severity:
+        description: 'Incident severity'
+        required: true
+        type: choice
+        options:
+          - SEV1
+          - SEV2
+          - SEV3
+          - SEV4
+
+  issues:
+    types: [labeled]
+
+env:
+  PROMETHEUS_URL: ${{ secrets.PROMETHEUS_URL }}
+  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+jobs:
+  generate-pir:
+    name: Generate Post-Incident Review
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'incident')
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set Parameters
+        id: params
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "incident_id=${{ inputs.incident_id }}" >> "$GITHUB_OUTPUT"
+            echo "start_time=${{ inputs.start_time }}" >> "$GITHUB_OUTPUT"
+            END_TIME="${{ inputs.end_time }}"
+            if [ -z "$END_TIME" ]; then
+              END_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            fi
+            echo "end_time=${END_TIME}" >> "$GITHUB_OUTPUT"
+            echo "severity=${{ inputs.severity }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "incident_id=INC-${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+            echo "start_time=$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+            echo "end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+            echo "severity=SEV3" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate PIR
+        run: |
+          chmod +x infrastructure/scripts/generate-pir.sh
+          ./infrastructure/scripts/generate-pir.sh \
+            --incident-id "${{ steps.params.outputs.incident_id }}" \
+            --start-time "${{ steps.params.outputs.start_time }}" \
+            --end-time "${{ steps.params.outputs.end_time }}" \
+            --output "reports"
+
+      - name: Upload PIR Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pir-${{ steps.params.outputs.incident_id }}
+          path: reports/pir-*.md
+          retention-days: 90
+
+      - name: Create PIR Issue
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const pirFiles = fs.readdirSync('reports').filter(f => f.startsWith('pir-') && f.endsWith('.md'));
+
+            if (pirFiles.length === 0) return;
+
+            const pirContent = fs.readFileSync(`reports/${pirFiles[0]}`, 'utf8');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[PIR] Post-Incident Review: ${{ steps.params.outputs.incident_id }}`,
+              body: pirContent,
+              labels: ['post-incident-review', 'severity:${{ steps.params.outputs.severity }}']
+            });
+
+      - name: Notify Slack
+        if: env.SLACK_WEBHOOK != ''
+        run: |
+          curl -s -X POST "${{ env.SLACK_WEBHOOK }}" \
+            -H 'Content-type: application/json' \
+            --data '{"text":"[PIR] Post-incident review generated for ${{ steps.params.outputs.incident_id }}"}'

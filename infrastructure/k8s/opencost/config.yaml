@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencost-config
+  namespace: opencost
+  labels:
+    app: opencost
+data:
+  cloud-integration.json: |
+    {
+      "provider": "aws",
+      "aws": {
+        "region": "us-east-1",
+        "serviceKey": ""
+      }
+    }
+  metrics-config.json: |
+    {
+      "disabledMetrics": [],
+      "disabledControllers": [],
+      "includedProviders": ["aws"],
+      "cloudCostPipeline": {
+        "enabled": true,
+        "interval": "5m"
+      }
+    }
+  cost-anomaly-detection.yaml: |
+    enabled: true
+    sensitivity: 0.5
+    windowSize: 7
+    alertThreshold: 0.2
+    notificationChannels:
+      - type: slack
+        webhook: ""
+    excludedNamespaces:
+      - kube-system
+      - opencost
+    excludedLabels:
+      - env=test
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opencost-allocator-config
+  namespace: opencost
+  labels:
+    app: opencost
+data:
+  allocation-config.json: |
+    {
+      "aggregate": "namespace",
+      "window": "1d",
+      "step": "1h",
+      "resolution": "1m",
+      "idleByNode": false,
+      "shareIdle": false,
+      "shareTenancyCosts": true,
+      "shareNamespaces": ["kube-system"],
+      "shareLabels": {
+        "team": {}
+      },
+      "filterAnnotations": {},
+      "includeIdle": true,
+      "disableSharedOverhead": false
+    }
