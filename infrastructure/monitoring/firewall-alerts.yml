@@ -1,0 +1,73 @@
+groups:
+  - name: network-firewall-alerts
+    rules:
+      - alert: FirewallDroppedPackets
+        expr: sum(rate(networkfirewall_dropped_packets_total[5m])) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Network Firewall is dropping packets"
+          description: "More than 100 packets/sec are being dropped by the Network Firewall"
+
+      - alert: FirewallBlockedTraffic
+        expr: sum(rate(networkfirewall_packets_blocked_total[5m])) > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High volume of blocked traffic"
+          description: "More than 50 blocked packets/sec detected"
+
+      - alert: FirewallAlertLogsGrowing
+        expr: sum(rate(cloudwatch_log_group_ingestion_rate{log_group="/aws/networkfirewall/*/alerts"}[5m])) > 0
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Firewall alert logs are growing"
+          description: "New entries in Network Firewall alert log group"
+
+      - alert: FirewallRuleGroupCapacityHigh
+        expr: networkfirewall_rule_group_capacity_used / networkfirewall_rule_group_capacity_max > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Firewall rule group capacity above 80%"
+          description: "Rule group {{ $labels.rule_group }} is at {{ $value | humanizePercentage }} capacity"
+
+      - alert: FirewallRuleGroupCapacityCritical
+        expr: networkfirewall_rule_group_capacity_used / networkfirewall_rule_group_capacity_max > 0.95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Firewall rule group capacity critical"
+          description: "Rule group {{ $labels.rule_group }} is at {{ $value | humanizePercentage }} capacity - add rules immediately"
+
+      - alert: FirewallStateChange
+        expr: changes(networkfirewall_firewall_status[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Network Firewall state changed"
+          description: "Firewall {{ $labels.firewall_name }} state changed to {{ $value }}"
+
+      - alert: TLSInspectionFailed
+        expr: sum(rate(networkfirewall_tls_inspection_errors_total[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS inspection errors"
+          description: "More than 10 TLS inspection errors per second"
+
+      - alert: EgressBlockedDenied
+        expr: sum by (destination) (rate(networkfirewall_deny_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Egress traffic denied to {{ $labels.destination }}"
+          description: "Traffic to {{ $labels.destination }} is being blocked by egress firewall rules"
