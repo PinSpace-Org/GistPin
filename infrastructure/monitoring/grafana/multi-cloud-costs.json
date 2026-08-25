@@ -1,0 +1,190 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Multi-Cloud Infrastructure Cost Comparison",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Total Cost by Cloud Provider",
+      "type": "bargauge",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "red", "value": 10000 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        { "expr": "cloud_cost_monthly_total{provider=\"aws\"}", "legendFormat": "AWS" },
+        { "expr": "cloud_cost_monthly_total{provider=\"gcp\"}", "legendFormat": "GCP" },
+        { "expr": "cloud_cost_monthly_total{provider=\"azure\"}", "legendFormat": "Azure" }
+      ]
+    },
+    {
+      "title": "Cost Breakdown by Service Category",
+      "type": "piechart",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "sum by (service) (cloud_cost_by_service{provider=\"aws\"})", "legendFormat": "AWS {{service}}" },
+        { "expr": "sum by (service) (cloud_cost_by_service{provider=\"gcp\"})", "legendFormat": "GCP {{service}}" },
+        { "expr": "sum by (service) (cloud_cost_by_service{provider=\"azure\"})", "legendFormat": "Azure {{service}}" }
+      ]
+    },
+    {
+      "title": "Equivalent Service Mapping",
+      "type": "table",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "cloud_service_mapping",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        }
+      }
+    },
+    {
+      "title": "Monthly Cost Trend (3 Months)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 6 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto"
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        { "expr": "cloud_cost_monthly_total{provider=\"aws\"}", "legendFormat": "AWS" },
+        { "expr": "cloud_cost_monthly_total{provider=\"gcp\"}", "legendFormat": "GCP" },
+        { "expr": "cloud_cost_monthly_total{provider=\"azure\"}", "legendFormat": "Azure" }
+      ]
+    },
+    {
+      "title": "Compute Cost Comparison",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10 },
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        { "expr": "cloud_cost_by_category{provider=\"aws\",category=\"compute\"}", "legendFormat": "AWS EC2/EKS" },
+        { "expr": "cloud_cost_by_category{provider=\"gcp\",category=\"compute\"}", "legendFormat": "GCP GCE/GKE" },
+        { "expr": "cloud_cost_by_category{provider=\"azure\",category=\"compute\"}", "legendFormat": "Azure VMs/AKS" }
+      ]
+    },
+    {
+      "title": "Storage Cost Comparison",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10 },
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        { "expr": "cloud_cost_by_category{provider=\"aws\",category=\"storage\"}", "legendFormat": "AWS S3" },
+        { "expr": "cloud_cost_by_category{provider=\"gcp\",category=\"storage\"}", "legendFormat": "GCP Cloud Storage" },
+        { "expr": "cloud_cost_by_category{provider=\"azure\",category=\"storage\"}", "legendFormat": "Azure Blob" }
+      ]
+    },
+    {
+      "title": "Database Cost Comparison",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "fillOpacity": 10 },
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        { "expr": "cloud_cost_by_category{provider=\"aws\",category=\"database\"}", "legendFormat": "AWS RDS" },
+        { "expr": "cloud_cost_by_category{provider=\"gcp\",category=\"database\"}", "legendFormat": "GCP Cloud SQL" },
+        { "expr": "cloud_cost_by_category{provider=\"azure\",category=\"database\"}", "legendFormat": "Azure SQL" }
+      ]
+    },
+    {
+      "title": "TCO Estimate",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 22 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10000 },
+              { "color": "red", "value": 50000 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        { "expr": "cloud_tco_annual", "legendFormat": "Annual TCO" }
+      ]
+    }
+  ],
+  "time": { "from": "now-90d", "to": "now" },
+  "refresh": "6h",
+  "templating": {
+    "list": [
+      {
+        "name": "provider",
+        "type": "custom",
+        "query": "aws,gcp,azure",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true,
+        "hide": 0
+      }
+    ]
+  },
+  "title": "Multi-Cloud Cost Comparison",
+  "uid": "multi-cloud-costs",
+  "version": 1
+}
