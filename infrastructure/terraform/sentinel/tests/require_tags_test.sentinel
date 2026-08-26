@@ -1,0 +1,48 @@
+# Test: require-tags policy — pass scenario
+# All resources have both required tags (Environment and Project).
+
+import "mock-tfplan" as tfplan
+import "../../../../../infrastructure/security/sentinel-policies/require-tags.sentinel" as policy
+
+# Mock plan: all resources have required tags
+mock_plan = mock tfplan with {
+  resource_changes as {
+    "aws_s3_bucket.data": {
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "data",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "bucket": "gistpin-prod-data",
+          "tags": {
+            "Environment": "prod",
+            "Project": "gistpin",
+          },
+        },
+      },
+    },
+    "aws_db_instance.main": {
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "identifier": "gistpin-prod-db",
+          "tags": {
+            "Environment": "prod",
+            "Project": "gistpin",
+          },
+        },
+      },
+    },
+  },
+}
+
+# Pass: all resources comply
+test_pass when {
+  policy.main with tfplan as mock_plan
+}
