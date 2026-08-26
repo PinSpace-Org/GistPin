@@ -10,9 +10,25 @@ spec:
       admissionReviewVersions: ["v1"]
       sideEffects: None
       failurePolicy: Fail
+      # Timeout: max time API server waits for webhook response (seconds)
+      # Default is 10s; lowered to 3s to prevent API server contention
+      timeoutSeconds: 3
+      # matchPolicy: Equivalent ensures both exact and sub-resource matches route here
+      matchPolicy: Equivalent
+      # reinvocationIfNeeded: re-calls webhook if mutating webhooks alter the object
+      reinvocationPolicy: IfNeeded
+      # failurePolicy: Fail = reject request on webhook error; Ignore = allow through
+      # Use "Ignore" in dev to prevent webhook outages from blocking all API calls
+      # Use "Fail" in production to enforce policy on every request
+      failurePolicy: Fail
       namespaceSelector:
         matchLabels:
           webhook.gistpin.io/validate: "true"
+      # ObjectSelector limits webhook to objects with specific labels,
+      # reducing call volume for irrelevant resources
+      objectSelector:
+        matchLabels:
+          gistpin.io/validate: "true"
       rules:
         - apiGroups:   [""]
           apiVersions: ["v1"]
@@ -25,3 +41,32 @@ spec:
           path: /validate
           port: 443
         caBundle: ""   # injected by cert-manager
+---
+# Rate limiting configuration for the webhook server
+# Deployed as a ConfigMap consumed by the webhook deployment
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webhook-rate-limits
+  namespace: gistpin
+data:
+  # Maximum concurrent requests the webhook server accepts
+  # Higher = more throughput but more resource usage
+  MAX_CONCURRENT_REQUESTS: "50"
+  # Maximum requests queued when at capacity
+  # Excess requests are rejected immediately
+  MAX_QUEUE_SIZE: "200"
+  # Per-client (per-IP) rate limit window in seconds
+  RATE_LIMIT_WINDOW_SECONDS: "10"
+  # Maximum requests per client within the rate limit window
+  RATE_LIMIT_MAX_REQUESTS: "100"
+  # Circuit breaker: consecutive failures before opening
+  CIRCUIT_BREAKER_FAILURE_THRESHOLD: "5"
+  # Circuit breaker: seconds to wait before half-open probe
+  CIRCUIT_BREAKER_OPEN_DURATION_SECONDS: "30"
+  # Circuit breaker: successful probes to close circuit
+  CIRCUIT_BREAKER_HALF_OPEN_PROBES: "3"
+  # Webhook response timeout from the server side (ms)
+  SERVER_TIMEOUT_MS: "2500"
+  # Log level: debug, info, warn, error
+  LOG_LEVEL: "info"
