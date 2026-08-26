@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opencost
+  namespace: opencost
+  labels:
+    app: opencost
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opencost
+  template:
+    metadata:
+      labels:
+        app: opencost
+    spec:
+      serviceAccountName: opencost
+      containers:
+        - name: opencost
+          image: ghcr.io/opencost/opencost:stable
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9003
+              name: http
+          env:
+            - name: CLOUD_PROVIDER
+              value: "aws"
+            - name: CLUSTER_ID
+              value: "gistpin-production"
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: "http://prometheus-server.monitoring.svc.cluster.local:9090"
+            - name: KUBERNETES_CLUSTER_ID
+              value: "gistpin-production"
+            - name: PROVIDER_ID
+              value: "aws"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9003
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+        - name: cost-model
+          image: ghcr.io/opencost/cost-model:stable
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9002
+              name: http-model
+          env:
+            - name: CLOUD_PROVIDER
+              value: "aws"
+            - name: PROMETHEUS_SERVER_ENDPOINT
+              value: "http://prometheus-server.monitoring.svc.cluster.local:9090"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opencost
+  namespace: opencost
+  labels:
+    app: opencost
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9003
+      targetPort: 9003
+      name: http
+    - port: 9002
+      targetPort: 9002
+      name: http-model
+  selector:
+    app: opencost
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opencost
+  namespace: opencost
+  labels:
+    app: opencost
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opencost
+  labels:
+    app: opencost
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "services", "namespaces", "replicationcontrollers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opencost
+  labels:
+    app: opencost
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opencost
+subjects:
+  - kind: ServiceAccount
+    name: opencost
+    namespace: opencost
