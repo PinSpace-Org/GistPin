@@ -1,0 +1,159 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+  labels:
+    app: etcd-backup
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: etcd-backup
+        spec:
+          serviceAccountName: etcd-backup
+          hostNetwork: true
+          tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          containers:
+            - name: backup
+              image: bitnami/etcd:3.5
+              env:
+                - name: ETCDCTL_API
+                  value: "3"
+                - name: ETCDCTL_ENDPOINTS
+                  value: "https://127.0.0.1:2379"
+                - name: ETCDCTL_CACERT
+                  value: "/etc/kubernetes/pki/etcd/ca.crt"
+                - name: ETCDCTL_CERT
+                  value: "/etc/kubernetes/pki/etcd/healthcheck-client.crt"
+                - name: ETCDCTL_KEY
+                  value: "/etc/kubernetes/pki/etcd/healthcheck-client.key"
+                - name: BACKUP_BUCKET
+                  valueFrom:
+                    configMapKeyRef:
+                      name: etcd-backup-config
+                      key: backup-bucket
+                - name: RETENTION_DAYS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: etcd-backup-config
+                      key: retention-days
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+
+                  TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+                  BACKUP_NAME="etcd-backup-${TIMESTAMP}"
+                  BACKUP_DIR="/tmp/etcd-backups"
+
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Starting ETCD backup..."
+
+                  mkdir -p "${BACKUP_DIR}"
+
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Creating snapshot..."
+                  etcdctl snapshot save "${BACKUP_DIR}/${BACKUP_NAME}.db" \
+                    --endpoints="${ETCDCTL_ENDPOINTS}" \
+                    --cacert="${ETCDCTL_CACERT}" \
+                    --cert="${ETCDCTL_CERT}" \
+                    --key="${ETCDCTL_KEY}"
+
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Verifying snapshot..."
+                  etcdctl snapshot status "${BACKUP_DIR}/${BACKUP_NAME}.db" --write-out=table
+
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Compressing backup..."
+                  gzip "${BACKUP_DIR}/${BACKUP_NAME}.db"
+
+                  if command -v aws >/dev/null 2>&1 && [ -n "${BACKUP_BUCKET:-}" ]; then
+                    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Uploading to S3: s3://${BACKUP_BUCKET}/etcd/"
+                    aws s3 cp "${BACKUP_DIR}/${BACKUP_NAME}.db.gz" \
+                      "s3://${BACKUP_BUCKET}/etcd/${BACKUP_NAME}.db.gz" \
+                      --sse aws:kms
+                    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Upload complete"
+                  fi
+
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Cleaning up old local backups..."
+                  find "${BACKUP_DIR}" -name "etcd-backup-*.db.gz" -mtime "+${RETENTION_DAYS:-30}" -delete 2>/dev/null || true
+
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] ETCD backup completed successfully"
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Backup: ${BACKUP_NAME}.db.gz"
+              volumeMounts:
+                - name: etcd-certs
+                  mountPath: /etc/kubernetes/pki/etcd
+                  readOnly: true
+                - name: backup-tmp
+                  mountPath: /tmp/etcd-backups
+          volumes:
+            - name: etcd-certs
+              hostPath:
+                path: /etc/kubernetes/pki/etcd
+                type: DirectoryOrCreate
+            - name: backup-tmp
+              emptyDir:
+                sizeLimit: 2Gi
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+  labels:
+    app: etcd-backup
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+  labels:
+    app: etcd-backup
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+  labels:
+    app: etcd-backup
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: etcd-backup
+subjects:
+  - kind: ServiceAccount
+    name: etcd-backup
+    namespace: kube-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: etcd-backup-config
+  namespace: kube-system
+  labels:
+    app: etcd-backup
+data:
+  backup-bucket: "gistpin-etcd-backups"
+  retention-days: "30"
+  backup-schedule: "0 */6 * * *"
