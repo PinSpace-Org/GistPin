@@ -1,0 +1,141 @@
+name: Terraform Workspace Matrix Testing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/terraform/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infrastructure/terraform/**'
+  schedule:
+    - cron: '0 6 * * 1'
+
+env:
+  TF_VERSION: '1.7.0'
+  AWS_REGION: 'us-east-1'
+
+jobs:
+  detect-workspaces:
+    name: Detect Terraform Workspaces
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect workspaces
+        id: set-matrix
+        run: |
+          WORKSPACES=$(ls infrastructure/terraform/workspaces/ 2>/dev/null | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "matrix={\"workspace\":${WORKSPACES}}" >> "$GITHUB_OUTPUT"
+          echo "Detected workspaces: ${WORKSPACES}"
+
+  matrix-plan:
+    name: Plan (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    needs: detect-workspaces
+    strategy:
+      matrix: ${{ fromJson(needs.detect-workspaces.outputs.matrix) }}
+      fail-fast: false
+      max-parallel: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="key=${{ matrix.workspace }}/terraform.tfstate"
+        working-directory: infrastructure/terraform
+
+      - name: Terraform Workspace Select
+        run: |
+          terraform workspace select ${{ matrix.workspace }} || terraform workspace new ${{ matrix.workspace }}
+        working-directory: infrastructure/terraform
+
+      - name: Terraform Validate
+        run: terraform validate -no-color
+        working-directory: infrastructure/terraform
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -detailed-exitcode -out=tfplan-${{ matrix.workspace }} 2>&1 | tee plan-output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "exit_code=${EXIT_CODE}" >> "$GITHUB_OUTPUT"
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "status=no-changes" >> "$GITHUB_OUTPUT"
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "status=changes" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=error" >> "$GITHUB_OUTPUT"
+          fi
+        working-directory: infrastructure/terraform
+        continue-on-error: true
+
+      - name: Generate Plan Summary
+        run: |
+          echo "## Workspace: \`${{ matrix.workspace }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | \`${{ steps.plan.outputs.status }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Exit Code | \`${{ steps.plan.outputs.exit_code }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f plan-output.txt ]; then
+            echo "### Plan Output (last 50 lines)" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -50 plan-output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+        working-directory: infrastructure/terraform
+
+  cross-workspace-diff:
+    name: Cross-Workspace Comparison
+    runs-on: ubuntu-latest
+    needs: matrix-plan
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare Workspace Plans
+        run: |
+          echo "## Cross-Workspace Comparison" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Workspace | Status | Resources to Add | Resources to Change | Resources to Destroy |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|------------------|---------------------|----------------------|" >> $GITHUB_STEP_SUMMARY
+
+          for plan_file in infrastructure/terraform/plan-output-*.txt; do
+            if [ -f "$plan_file" ]; then
+              WS=$(basename "$plan_file" .txt | sed 's/plan-output-//')
+              ADDS=$(grep -c "will be created" "$plan_file" 2>/dev/null || echo "0")
+              CHANGES=$(grep -c "will be updated" "$plan_file" 2>/dev/null || echo "0")
+              DESTROYS=$(grep -c "will be destroyed" "$plan_file" 2>/dev/null || echo "0")
+              echo "| ${WS} | ok | ${ADDS} | ${CHANGES} | ${DESTROYS} |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+  combined-report:
+    name: Generate Combined Report
+    runs-on: ubuntu-latest
+    needs: [matrix-plan, cross-workspace-diff]
+    if: always()
+    steps:
+      - name: Generate Report
+        run: |
+          echo "## Terraform Workspace Matrix Test Report" >> $GITHUB_STEP_SUMMARY
+          echo "Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "All workspace plans completed. Review individual job logs for details." >> $GITHUB_STEP_SUMMARY

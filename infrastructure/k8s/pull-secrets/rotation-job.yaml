@@ -1,0 +1,106 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pull-secret-rotation
+  namespace: gistpin
+  labels:
+    app: pull-secret-rotation
+spec:
+  schedule: "0 2 1 * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: pull-secret-rotation
+        spec:
+          serviceAccountName: pull-secret-rotator
+          restartPolicy: OnFailure
+          containers:
+            - name: rotation
+              image: bitnami/kubectl:1.29
+              env:
+                - name: REGISTRY_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ghcr-credentials
+                      key: username
+                - name: REGISTRY_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ghcr-credentials
+                      key: password
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+
+                  SECRET_NAME="ghcr-pull-secret"
+                  REGISTRY="ghcr.io"
+                  NAMESPACES="gistpin"
+
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Starting pull secret rotation..."
+
+                  for ns in $(echo "$NAMESPACES" | tr ',' ' '); do
+                    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Rotating in namespace: $ns"
+
+                    kubectl create secret docker-registry "$SECRET_NAME" \
+                      --namespace="$ns" \
+                      --docker-server="$REGISTRY" \
+                      --docker-username="$REGISTRY_USER" \
+                      --docker-password="$REGISTRY_PASSWORD" \
+                      --dry-run=client -o yaml | kubectl apply -f -
+
+                    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Secret rotated in $ns"
+                  done
+
+                  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Rotation complete"
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "100m"
+                  memory: "128Mi"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pull-secret-rotator
+  namespace: gistpin
+  labels:
+    app: pull-secret-rotation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pull-secret-rotator
+  namespace: gistpin
+  labels:
+    app: pull-secret-rotation
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pull-secret-rotator
+  namespace: gistpin
+  labels:
+    app: pull-secret-rotation
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pull-secret-rotator
+subjects:
+  - kind: ServiceAccount
+    name: pull-secret-rotator
+    namespace: gistpin
