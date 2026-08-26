@@ -1,0 +1,104 @@
+apiVersion: gateway.gistpin.io/v1alpha1
+kind: ReadinessGate
+metadata:
+  name: backend-readiness-gate
+  namespace: gistpin
+  labels:
+    app: gistpin-backend
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-deployment
+    namespace: gistpin
+  conditions:
+    - type: DatabaseReady
+      status: "True"
+      reason: "DatabaseConnectionHealthy"
+      message: "PostgreSQL connection pool is healthy"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+    - type: CacheReady
+      status: "True"
+      reason: "RedisConnected"
+      message: "Redis cache connection is established"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+    - type: ExternalDependenciesReady
+      status: "True"
+      reason: "AllDependenciesAvailable"
+      message: "All external service dependencies are reachable"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  timeoutSeconds: 300
+  failureAction: FailClosed
+---
+apiVersion: gateway.gistpin.io/v1alpha1
+kind: ReadinessGate
+metadata:
+  name: frontend-readiness-gate
+  namespace: gistpin
+  labels:
+    app: gistpin-frontend
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend-deployment
+    namespace: gistpin
+  conditions:
+    - type: BackendAPIReady
+      status: "True"
+      reason: "BackendAPIHealthy"
+      message: "Backend API is responding to health checks"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+    - type: StaticAssetsReady
+      status: "True"
+      reason: "AssetsAvailable"
+      message: "Static assets are served from CDN"
+      lastTransitionTime: "2024-01-01T00:00:00Z"
+  timeoutSeconds: 180
+  failureAction: FailClosed
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: readiness-gate-config
+  namespace: gistpin
+  labels:
+    app: readiness-gate-controller
+data:
+  config.yaml: |
+    healthChecks:
+      database:
+        type: postgres
+        host: gistpin-postgres.gistpin.svc.cluster.local
+        port: 5432
+        database: gistpin
+        timeout: 5s
+        interval: 10s
+        healthyThreshold: 3
+        unhealthyThreshold: 3
+      cache:
+        type: redis
+        host: gistpin-redis.gistpin.svc.cluster.local
+        port: 6379
+        timeout: 3s
+        interval: 5s
+        healthyThreshold: 2
+        unhealthyThreshold: 2
+      backendAPI:
+        type: http
+        url: http://backend-service.gistpin.svc.cluster.local:3000/health
+        timeout: 5s
+        interval: 10s
+        healthyThreshold: 3
+        unhealthyThreshold: 3
+    gateTimeout:
+      default: 300s
+      backend: 300s
+      frontend: 180s
+    notifications:
+      enabled: true
+      channels:
+        - type: slack
+          webhook: ""
+        - type: pagerduty
+          serviceKey: ""
