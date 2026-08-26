@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudwatch-agent
+  namespace: AmazonCloudWatch
+  labels:
+    app: cloudwatch-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloudwatch-agent-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "endpoints"]
+    verbs: ["list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cloudwatch-agent-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cloudwatch-agent-role
+subjects:
+  - kind: ServiceAccount
+    name: cloudwatch-agent
+    namespace: AmazonCloudWatch
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cloudwatch-agent
+  namespace: AmazonCloudWatch
+  labels:
+    app: cloudwatch-agent
+spec:
+  selector:
+    matchLabels:
+      app: cloudwatch-agent
+  template:
+    metadata:
+      labels:
+        app: cloudwatch-agent
+    spec:
+      serviceAccountName: cloudwatch-agent
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: cloudwatch-agent
+          image: amazon/cloudwatch-agent:1.247350.0
+          imagePullPolicy: Always
+          env:
+            - name: CI_CLUSTER_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['app.kubernetes.io/name']
+            - name: CI_HOST_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CI_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: CI_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: cwagent-config
+                  key: cluster.name
+          resources:
+            limits:
+              cpu: "200m"
+              memory: "200Mi"
+            requests:
+              cpu: "100m"
+              memory: "100Mi"
+          volumeMounts:
+            - name: cwagent-config
+              mountPath: /etc/cwagentconfig
+            - name: run
+              mountPath: /var/run/docker.sock
+              readOnly: true
+            - name: rootfs
+              mountPath: /host/root
+              readOnly: true
+            - name: containerd-sock
+              mountPath: /var/run/containerd/containerd.sock
+              readOnly: true
+            - name: sys
+              mountPath: /sys
+              readOnly: true
+            - name: dev
+              mountPath: /dev
+              readOnly: true
+      volumes:
+        - name: cwagent-config
+          configMap:
+            name: cwagent-config
+        - name: run
+          hostPath:
+            path: /var/run/docker.sock
+        - name: rootfs
+          hostPath:
+            path: /
+        - name: containerd-sock
+          hostPath:
+            path: /var/run/containerd/containerd.sock
+        - name: sys
+          hostPath:
+            path: /sys
+        - name: dev
+          hostPath:
+            path: /dev
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cwagent-config
+  namespace: AmazonCloudWatch
+data:
+  cwagentconfig.json: |
+    {
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "cluster_name": "CLUSTER_NAME_PLACEHOLDER",
+            "metrics_collection_interval": 60
+          }
+        },
+        "force_flush_interval": 5
+      },
+      "metrics": {
+        "metrics_collected": {
+          "statsd": {},
+          "kubernetes": {
+            "metrics_collection_interval": 60
+          }
+        },
+        "endpoint": "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/PLACEHOLDER"
+      }
+    }
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: AmazonCloudWatch
+  labels:
+    app.kubernetes.io/name: amazon-cloudwatch

@@ -1,0 +1,217 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Infrastructure Security Scorecard",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Overall Security Score",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [
+        {
+          "expr": "security_scorecard_overall_score{environment=\"$environment\"}",
+          "legendFormat": "Score"
+        }
+      ]
+    },
+    {
+      "title": "Network Security Score",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [
+        {
+          "expr": "security_scorecard_category_score{environment=\"$environment\",category=\"network\"}",
+          "legendFormat": "Network"
+        }
+      ]
+    },
+    {
+      "title": "IAM Security Score",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [
+        {
+          "expr": "security_scorecard_category_score{environment=\"$environment\",category=\"iam\"}",
+          "legendFormat": "IAM"
+        }
+      ]
+    },
+    {
+      "title": "Encryption Score",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [
+        {
+          "expr": "security_scorecard_category_score{environment=\"$environment\",category=\"encryption\"}",
+          "legendFormat": "Encryption"
+        }
+      ]
+    },
+    {
+      "title": "Monitoring Score",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "yellow", "value": 70 },
+              { "color": "green", "value": 80 }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      },
+      "targets": [
+        {
+          "expr": "security_scorecard_category_score{environment=\"$environment\",category=\"monitoring\"}",
+          "legendFormat": "Monitoring"
+        }
+      ]
+    },
+    {
+      "title": "Score Trend (30d)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 18, "x": 6, "y": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "auto"
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "security_scorecard_overall_score{environment=\"$environment\"}",
+          "legendFormat": "Overall"
+        },
+        {
+          "expr": "security_scorecard_category_score{environment=\"$environment\",category=\"network\"}",
+          "legendFormat": "Network"
+        },
+        {
+          "expr": "security_scorecard_category_score{environment=\"$environment\",category=\"iam\"}",
+          "legendFormat": "IAM"
+        },
+        {
+          "expr": "security_scorecard_category_score{environment=\"$environment\",category=\"encryption\"}",
+          "legendFormat": "Encryption"
+        },
+        {
+          "expr": "security_scorecard_category_score{environment=\"$environment\",category=\"monitoring\"}",
+          "legendFormat": "Monitoring"
+        }
+      ]
+    }
+  ],
+  "time": { "from": "now-30d", "to": "now" },
+  "refresh": "1h",
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "type": "custom",
+        "query": "production,staging,development",
+        "current": { "text": "production", "value": "production" },
+        "hide": 0
+      }
+    ]
+  },
+  "title": "Security Scorecard",
+  "uid": "security-scorecard",
+  "version": 1
+}

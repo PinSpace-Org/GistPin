@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: karpenter
+  labels:
+    app.kubernetes.io/name: karpenter
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - https://raw.githubusercontent.com/aws/karpenter/v0.32.0/pkg/apis/crds/karpenter.sh_nodepools.yaml
+  - https://raw.githubusercontent.com/aws/karpenter/v0.32.0/pkg/apis/crds/karpenter.sh_nodeclaims.yaml
+  - https://raw.githubusercontent.com/aws/karpenter/v0.32.0/pkg/apis/crds/karpenter.k8s.aws_ec2nodeclasses.yaml
+  - https://raw.githubusercontent.com/aws/karpenter/v0.32.0/pkg/controllers/deprovisioning/v1alpha1/crds/karpenter.sh_deprovisioningpolicies.yaml
+namespace: karpenter
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: karpenter
+  namespace: karpenter
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/karpenter-controller
+  labels:
+    app.kubernetes.io/name: karpenter
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: karpenter
+  labels:
+    app.kubernetes.io/name: karpenter
+rules:
+  - apiGroups: ["karpenter.sh"]
+    resources: ["pools", "pools/status", "nodeclaims", "nodeclaims/status"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["karpenter.k8s.aws"]
+    resources: ["ec2nodeclasses", "ec2nodeclasses/status"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "nodes/status", "pods/nodes", "events"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: karpenter
+  labels:
+    app.kubernetes.io/name: karpenter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: karpenter
+subjects:
+  - kind: ServiceAccount
+    name: karpenter
+    namespace: karpenter
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: karpenter
+  namespace: karpenter
+  labels:
+    app.kubernetes.io/name: karpenter
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: karpenter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: karpenter
+    spec:
+      serviceAccountName: karpenter
+      securityContext:
+        runAsUser: 65535
+        runAsGroup: 65535
+        fsGroup: 65535
+      containers:
+        - name: controller
+          image: ghcr.io/karpenter/provider-aws:v0.32.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - -c
+            - "--flag=--feature-gates=Drift=true"
+          env:
+            - name: CLUSTER_NAME
+              value: "gistpin-${ENVIRONMENT}"
+            - name: CLUSTER_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: karpenter-config
+                  key: cluster-endpoint
+            - name: AWS_REGION
+              value: "${AWS_REGION}"
+            - name: LEADER_ELECT
+              value: "true"
+            - name: INTERRUPTION_QUEUE
+              value: karpenter-${ENVIRONMENT}
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: karpenter
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: karpenter-config
+  namespace: karpenter
+data:
+  cluster-endpoint: "https://CLUSTER_ENDPOINT_PLACEHOLDER"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: karpenter
+  namespace: karpenter
+  labels:
+    app.kubernetes.io/name: karpenter
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: karpenter
