@@ -1,0 +1,170 @@
+groups:
+  - name: capacity-recording-rules
+    interval: 30s
+    rules:
+      # ── Cluster-level CPU ──────────────────────────────────────────────
+      - record: gistpin:cluster_cpu_request_ratio
+        expr: >
+          sum(kube_pod_container_resource_requests{resource="cpu", namespace="gistpin"})
+          /
+          sum(kube_node_status_allocatable{resource="cpu"})
+
+      - record: gistpin:cluster_cpu_request_ratio:5m
+        expr: >
+          avg_over_time(gistpin:cluster_cpu_request_ratio[5m])
+
+      - record: gistpin:cluster_cpu_request_ratio:1h
+        expr: >
+          avg_over_time(gistpin:cluster_cpu_request_ratio[1h])
+
+      # ── Cluster-level memory ──────────────────────────────────────────
+      - record: gistpin:cluster_memory_request_ratio
+        expr: >
+          sum(kube_pod_container_resource_requests{resource="memory", namespace="gistpin"})
+          /
+          sum(kube_node_status_allocatable{resource="memory"})
+
+      - record: gistpin:cluster_memory_request_ratio:5m
+        expr: >
+          avg_over_time(gistpin:cluster_memory_request_ratio[5m])
+
+      - record: gistpin:cluster_memory_request_ratio:1h
+        expr: >
+          avg_over_time(gistpin:cluster_memory_request_ratio[1h])
+
+      # ── Node-level pod density ────────────────────────────────────────
+      - record: gistpin:node_pod_count
+        expr: >
+          count(kube_pod_info{namespace="gistpin"}) by (node)
+
+      - record:gistpin:node_pod_ratio
+        expr: >
+          gistpin:node_pod_count
+          /
+          on(node)
+          kube_node_status_allocatable{resource="pods"}
+
+      # ── Namespace-level resource consumption ──────────────────────────
+      - record: gistpin:namespace_cpu_requests
+        expr: >
+          sum(kube_pod_container_resource_requests{resource="cpu"}) by (namespace)
+
+      - record: gistpin:namespace_memory_requests
+        expr: >
+          sum(kube_pod_container_resource_requests{resource="memory"}) by (namespace)
+
+      - record: gistpin:namespace_cpu_usage_avg
+        expr: >
+          avg(rate(container_cpu_usage_seconds_total{namespace="gistpin"}[5m])) by (namespace)
+
+      - record: gistpin:namespace_memory_working_set
+        expr: >
+          sum(container_memory_working_set_bytes{namespace="gistpin"}) by (namespace)
+
+      # ── Capacity headroom ─────────────────────────────────────────────
+      - record: gistpin:node_cpu_headroom_cores
+        expr: >
+          kube_node_status_allocatable{resource="cpu"}
+          -
+          on(node)
+          (sum(kube_pod_container_resource_requests{resource="cpu"}) by (node))
+
+      - record: gistpin:node_memory_headroom_gib
+        expr: >
+          (kube_node_status_allocatable{resource="memory"} / 1024 / 1024 / 1024)
+          -
+          on(node)
+          (sum(kube_pod_container_resource_requests{resource="memory"}) by (node) / 1024 / 1024 / 1024)
+
+      - record: gistpin:node_pod_headroom
+        expr: >
+          kube_node_status_allocatable{resource="pods"}
+          -
+          on(node)
+          count(kube_pod_info) by (node)
+
+      # ── Cluster-wide aggregates ───────────────────────────────────────
+      - record: gistpin:cluster_total_nodes
+        expr: >
+          count(kube_node_status_condition{condition="Ready", status="true"})
+
+      - record: gistpin:cluster_total_cpu_cores
+        expr: >
+          sum(kube_node_status_allocatable{resource="cpu"})
+
+      - record: gistpin:cluster_total_memory_gib
+        expr: >
+          sum(kube_node_status_allocatable{resource="memory"}) / 1024 / 1024 / 1024
+
+      - record: gistpin:cluster_total_pod_slots
+        expr: >
+          sum(kube_node_status_allocatable{resource="pods"})
+
+      - record: gistpin:cluster_active_pods
+        expr: >
+          count(kube_pod_info{namespace="gistpin"})
+
+  - name: capacity-alerting-rules
+    rules:
+      - alert: ClusterCPUHigh
+        expr: gistpin:cluster_cpu_request_ratio:5m > 0.80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cluster CPU request ratio exceeds 80%"
+          description: >
+            Current ratio: {{ $value | humanizePercentage }}.
+            Consider scaling the node group or reducing requests.
+
+      - alert: ClusterMemoryHigh
+        expr: gistpin:cluster_memory_request_ratio:5m > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cluster memory request ratio exceeds 85%"
+          description: >
+            Current ratio: {{ $value | humanizePercentage }}.
+            Memory pressure may cause OOM kills.
+
+      - alert: ClusterCPUCritical
+        expr: gistpin:cluster_cpu_request_ratio:5m > 0.95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cluster CPU request ratio exceeds 95%"
+          description: >
+            Urgent: {{ $value | humanizePercentage }}. Pods may be unschedulable.
+
+      - alert: ClusterMemoryCritical
+        expr: gistpin:cluster_memory_request_ratio:5m > 0.95
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cluster memory request ratio exceeds 95%"
+          description: >
+            Urgent: {{ $value | humanizePercentage }}. OOM kills imminent.
+
+      - alert: NodePodDensityHigh
+        expr: gistpin:node_pod_ratio > 0.90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Node {{ $labels.node }} pod density exceeds 90%"
+          description: >
+            Current ratio: {{ $value | humanizePercentage }}.
+            New pods may fail to schedule on this node.
+
+      - alert: ClusterNodeCountLow
+        expr: gistpin:cluster_total_nodes < 3
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cluster has fewer than 3 nodes"
+          description: >
+            Current node count: {{ $value }}. This is below the minimum for HA.
