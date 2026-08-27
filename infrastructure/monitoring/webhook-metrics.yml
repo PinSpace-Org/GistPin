@@ -1,0 +1,141 @@
+groups:
+  - name: webhook-rate-limiting
+    rules:
+      # ── Webhook Latency ──────────────────────────────────────────────
+      - alert: WebhookHighLatency
+        expr: histogram_quantile(0.99, rate(webhook_request_duration_seconds_bucket{namespace="gistpin"}[5m])) > 2.5
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook P99 latency exceeds 2.5s"
+          description: "Webhook {{ $labels.webhook }} P99 latency is {{ $value | humanizeDuration }}. API server may be queuing requests."
+          runbook_url: "https://runbooks.gistpin.io/webhook-high-latency"
+
+      - alert: WebhookTimeoutRateHigh
+        expr: rate(webhook_request_timeouts_total{namespace="gistpin"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "More than 5% of webhook requests timing out"
+          description: "Webhook {{ $labels.webhook }} timeout rate is {{ $value | humanizePercentage }}. Check webhook server health and network connectivity."
+          runbook_url: "https://runbooks.gistpin.io/webhook-timeout"
+
+      # ── Circuit Breaker ──────────────────────────────────────────────
+      - alert: WebhookCircuitBreakerOpen
+        expr: webhook_circuit_breaker_state{namespace="gistpin"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Webhook circuit breaker is OPEN"
+          description: "Webhook {{ $labels.webhook }} circuit breaker opened due to {{ $value }} consecutive failures. Admission requests are being rejected."
+          runbook_url: "https://runbooks.gistpin.io/webhook-circuit-breaker"
+
+      - alert: WebhookCircuitBreakerHalfOpen
+        expr: webhook_circuit_breaker_state{namespace="gistpin"} == 0.5
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook circuit breaker in HALF-OPEN state"
+          description: "Webhook {{ $labels.webhook }} is recovering. Monitoring probe results before closing circuit."
+
+      - alert: WebhookCircuitBreakerTripsFrequent
+        expr: increase(webhook_circuit_breaker_trips_total{namespace="gistpin"}[1h]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook circuit breaker tripping frequently"
+          description: "Webhook {{ $labels.webhook }} circuit breaker has tripped {{ $value }} times in the last hour. Investigate underlying failures."
+
+      # ── Rate Limiting ────────────────────────────────────────────────
+      - alert: WebhookRateLimitRejects
+        expr: rate(webhook_rate_limit_rejected_total{namespace="gistpin"}[5m]) > 1
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook rate limiting active — requests being rejected"
+          description: "Webhook {{ $labels.webhook }} is rejecting {{ $value | humanize }} requests/sec due to rate limits. Clients may need backoff."
+
+      - alert: WebhookQueueDepthHigh
+        expr: webhook_queue_depth{namespace="gistpin"} > 150
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook request queue depth exceeds 150"
+          description: "Webhook {{ $labels.webhook }} queue has {{ $value }} pending requests. Approaching MAX_QUEUE_SIZE limit."
+
+      - alert: WebhookQueueDepthCritical
+        expr: webhook_queue_depth{namespace="gistpin"} > 190
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Webhook request queue nearly full"
+          description: "Webhook {{ $labels.webhook }} queue has {{ $value }} pending requests. New requests will be rejected immediately."
+
+      # ── Error Rates ──────────────────────────────────────────────────
+      - alert: WebhookHighErrorRate
+        expr: rate(webhook_request_errors_total{namespace="gistpin"}[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook error rate exceeds 10%"
+          description: "Webhook {{ $labels.webhook }} error rate is {{ $value | humanizePercentage }}. Errors: {{ $labels.error_type }}"
+
+      - alert: WebhookServerDown
+        expr: up{job="webhook-server", namespace="gistpin"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Webhook server pod is not responding"
+          description: "Webhook server in namespace gistpin is down. Admission requests with failurePolicy=Fail will be rejected."
+          runbook_url: "https://runbooks.gistpin.io/webhook-server-down"
+
+      # ── Concurrency & Resource ───────────────────────────────────────
+      - alert: WebhookConcurrencyAtCapacity
+        expr: webhook_active_requests{namespace="gistpin"} > 45
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook concurrency approaching limit"
+          description: "Webhook {{ $labels.webhook }} has {{ $value }} active requests (limit: 50). Scale up or investigate slow responses."
+
+      - alert: WebhookMemoryUsageHigh
+        expr: container_memory_usage_bytes{container="webhook", namespace="gistpin"} / container_spec_memory_limit_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook pod memory usage exceeds 85%"
+          description: "Webhook {{ $labels.pod }} memory usage is {{ $value | humanizePercentage }} of limit."
+
+      - alert: WebhookCPUThrottling
+        expr: rate(container_cpu_cfs_throttled_seconds_total{container="webhook", namespace="gistpin"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Webhook pod experiencing CPU throttling"
+          description: "Webhook {{ $labels.pod }} is throttled for {{ $value | humanizeDuration }}/s. Consider increasing CPU limits."
