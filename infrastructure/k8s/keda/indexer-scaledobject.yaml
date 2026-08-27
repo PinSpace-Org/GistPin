@@ -1,0 +1,63 @@
+###############################################################################
+# KEDA ScaledObject – Indexer Deployment Queue-Based Autoscaling
+# Issue #1128: Kubernetes pod autoscaling based on queue depth (KEDA)
+###############################################################################
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: indexer-scaledobject
+  namespace: gistpin
+  labels:
+    app: indexer
+    component: autoscaling
+    managed-by: keda
+spec:
+  # Target workload to scale
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: indexer
+
+  # Scaling bounds
+  minReplicaCount: 1
+  maxReplicaCount: 20
+
+  # Wait 300 s after last scale event before scaling down
+  cooldownPeriod: 300
+
+  # Check queue depth every 15 seconds
+  pollingInterval: 15
+
+  # Scale to zero is disabled (minReplicaCount: 1 keeps at least one pod running)
+  # Set to 0 to enable scale-to-zero (requires KEDA ScaledJob or idleReplicaCount)
+  idleReplicaCount: 1
+
+  # HPA-level stabilization windows
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Pods
+              value: 4
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 120
+
+  triggers:
+    - type: aws-sqs-queue
+      authenticationRef:
+        name: indexer-queue-auth
+      metadata:
+        # SQS queue URL injected via ConfigMap / environment variable
+        queueURL: https://sqs.us-east-1.amazonaws.com/$(AWS_ACCOUNT_ID)/gistpin-indexer-queue
+        queueLength: "10"          # Target: 10 messages per pod
+        awsRegion: us-east-1
+        # Use approximate number of messages visible + in-flight
+        scaleOnInFlight: "true"
+        identityOwner: operator    # Use TriggerAuthentication (not pod IRSA)
