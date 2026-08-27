@@ -1,0 +1,44 @@
+groups:
+  - name: istio.mesh
+    interval: 30s
+    rules:
+      - alert: MeshHighErrorRate
+        expr: |
+          sum(rate(istio_requests_total{response_code=~"5..",reporter="source"}[5m])) by (destination_service_name)
+          / sum(rate(istio_requests_total{reporter="source"}[5m])) by (destination_service_name) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.destination_service_name }}"
+          description: "Error rate > 5% for 2m on service {{ $labels.destination_service_name }}"
+
+      - alert: MeshHighLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(istio_request_duration_milliseconds_bucket{reporter="source"}[5m])) by (le, destination_service_name)
+          ) > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P99 latency > 1s on {{ $labels.destination_service_name }}"
+
+      - alert: MeshCircuitBreakerOpen
+        expr: |
+          sum(rate(istio_requests_total{response_flags="UO",reporter="source"}[1m])) by (destination_service_name) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker open for {{ $labels.destination_service_name }}"
+
+      - alert: MeshMTLSCoverageBelow90
+        expr: |
+          sum(istio_requests_total{connection_security_policy="mutual_tls"})
+          / sum(istio_requests_total) * 100 < 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "mTLS coverage below 90%"
