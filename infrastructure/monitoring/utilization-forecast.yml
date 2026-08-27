@@ -1,0 +1,53 @@
+# Prometheus Alerting Rules — K8s Utilization Forecast (#1130)
+# Fires when the forecasted CPU utilization exceeds 80% for 10 minutes.
+
+groups:
+  - name: k8s_utilization_forecast
+    interval: 1m
+    rules:
+      - alert: HighForecastCPUUtilization
+        expr: forecast_cpu_utilization > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+          issue: "1130"
+        annotations:
+          summary: "Forecasted CPU utilization exceeds 80% for {{ $labels.pod }}"
+          description: >
+            Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has a
+            7-day forecasted CPU utilization of {{ $value | printf "%.1f" }}%,
+            which exceeds the 80% threshold. Consider scaling resources or
+            enabling Horizontal Pod Autoscaler (HPA) to avoid cost overruns
+            and potential throttling.
+          runbook_url: "https://github.com/PinSpace-Org/GistPin/blob/main/infrastructure/docs/rollout-health.md"
+          dashboard_url: "http://grafana:3000/d/k8s-forecast/k8s-utilization-forecast"
+
+      - alert: HighForecastMemoryUtilization
+        expr: forecast_memory_utilization > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: infrastructure
+          issue: "1130"
+        annotations:
+          summary: "Forecasted memory utilization exceeds 80% for {{ $labels.pod }}"
+          description: >
+            Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has a
+            7-day forecasted memory utilization of {{ $value | printf "%.1f" }}%,
+            which exceeds the 80% threshold. Investigate for memory leaks or
+            increase memory limits to prevent OOMKilled events.
+          runbook_url: "https://github.com/PinSpace-Org/GistPin/blob/main/infrastructure/docs/rollout-health.md"
+
+      - alert: CriticalForecastCPUUtilization
+        expr: forecast_cpu_utilization > 95
+        for: 5m
+        labels:
+          severity: critical
+          team: infrastructure
+          issue: "1130"
+        annotations:
+          summary: "CRITICAL: Forecasted CPU utilization exceeds 95% for {{ $labels.pod }}"
+          description: >
+            Pod {{ $labels.pod }} is forecast to reach {{ $value | printf "%.1f" }}%
+            CPU utilization within 7 days. Immediate capacity planning action required.

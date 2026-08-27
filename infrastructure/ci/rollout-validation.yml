@@ -1,0 +1,120 @@
+# GitHub Actions Workflow — K8s Rolling Update Health Validation (#1132)
+# Runs validate-rollout.sh after every deployment to ensure pod health
+# and automatically rolls back if error thresholds are exceeded.
+
+name: K8s Rollout Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment:
+        description: "Kubernetes deployment name"
+        required: true
+      namespace:
+        description: "Kubernetes namespace"
+        required: false
+        default: "default"
+      error_threshold:
+        description: "Max errors before rollback"
+        required: false
+        default: "5"
+  workflow_call:
+    inputs:
+      deployment:
+        description: "Kubernetes deployment name"
+        required: true
+        type: string
+      namespace:
+        description: "Kubernetes namespace"
+        required: false
+        type: string
+        default: "default"
+      error_threshold:
+        description: "Max errors before rollback"
+        required: false
+        type: string
+        default: "5"
+    secrets:
+      KUBE_CONFIG:
+        required: true
+
+env:
+  ROLLOUT_TIMEOUT: "300s"
+  LOG_LINES: "200"
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    outputs:
+      deployment: ${{ steps.set-deployment.outputs.deployment }}
+      namespace: ${{ steps.set-deployment.outputs.namespace }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Set deployment outputs
+        id: set-deployment
+        run: |
+          echo "deployment=${{ inputs.deployment }}" >> "$GITHUB_OUTPUT"
+          echo "namespace=${{ inputs.namespace }}" >> "$GITHUB_OUTPUT"
+
+      - name: Apply Kubernetes manifests
+        run: |
+          echo "Applying K8s manifests for deployment: ${{ inputs.deployment }}"
+          # Replace with actual manifest apply command:
+          # kubectl apply -f infrastructure/k8s/ -n ${{ inputs.namespace }}
+          echo "Deployment applied."
+
+  validate-rollout:
+    name: Validate Rollout Health
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Make validate-rollout.sh executable
+        run: chmod +x infrastructure/scripts/validate-rollout.sh
+
+      - name: Run rollout health validation
+        id: validate
+        env:
+          ROLLOUT_TIMEOUT: ${{ env.ROLLOUT_TIMEOUT }}
+          LOG_LINES: ${{ env.LOG_LINES }}
+        run: |
+          infrastructure/scripts/validate-rollout.sh \
+            "${{ inputs.deployment }}" \
+            "${{ inputs.namespace }}" \
+            "${{ inputs.error_threshold }}"
+
+      - name: Notify on rollback
+        if: failure()
+        run: |
+          echo "::error::Rollout validation FAILED for ${{ inputs.deployment }}."
+          echo "::error::An automatic rollback has been triggered."
+          echo "Deployment rolled back due to health check failure." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post validation summary
+        if: success()
+        run: |
+          echo "## ✅ Rollout Validation Passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Deployment | \`${{ inputs.deployment }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Namespace | \`${{ inputs.namespace }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Error Threshold | ${{ inputs.error_threshold }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Status | Healthy ✅ |" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,134 @@
+# AWS CloudWatch Alarms for WAF Monitoring (#1131)
+# Fires when WAF blocked requests exceed 100 in a 5-minute window.
+# Deploy via: aws cloudformation deploy --template-file waf-alerts.yml ...
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "CloudWatch alarms for GasGuard WAF monitoring — issue #1131"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging, development]
+
+  WafAclName:
+    Type: String
+    Default: gasguard-rate-rules-production
+    Description: Name of the WAF ACL to monitor
+
+  BlockedRequestThreshold:
+    Type: Number
+    Default: 100
+    Description: Number of blocked requests in 5 min to trigger alarm
+
+  AlarmEmail:
+    Type: String
+    Default: ops@gasguard.io
+    Description: Email address for alarm notifications
+
+  WafRegion:
+    Type: String
+    Default: us-east-1
+    Description: AWS region where WAF is deployed
+
+Resources:
+  # SNS Topic for WAF alerts
+  WafAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "gasguard-waf-alerts-${Environment}"
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlarmEmail
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: cloudformation
+
+  # Alarm: High WAF blocked requests (>100 in 5 min) — rate limiting or geo-block triggers
+  WafBlockedRequestsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "gasguard-waf-blocked-requests-${Environment}"
+      AlarmDescription: >
+        Fires when WAF blocks more than 100 requests within a 5-minute window.
+        Investigate for DDoS, brute-force attempts, or misconfigured rules.
+      Namespace: AWS/WAFV2
+      MetricName: BlockedRequests
+      Dimensions:
+        - Name: WebACL
+          Value: !Ref WafAclName
+        - Name: Region
+          Value: !Ref WafRegion
+        - Name: Rule
+          Value: ALL
+      Statistic: Sum
+      Period: 300          # 5 minutes
+      EvaluationPeriods: 1
+      Threshold: !Ref BlockedRequestThreshold
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref WafAlertsTopic
+      OKActions:
+        - !Ref WafAlertsTopic
+
+  # Alarm: Bot control triggered requests spike
+  WafBotControlAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "gasguard-waf-bot-control-${Environment}"
+      AlarmDescription: >
+        Fires when AWS Bot Control detects more than 50 bot requests in 5 minutes.
+        Review bot traffic patterns and consider switching Bot Control to blocking mode.
+      Namespace: AWS/WAFV2
+      MetricName: CountedRequests
+      Dimensions:
+        - Name: WebACL
+          Value: !Ref WafAclName
+        - Name: Region
+          Value: !Ref WafRegion
+        - Name: Rule
+          Value: AWSManagedBotControl
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 50
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref WafAlertsTopic
+
+  # Alarm: Geo-block rule triggered (any blocked request from restricted country)
+  WafGeoBlockAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "gasguard-waf-geo-block-${Environment}"
+      AlarmDescription: >
+        Fires when requests are blocked by geo-restriction rules.
+        Indicates traffic from sanctioned/restricted regions.
+      Namespace: AWS/WAFV2
+      MetricName: BlockedRequests
+      Dimensions:
+        - Name: WebACL
+          Value: !Ref WafAclName
+        - Name: Region
+          Value: !Ref WafRegion
+        - Name: Rule
+          Value: GeoBlockRestrictedCountries
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref WafAlertsTopic
+
+Outputs:
+  WafAlertsTopicArn:
+    Description: ARN of the SNS topic for WAF alerts
+    Value: !Ref WafAlertsTopic
+    Export:
+      Name: !Sub "gasguard-waf-alerts-topic-${Environment}"
