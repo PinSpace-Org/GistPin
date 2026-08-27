@@ -1,0 +1,90 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-config
+  namespace: gistpin
+  labels:
+    app: gistpin-dex
+data:
+  config.yaml: |
+    issuer: https://dex.gistpin.app
+    storage:
+      type: kubernetes
+      config:
+        inCluster: true
+
+    oauth2:
+      responseTypes: ["code", "token", "id_token"]
+      skipApprovalScreen: true
+
+    web:
+      http: 0.0.0.0:5556
+      tlsCert: /etc/dex/tls/tls.crt
+      tlsKey: /etc/dex/tls/tls.key
+
+    telemetry:
+      http: 0.0.0.0:5558
+
+    logger:
+      level: info
+      format: json
+
+    # ── Static Password Fallback ──────────────────────────────────────────
+    # Used when GitHub OAuth is unavailable. Remove in production once
+    # GitHub connector is fully validated.
+    staticPasswords:
+      - email: admin@gistpin.app
+        # bcrypt hash of "changeme" — rotate immediately after first login
+        hash: "$2a$10$2b2cUevZh38BzaJkCz5EJeRb6gKjXr5pFQx5b3kZ8vY6xL9mN1oPq"
+        username: admin
+        userID: "00000000-0000-0000-0000-000000000001"
+      - email: readonly@gistpin.app
+        hash: "$2a$10$2b2cUevZh38BzaJkCz5EJeRb6gKjXr5pFQx5b3kZ8vY6xL9mN1oPq"
+        username: readonly
+        userID: "00000000-0000-0000-0000-000000000002"
+
+    # ── GitHub Connector ──────────────────────────────────────────────────
+    connectors:
+      - type: github
+        id: github
+        name: GitHub
+        config:
+          clientID: $GITHUB_CLIENT_ID
+          clientSecret: $GITHUB_CLIENT_SECRET
+          redirectURI: https://dex.gistpin.app/callback
+          orgs:
+            - name: PinSpace-Org
+              # Optional: restrict to specific teams
+              # teams:
+              #   - platform-admins
+              #   - developers
+
+    # ── OIDC Client Registration ──────────────────────────────────────────
+    # kubectl and other OIDC clients register here.
+    staticClients:
+      - id: kubectl
+        redirectURIs:
+          - "http://localhost:8000/callback"
+          - "http://localhost:18000/callback"
+        name: "kubectl"
+        secret: "$KUBECTL_CLIENT_SECRET"
+
+      - id: gistpin-api
+        redirectURIs:
+          - "https://api.gistpin.app/auth/callback"
+        name: "GistPin API"
+        secret: "$API_CLIENT_SECRET"
+
+    # ── Token Configuration ───────────────────────────────────────────────
+    expiry:
+      idTokens: 1h
+      signingKeys: 24h
+      refreshTokens:
+        reuseInterval: 30m
+        validIfNotUsedFor: 720h   # 30 days
+        disableRotation: false
+
+    # ── RBAC Mapping ──────────────────────────────────────────────────────
+    # Dex injects claims into the OIDC token. The Kubernetes API server
+    # uses these claims to evaluate RBAC bindings.
+    # See: https://kubernetes.io/docs/reference/access-authn-authz/authentication/#configuring-the-api-server

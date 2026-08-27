@@ -1,0 +1,203 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dex
+  namespace: gistpin
+  labels:
+    app: gistpin-dex
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: gistpin-dex
+  template:
+    metadata:
+      labels:
+        app: gistpin-dex
+    spec:
+      serviceAccountName: dex
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: dex
+          image: ghcr.io/dexidp/dex:v2.41.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - "serve"
+            - "/etc/dex/config.yaml"
+          ports:
+            - name: https
+              containerPort: 5556
+              protocol: TCP
+            - name: telemetry
+              containerPort: 5558
+              protocol: TCP
+          env:
+            - name: GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: dex-github-secrets
+                  key: client-id
+            - name: GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dex-github-secrets
+                  key: client-secret
+            - name: KUBECTL_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dex-client-secrets
+                  key: kubectl-secret
+            - name: API_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: dex-client-secrets
+                  key: api-secret
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dex
+              readOnly: true
+            - name: tls-certs
+              mountPath: /etc/dex/tls
+              readOnly: true
+          startupProbe:
+            httpGet:
+              path: /healthz/live
+              port: 5556
+              scheme: HTTPS
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz/live
+              port: 5556
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 5556
+              scheme: HTTPS
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+      volumes:
+        - name: config
+          configMap:
+            name: dex-config
+        - name: tls-certs
+          secret:
+            secretName: dex-tls
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: gistpin-dex
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+  namespace: gistpin
+  labels:
+    app: gistpin-dex
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 443
+      targetPort: 5556
+      protocol: TCP
+    - name: telemetry
+      port: 5558
+      targetPort: 5558
+      protocol: TCP
+  selector:
+    app: gistpin-dex
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dex
+  namespace: gistpin
+  labels:
+    app: gistpin-dex
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dex
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create", "get", "list", "watch", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["users"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["dex.coreos.com"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dex
+subjects:
+  - kind: ServiceAccount
+    name: dex
+    namespace: gistpin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dex
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dex
+  namespace: gistpin
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - dex.gistpin.app
+      secretName: dex-tls
+  rules:
+    - host: dex.gistpin.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dex
+                port:
+                  number: 443
