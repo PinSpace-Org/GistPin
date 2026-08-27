@@ -1,0 +1,29 @@
+# Test: enforce-encryption-at-rest policy — fail scenario
+# RDS has storage_encrypted=false.
+
+import "mock-tfplan" as tfplan
+import "../../../../../infrastructure/security/sentinel-policies/enforce-encryption.sentinel" as policy
+
+# Mock plan: RDS encryption disabled
+mock_plan = mock tfplan with {
+  resource_changes as {
+    "aws_db_instance.main": {
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "identifier": "gistpin-prod-db",
+          "storage_encrypted": false,
+        },
+      },
+    },
+  },
+}
+
+# Fail: RDS encryption disabled
+test_fail when {
+  not policy.main with tfplan as mock_plan
+}

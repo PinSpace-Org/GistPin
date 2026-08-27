@@ -1,0 +1,88 @@
+name: Sentinel Policy Tests
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/terraform/sentinel/**"
+      - "infrastructure/security/sentinel-policies/**"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/terraform/sentinel/**"
+      - "infrastructure/security/sentinel-policies/**"
+
+concurrency:
+  group: sentinel-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  SENTINEL_VERSION: "0.23.3"
+
+jobs:
+  validate-policies:
+    name: Validate Policy Syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Sentinel
+        run: |
+          curl -fsSL "https://releases.hashicorp.com/sentinel/${{ env.SENTINEL_VERSION }}/sentinel_${{ env.SENTINEL_VERSION }}_linux_amd64.zip" -o sentinel.zip
+          unzip sentinel.zip -d /usr/local/bin
+          rm sentinel.zip
+
+      - name: Lint all policies
+        run: |
+          echo "--- Linting sentinel policies ---"
+          for policy in infrastructure/security/sentinel-policies/*.sentinel; do
+            echo "Linting $policy..."
+            sentinel fmt -check "$policy" || sentinel fmt "$policy"
+          done
+
+  run-tests:
+    name: Run Policy Tests
+    runs-on: ubuntu-latest
+    needs: validate-policies
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Sentinel
+        run: |
+          curl -fsSL "https://releases.hashicorp.com/sentinel/${{ env.SENTINEL_VERSION }}/sentinel_${{ env.SENTINEL_VERSION }}_linux_amd64.zip" -o sentinel.zip
+          unzip sentinel.zip -d /usr/local/bin
+          rm sentinel.zip
+
+      - name: Run require-tags tests
+        run: |
+          echo "=== require-tags pass test ==="
+          sentinel test infrastructure/terraform/sentinel/tests/require_tags_test.sentinel -v
+          echo ""
+          echo "=== require-tags fail test ==="
+          sentinel test infrastructure/terraform/sentinel/tests/require_tags_fail_test.sentinel -v
+
+      - name: Run encryption tests
+        run: |
+          echo "=== encryption pass test ==="
+          sentinel test infrastructure/terraform/sentinel/tests/encryption_test.sentinel -v
+          echo ""
+          echo "=== encryption fail test ==="
+          sentinel test infrastructure/terraform/sentinel/tests/encryption_fail_test.sentinel -v
+
+  test-all-policies:
+    name: Run All Tests
+    runs-on: ubuntu-latest
+    needs: run-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Sentinel
+        run: |
+          curl -fsSL "https://releases.hashicorp.com/sentinel/${{ env.SENTINEL_VERSION }}/sentinel_${{ env.SENTINEL_VERSION }}_linux_amd64.zip" -o sentinel.zip
+          unzip sentinel.zip -d /usr/local/bin
+          rm sentinel.zip
+
+      - name: Run all Sentinel tests
+        run: |
+          echo "Running all Sentinel policy tests..."
+          sentinel test infrastructure/terraform/sentinel/tests/ -v -all
+          echo "All tests passed."

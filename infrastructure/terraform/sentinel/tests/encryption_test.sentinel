@@ -1,0 +1,46 @@
+# Test: enforce-encryption-at-rest policy — pass scenario
+# RDS has storage_encrypted=true, S3 has encryption config.
+
+import "mock-tfplan" as tfplan
+import "../../../../../infrastructure/security/sentinel-policies/enforce-encryption.sentinel" as policy
+
+# Mock plan: RDS encrypted, S3 has encryption configuration
+mock_plan = mock tfplan with {
+  resource_changes as {
+    "aws_db_instance.main": {
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "identifier": "gistpin-prod-db",
+          "storage_encrypted": true,
+        },
+      },
+    },
+    "aws_s3_bucket_server_side_encryption_configuration.data": {
+      "mode": "managed",
+      "type": "aws_s3_bucket_server_side_encryption_configuration",
+      "name": "data",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "bucket": "gistpin-prod-data",
+          "rule": {
+            "apply_server_side_encryption_by_default": {
+              "sse_algorithm": "aws:kms",
+            },
+          },
+        },
+      },
+    },
+  },
+}
+
+# Pass: encryption requirements met
+test_pass when {
+  policy.main with tfplan as mock_plan
+}

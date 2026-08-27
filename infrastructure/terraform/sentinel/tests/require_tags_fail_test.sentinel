@@ -1,0 +1,44 @@
+# Test: require-tags policy — fail scenario
+# Resources are missing one or both required tags.
+
+import "mock-tfplan" as tfplan
+import "../../../../../infrastructure/security/sentinel-policies/require-tags.sentinel" as policy
+
+# Mock plan: S3 bucket has no tags at all, RDS is missing Environment tag
+mock_plan = mock tfplan with {
+  resource_changes as {
+    "aws_s3_bucket.data": {
+      "mode": "managed",
+      "type": "aws_s3_bucket",
+      "name": "data",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "bucket": "gistpin-prod-data",
+          "tags": {},
+        },
+      },
+    },
+    "aws_db_instance.main": {
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "main",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "identifier": "gistpin-prod-db",
+          "tags": {
+            "Project": "gistpin",
+          },
+        },
+      },
+    },
+  },
+}
+
+# Fail: at least one resource violates tag requirements
+test_fail when {
+  not policy.main with tfplan as mock_plan
+}
