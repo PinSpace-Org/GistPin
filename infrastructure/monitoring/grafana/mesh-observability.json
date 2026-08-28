@@ -1,0 +1,76 @@
+{
+  "title": "Service Mesh Observability",
+  "uid": "mesh-observability",
+  "tags": ["istio", "service-mesh"],
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Volume per Service",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(istio_requests_total{reporter=\"source\"}[1m])) by (destination_service_name)",
+          "legendFormat": "{{destination_service_name}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error Rate by Service Pair",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(istio_requests_total{response_code=~\"5..\",reporter=\"source\"}[1m])) by (source_app, destination_service_name) / sum(rate(istio_requests_total{reporter=\"source\"}[1m])) by (source_app, destination_service_name)",
+          "legendFormat": "{{source_app}} → {{destination_service_name}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "P99 Latency Heatmap",
+      "type": "heatmap",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(istio_request_duration_milliseconds_bucket{reporter=\"source\"}[1m])) by (le, destination_service_name))",
+          "legendFormat": "{{destination_service_name}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Retries and Circuit Breaker Trips",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(istio_requests_total{response_flags=~\"URX|UO\",reporter=\"source\"}[1m])) by (destination_service_name)",
+          "legendFormat": "{{destination_service_name}} (retries/overflow)"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "mTLS Coverage %",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 16, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(istio_requests_total{connection_security_policy=\"mutual_tls\"}) / sum(istio_requests_total) * 100",
+          "legendFormat": "mTLS %"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "thresholds": { "steps": [{ "value": 0, "color": "red" }, { "value": 90, "color": "green" }] } } }
+    }
+  ],
+  "templating": {
+    "list": [
+      { "name": "namespace", "type": "query", "query": "label_values(istio_requests_total, destination_workload_namespace)" },
+      { "name": "service", "type": "query", "query": "label_values(istio_requests_total{destination_workload_namespace=\"$namespace\"}, destination_service_name)" }
+    ]
+  },
+  "schemaVersion": 36
+}

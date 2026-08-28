@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gistpin-api
+  namespace: production
+  annotations:
+    # Enable topology-aware routing: prefer endpoints in the same zone
+    service.kubernetes.io/topology-mode: "Auto"
+spec:
+  selector:
+    app: gistpin-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+# EndpointSlice hint validation — topology hints are auto-populated by
+# the EndpointSlice controller when topology-mode=Auto is set on the Service.
+# The following ConfigMap documents the expected zone distribution.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: topology-hints-config
+  namespace: production
+data:
+  description: |
+    Topology-aware routing is enabled on all production Services via the
+    service.kubernetes.io/topology-mode=Auto annotation.
+
+    The EndpointSlice controller will:
+    - Annotate endpoint hints with the zone of each backing pod
+    - Prefer routing traffic to endpoints in the same zone as the client
+    - Fall back to cross-zone routing when local endpoints are unavailable
+      or capacity is insufficient (proportional to pod count per zone)
+
+  fallback_policy: |
+    When local-zone endpoint capacity < 10% of total, routing falls back
+    to all zones automatically (kube-proxy ignores hints).
+
+  validation_command: |
+    kubectl get endpointslices -n production -o jsonpath=
+    '{range .items[*]}{.metadata.name}{"\t"}{.endpoints[*].hints}{"\n"}{end}'

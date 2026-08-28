@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudWatch alarms for VPC flow log anomalies
+
+Parameters:
+  SNSTopicArn:
+    Type: String
+    Description: SNS topic for alert notifications
+
+Resources:
+  # Alarm: high rejected traffic volume (potential port scan / DDoS)
+  RejectedTrafficAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: VPC-HighRejectedTraffic
+      AlarmDescription: Rejected VPC traffic exceeds threshold — possible port scan or brute force
+      MetricName: RejectedPackets
+      Namespace: VPC/FlowLogs
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1000
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # Alarm: unusual data egress
+  HighEgressAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: VPC-HighDataEgress
+      AlarmDescription: Data egress bytes exceed 10 GB in 5 minutes — possible data exfiltration
+      MetricName: BytesTransferred
+      Namespace: VPC/FlowLogs
+      Dimensions:
+        - Name: TrafficType
+          Value: EGRESS
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10737418240  # 10 GB
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # Weekly Athena report — EventBridge scheduled rule
+  WeeklyFlowReportRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: WeeklyVPCFlowReport
+      Description: Trigger weekly VPC traffic summary from Athena
+      ScheduleExpression: "cron(0 8 ? * MON *)"
+      State: ENABLED
+      Targets:
+        - Arn: !Ref SNSTopicArn
+          Id: WeeklyReportNotification
+          Input: '{"message": "Weekly VPC flow log report is ready. Query: vpc_flow_logs.flow_logs"}'

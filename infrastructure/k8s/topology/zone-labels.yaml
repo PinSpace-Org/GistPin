@@ -1,0 +1,58 @@
+# zone-labels.yaml
+# Node zone labels are typically auto-applied by the cloud provider CCM.
+# This manifest documents the expected label strategy and provides a
+# DaemonSet that validates zone labels are present on all nodes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zone-label-strategy
+  namespace: kube-system
+data:
+  required_labels: |
+    topology.kubernetes.io/zone       # e.g. us-east-1a
+    topology.kubernetes.io/region     # e.g. us-east-1
+  node_selector_example: |
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: topology.kubernetes.io/zone
+                operator: In
+                values: ["us-east-1a", "us-east-1b", "us-east-1c"]
+  spread_constraint_example: |
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: gistpin-api
+---
+# CronJob to validate zone labels are present on all nodes
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: zone-label-validator
+  namespace: kube-system
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: default
+          restartPolicy: OnFailure
+          containers:
+            - name: validator
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  UNLABELED=$(kubectl get nodes \
+                    -o jsonpath='{range .items[?(!@.metadata.labels.topology\.kubernetes\.io/zone)]}{.metadata.name}{"\n"}{end}')
+                  if [ -n "$UNLABELED" ]; then
+                    echo "WARNING: nodes missing zone label: $UNLABELED"
+                    exit 1
+                  fi
+                  echo "All nodes have topology zone labels."
