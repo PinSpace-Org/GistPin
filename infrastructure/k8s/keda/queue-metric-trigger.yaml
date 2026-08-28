@@ -1,0 +1,88 @@
+###############################################################################
+# KEDA TriggerAuthentication – SQS Queue Metrics
+# Issue #1128: Kubernetes pod autoscaling based on queue depth (KEDA)
+#
+# This TriggerAuthentication grants KEDA the AWS credentials required to
+# read SQS queue attributes (ApproximateNumberOfMessages) for scaling decisions.
+#
+# Recommended: use IAM Roles for Service Accounts (IRSA) on EKS so that no
+# long-lived credentials are stored in the cluster.
+###############################################################################
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: indexer-queue-auth
+  namespace: gistpin
+  labels:
+    app: indexer
+    component: autoscaling
+    managed-by: keda
+spec:
+  podIdentity:
+    # Use AWS IRSA (recommended for EKS)
+    # Requires the KEDA operator's service account to be annotated with an IAM role
+    # that has sqs:GetQueueAttributes and sqs:GetQueueUrl permissions.
+    provider: aws
+
+---
+###############################################################################
+# Fallback: Secret-based authentication (use only when IRSA is unavailable)
+# Uncomment the block below and comment out the podIdentity block above.
+###############################################################################
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: indexer-queue-credentials
+#   namespace: gistpin
+# type: Opaque
+# stringData:
+#   AWS_ACCESS_KEY_ID: "<injected-by-sealed-secrets-or-external-secrets>"
+#   AWS_SECRET_ACCESS_KEY: "<injected-by-sealed-secrets-or-external-secrets>"
+# ---
+# apiVersion: keda.sh/v1alpha1
+# kind: TriggerAuthentication
+# metadata:
+#   name: indexer-queue-auth
+#   namespace: gistpin
+# spec:
+#   secretTargetRef:
+#     - parameter: awsAccessKeyID
+#       name: indexer-queue-credentials
+#       key: AWS_ACCESS_KEY_ID
+#     - parameter: awsSecretAccessKey
+#       name: indexer-queue-credentials
+#       key: AWS_SECRET_ACCESS_KEY
+
+---
+###############################################################################
+# IAM Policy (apply via Terraform or aws CLI)
+# Minimum permissions required for the KEDA operator role:
+#
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": [
+#         "sqs:GetQueueAttributes",
+#         "sqs:GetQueueUrl"
+#       ],
+#       "Resource": "arn:aws:sqs:us-east-1:*:gistpin-indexer-queue"
+#     }
+#   ]
+# }
+###############################################################################
+# ConfigMap: queue configuration consumed by the ScaledObject
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: indexer-queue-config
+  namespace: gistpin
+  labels:
+    app: indexer
+    component: autoscaling
+data:
+  QUEUE_NAME: gistpin-indexer-queue
+  AWS_REGION: us-east-1
+  # Target messages-per-pod ratio (also set in ScaledObject)
+  QUEUE_LENGTH_PER_POD: "10"
