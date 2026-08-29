@@ -1,0 +1,208 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Kubernetes cluster cost attribution by team - showback and budget thresholds (namespace team label)",
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "title": "Total Team Cost (Monthly)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "red", "value": 10000 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (team) (team_cost_attribution_cost_usd * 730)",
+          "legendFormat": "{{team}}"
+        }
+      ]
+    },
+    {
+      "title": "CPU Cost by Team",
+      "type": "bargauge",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (team) (team_cost_attribution_cpu_cost_usd))",
+          "legendFormat": "{{team}}"
+        }
+      ]
+    },
+    {
+      "title": "Memory Cost by Team",
+      "type": "bargauge",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (team) (team_cost_attribution_memory_cost_usd))",
+          "legendFormat": "{{team}}"
+        }
+      ]
+    },
+    {
+      "title": "Budget vs Actual (All Teams)",
+      "type": "bargauge",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5000 },
+              { "color": "red", "value": 10000 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (team) (team_cost_attribution_actual_cost_usd)",
+          "legendFormat": "Actual {{team}}"
+        },
+        {
+          "expr": "sum by (team) (team_cost_attribution_budget_usd)",
+          "legendFormat": "Budget {{team}}"
+        }
+      ]
+    },
+    {
+      "title": "Cost per Namespace by Team",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (namespace, team) (team_cost_attribution_cost_usd))",
+          "legendFormat": "{{namespace}} ({{team}})"
+        }
+      ]
+    },
+    {
+      "title": "Cost Trend by Team (30d)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 4 },
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "currencyUSD"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (team) (team_cost_attribution_cost_usd)",
+          "legendFormat": "{{team}}"
+        }
+      ]
+    },
+    {
+      "title": "CPU Allocation by Team (cores)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (team) (team_cost_attribution_cpu_cores)",
+          "legendFormat": "{{team}}"
+        }
+      ]
+    },
+    {
+      "title": "Memory Allocation by Team (GiB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (team) (team_cost_attribution_memory_gib)",
+          "legendFormat": "{{team}}"
+        }
+      ]
+    },
+    {
+      "title": "Budget Threshold Status by Team",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "team_cost_attribution_budget_threshold",
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        }
+      }
+    }
+  ],
+  "time": { "from": "now-30d", "to": "now" },
+  "refresh": "5m",
+  "templating": {
+    "list": [
+      {
+        "name": "team",
+        "type": "query",
+        "query": "label_values(team_cost_attribution_cost_usd, team)",
+        "current": { "text": "All", "value": "$__all" },
+        "includeAll": true,
+        "multi": true,
+        "hide": 0
+      }
+    ]
+  },
+  "title": "Kubernetes Team Cost Attribution",
+  "uid": "team-cost-attribution",
+  "version": 1
+}

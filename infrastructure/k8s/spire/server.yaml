@@ -1,0 +1,218 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# GistPin — SPIRE Server
+#
+# SPIRE server issues workload SVIDs and manages the trust domain. It runs as a
+# StatefulSet so the data directory persists the trust bundle across restarts.
+#
+# Apply order:
+#   1. kubectl create namespace spire
+#   2. kubectl apply -f server.yaml
+#   3. kubectl apply -f agent-daemonset.yaml
+#   4. kubectl apply -f cluster-spiffe-id.yaml
+#
+# Rotation: certificates/SVIDs are rotated automatically by SPIRE at the
+# interval configured below (default 12h for SVIDs). Rotate the server trust
+# bundle with infrastructure/scripts/rotate-spire-roots.sh.
+# ──────────────────────────────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spire
+  labels:
+    app: spire
+    spiffe.io/managed: "true"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+---
+# The SPIRE server needs cluster-scope read to reconcile per-node identities.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spire-server
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spire-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spire-server
+subjects:
+  - kind: ServiceAccount
+    name: spire-server
+    namespace: spire
+---
+# Socket-based gRPC endpoint the local agent dials into.
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-server
+  namespace: spire
+spec:
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+  selector:
+    app: spire-server
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+spec:
+  serviceName: spire-server
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-server
+  template:
+    metadata:
+      labels:
+        app: spire-server
+        spiffe.io/spire-server: "true"
+    spec:
+      serviceAccountName: spire-server
+      containers:
+        # Server entrypoint. Pinned image tag; bump deliberately to avoid
+        # unexpected upgrades (see docs/version-pinning.md).
+        - name: spire-server
+          image: ghcr.io/spiffe/spire-server:1.14.1
+          args:
+            - -config
+            - /run/spire/config/server.conf
+          ports:
+            - name: grpc
+              containerPort: 8081
+            - name: healthcheck
+              containerPort: 8080
+          env:
+            - name: SPIRE_SERVER_CA_KMS_KEY_ID
+              value: ""  # leave empty for on-disk CA keys
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
+            - name: spire-sockets
+              mountPath: /run/spire/sockets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            exec:
+              command: ["/opt/spire/bin/spire-server", "healthcheck"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["/opt/spire/bin/spire-server", "healthcheck"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-server-config
+        - name: spire-sockets
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: spire-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+        storageClassName: standard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server-config
+  namespace: spire
+  labels:
+    app: spire-server
+data:
+  server.conf: |
+    server {
+      bind_address = "0.0.0.0"
+      bind_port = "8081"
+      socket_path = "/run/spire/sockets/server.sock"
+      trust_domain = "gistpin.local"
+      data_dir = "/run/spire/data"
+
+      # Automatic rotation of the server trust bundle and CA. Short intervals
+      # are used here to exercise rotation in dev; lengthen for production.
+      ca_ttl = "24h"
+      ca_rotation_interval = "24h"
+    }
+
+    # Bootstrap trust bundle loaded from a Kubernetes Secret. In production this
+    # is signed by a root CA; the cluster-spiffe-id controller keeps entries in
+    # sync with this trust domain.
+    trust_bundle {
+      bundle_file = "/run/spire/data/bootstrap.pem"
+    }
+
+    plugins {
+      NodeAttestor "k8s_sat" {
+        plugin_data {
+          cluster = "gistpin"
+          skip_kubelet_verification = true
+        }
+      }
+
+      DataStore "sql" {
+        plugin_data {
+          database_type = "sqlite3"
+          connection_string = "/run/spire/data/datastore.sqlite3"
+        }
+      }
+    }
+
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+    }
+---
+# Registry data useful for onboarding new workloads onto the trust domain.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-bundle
+  namespace: spire
+  labels:
+    app: spire-server
+data:
+  trust_domain: "gistpin.local"
+  rotation_interval: "12h"
