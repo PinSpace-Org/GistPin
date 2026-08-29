@@ -24,6 +24,10 @@ const STATIC_INDEX: SearchResult[] = [
   { id: 'page-comparison',    type: 'page',     label: 'Comparison',        description: 'Compare time periods',     href: '/comparison' },
   { id: 'page-reports',       type: 'page',     label: 'Reports',           description: 'Scheduled reports',        href: '/reports' },
   { id: 'page-report-builder',type: 'page',     label: 'Report Builder',    description: 'Build custom reports',     href: '/report-builder' },
+  { id: 'page-composite-alerts', type: 'page',  label: 'Composite Alerts',  description: 'Multi-metric anomaly detection & cascade analyzer', href: '/composite-alerts' },
+  { id: 'page-data-completeness', type: 'page', label: 'Data Completeness', description: 'On-chain vs IPFS completeness scorecard', href: '/data-completeness' },
+  { id: 'page-geo-saturation', type: 'page',    label: 'Content Saturation', description: 'Geographic content density vs demand analyzer', href: '/geographic-saturation' },
+  { id: 'page-fee-burden',    type: 'page',     label: 'Fee Burden',        description: 'Wallet transaction cost burden analyzer', href: '/fee-burden' },
   // Metrics
   { id: 'metric-total-gists', type: 'metric',   label: 'Total Gists',       description: 'Cumulative gist count' },
   { id: 'metric-today-gists', type: 'metric',   label: "Today's Gists",     description: 'Gists posted today' },
