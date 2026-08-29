@@ -1,0 +1,7 @@
+# Version pinning allowlist.
+# One violation signature per line. Lines starting with '#' are ignored.
+# Signatures may be: a full "file :: line" match, the raw image reference, or a
+# version/tag value. Only use this for legitimate pinned-by-other-means cases.
+
+# Example: allow a shared meta-chart that intentionally tracks the latest patch.
+# infrastructure/k8s/helm/shared/Chart.yaml:no-version

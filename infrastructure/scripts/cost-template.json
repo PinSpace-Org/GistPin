@@ -1,0 +1,10 @@
+{
+  "cpu_per_core_hour": 0.0301,
+  "mem_per_gib_hour": 0.0047,
+  "budget": {
+    "frontend": 500,
+    "backend": 1200,
+    "data": 1500,
+    "platform": 800
+  }
+}

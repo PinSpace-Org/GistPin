@@ -1,0 +1,47 @@
+name: Version Pinning Check
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/k8s/**"
+      - "infrastructure/scripts/audit-versions.sh"
+      - "infrastructure/ci/version-allowlist.txt"
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/k8s/**"
+      - "infrastructure/scripts/audit-versions.sh"
+      - "infrastructure/ci/version-allowlist.txt"
+
+concurrency:
+  group: version-pinning-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  version-pinning:
+    name: Audit Kubernetes resource version pinning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run version pinning audit
+        id: audit
+        run: |
+          bash infrastructure/scripts/audit-versions.sh \
+            --allowlist infrastructure/ci/version-allowlist.txt \
+            --report
+        continue-on-error: true
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-pinning-report
+          path: infrastructure/ci/reports/version-pinning-*.json
+          retention-days: 14
+
+      - name: Block deploy on unpinned versions
+        if: steps.audit.outcome == 'failure'
+        run: |
+          echo "::error::Unpinned resource versions detected (:latest images, unversioned Helm refs, or non-apps/v1 API versions)."
+          echo "Resolve by pinning version tags or adding to infrastructure/ci/version-allowlist.txt."
+          exit 1

@@ -1,0 +1,165 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# GistPin — SPIRE Agent DaemonSet
+#
+# The agent runs on every node, attests to the SPIRE server via Kubernetes node
+# attestation, and exposes a local Workload API socket that workloads use to
+# request SVIDs. Secret data is never stored on the node — only the issued SVID
+# is materialised on the socket.
+#
+# Depends on: spire-server (server.yaml), cluster-spiffe-id.yaml (registration).
+# ──────────────────────────────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-agent
+  namespace: spire
+  labels:
+    app: spire-agent
+---
+# The agent lists/watch the hostnode resource and reads node metadata.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: spire-agent
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: spire-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: spire-agent
+subjects:
+  - kind: ServiceAccount
+    name: spire-agent
+    namespace: spire
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent
+  namespace: spire
+  labels:
+    app: spire-agent
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: spire-agent
+        spiffe.io/spire-agent: "true"
+    spec:
+      hostPID: true
+      hostNetwork: true
+      # Bind the Workload API and kubelet verification on the host namespace.
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccountName: spire-agent
+      containers:
+        - name: spire-agent
+          image: ghcr.io/spiffe/spire-agent:1.14.1
+          args:
+            - -config
+            - /run/spire/config/agent.conf
+          env:
+            - name: SPIRE_TRUST_DOMAIN
+              value: gistpin.local
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            # Shared host socket directory that workloads mount.
+            - name: spire-sockets
+              mountPath: /run/spire/sockets
+            - name: spire-bundle
+              mountPath: /run/spire/bundle
+              readOnly: true
+            - name: spire-token
+              mountPath: /var/run/secrets/tokens
+          livenessProbe:
+            exec:
+              command: ["/opt/spire/bin/spire-agent", "healthcheck"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-agent-config
+        - name: spire-sockets
+          hostPath:
+            path: /run/spire/sockets
+            type: DirectoryOrCreate
+        - name: spire-bundle
+          configMap:
+            name: spire-server-bundle  # populated by the controller / bootstrap
+        - name: spire-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: spire-agent-token
+                  expirationSeconds: 600
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-agent-config
+  namespace: spire
+  labels:
+    app: spire-agent
+data:
+  agent.conf: |
+    agent {
+      data_dir = "/run/spire/data"
+      trust_domain = "gistpin.local"
+      server_address = "spire-server.spire.svc"
+      server_port = "8081"
+      # Path where workloads dial the Workload API.
+      socket_path = "/run/spire/sockets/agent.sock"
+      insecure_bootstrap = true
+    }
+
+    plugins {
+      NodeAttestor "k8s_sat" {
+        plugin_data {
+          cluster = "gistpin"
+        }
+      }
+
+      KeyManager "disk" {
+        plugin_data {
+          directory = "/run/spire/data"
+        }
+      }
+
+      WorkloadAttestor "k8s" {
+        plugin_data {
+          skip_kubelet_verification = true
+          kubelet_ca_path = "/run/spire/bundle/root-ca.pem"
+        }
+      }
+    }
+
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8082"
+    }
