@@ -1,0 +1,91 @@
+---
+# Weekly CronJob that runs the resource auto-tuner. Runs in dry-run first via a
+# separate schedule if desired; this one applies staged changes.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: resource-autotuner
+  namespace: platform
+  labels:
+    app.kubernetes.io/name: resource-autotuner
+    app.kubernetes.io/managed-by: gistpin-infra
+spec:
+  # Sunday 03:00 — low-traffic window so any staged rollback is low-impact.
+  schedule: "0 3 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: resource-autotuner
+        spec:
+          restartPolicy: Never
+          serviceAccountName: resource-autotuner
+          containers:
+            - name: tuner
+              image: ghcr.io/pinspace-org/infra-toolbox:latest
+              command: ["/bin/bash", "/scripts/autotune-resources.sh", "--apply", "--namespace", "backend"]
+              env:
+                - name: PROM_URL
+                  value: "http://prometheus.monitoring.svc.cluster.local:9090"
+                - name: WINDOW
+                  value: "7d"
+                - name: STAGE_PERCENT
+                  value: "25"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: autotune-scripts
+                defaultMode: 0755
+---
+# ServiceAccount + RBAC: the tuner needs to read and patch Deployment resources
+# in the workload namespaces and read metrics.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: resource-autotuner
+  namespace: platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: resource-autotuner
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale", "replicasets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: resource-autotuner
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: resource-autotuner
+subjects:
+  - kind: ServiceAccount
+    name: resource-autotuner
+    namespace: platform
