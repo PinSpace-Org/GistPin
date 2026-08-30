@@ -1,0 +1,66 @@
+---
+# ConstraintTemplate: require a hardened security context on all pods.
+# Defines the Rego policy; the actual enforcement scope/mode is set by the
+# Constraint in ../constraints/require-security-context.yaml.
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredsecuritycontext
+  annotations:
+    description: >-
+      Requires pods and their containers to set a hardened security context:
+      runAsNonRoot, no privilege escalation, read-only root filesystem, and all
+      Linux capabilities dropped.
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredSecurityContext
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            exemptImages:
+              description: Image prefixes exempt from the read-only-root-fs rule.
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredsecuritycontext
+
+        # Pod-level: must run as non-root.
+        violation[{"msg": msg}] {
+          not input.review.object.spec.securityContext.runAsNonRoot == true
+          msg := "pod securityContext.runAsNonRoot must be true"
+        }
+
+        # Container-level checks.
+        violation[{"msg": msg}] {
+          c := input.review.object.spec.containers[_]
+          not c.securityContext.allowPrivilegeEscalation == false
+          msg := sprintf("container %q must set securityContext.allowPrivilegeEscalation: false", [c.name])
+        }
+
+        violation[{"msg": msg}] {
+          c := input.review.object.spec.containers[_]
+          not exempt(c.image)
+          not c.securityContext.readOnlyRootFilesystem == true
+          msg := sprintf("container %q must set securityContext.readOnlyRootFilesystem: true", [c.name])
+        }
+
+        violation[{"msg": msg}] {
+          c := input.review.object.spec.containers[_]
+          not drops_all_caps(c)
+          msg := sprintf("container %q must drop ALL capabilities", [c.name])
+        }
+
+        drops_all_caps(c) {
+          c.securityContext.capabilities.drop[_] == "ALL"
+        }
+
+        exempt(image) {
+          prefix := input.parameters.exemptImages[_]
+          startswith(image, prefix)
+        }

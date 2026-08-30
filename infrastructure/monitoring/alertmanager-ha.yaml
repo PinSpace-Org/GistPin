@@ -1,0 +1,119 @@
+---
+# Alertmanager in HA mode: a 3-replica StatefulSet whose members form a gossip
+# cluster (HashiCorp memberlist). The cluster shares notification/silence state
+# so alerts are de-duplicated across replicas and silences apply cluster-wide.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: alerting
+spec:
+  serviceName: alertmanager-cluster   # headless service for stable peer DNS
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alertmanager
+    spec:
+      # Spread replicas across nodes so a single node loss can't take the whole
+      # Alertmanager cluster down.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: alertmanager
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: alertmanager
+          image: quay.io/prometheus/alertmanager:v0.27.0
+          args:
+            - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
+            # Gossip: listen for cluster traffic and peer with the other two
+            # replicas via the headless service's stable pod DNS names.
+            - "--cluster.listen-address=$(POD_IP):9094"
+            - "--cluster.peer=alertmanager-0.alertmanager-cluster.monitoring.svc:9094"
+            - "--cluster.peer=alertmanager-1.alertmanager-cluster.monitoring.svc:9094"
+            - "--cluster.peer=alertmanager-2.alertmanager-cluster.monitoring.svc:9094"
+            - "--cluster.reconnect-timeout=5m"
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - name: web
+              containerPort: 9093
+            - name: cluster
+              containerPort: 9094
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: web
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: web
+            initialDelaySeconds: 30
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: storage
+              mountPath: /alertmanager
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-config
+  # Per-replica persistent storage so silences and notification-log state survive
+  # restarts; the gossip cluster keeps the three copies in sync.
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      # Grouping keys — combined with the gossip cluster, identical alerts fired
+      # at multiple replicas are de-duplicated into a single notification.
+      group_by: ["alertname", "cluster", "service"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: default
+    receivers:
+      - name: default
+        # Receiver config (Slack/PagerDuty) injected via the integration configs.
+    inhibit_rules:
+      - source_matchers: [severity = "critical"]
+        target_matchers: [severity = "warning"]
+        equal: ["alertname", "cluster", "service"]
