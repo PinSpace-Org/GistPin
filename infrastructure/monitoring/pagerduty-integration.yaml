@@ -1,0 +1,72 @@
+---
+# Grafana <-> PagerDuty integration.
+# Defines the Grafana contact point that routes alerts to PagerDuty, the
+# notification policy that maps severities to escalation, and the config the
+# sync-oncall.sh job uses to mirror PagerDuty schedules into Grafana.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-pagerduty-integration
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: alerting
+data:
+  # Grafana provisioned alerting: contact points.
+  contact-points.yaml: |
+    apiVersion: 1
+    contactPoints:
+      - orgId: 1
+        name: pagerduty-critical
+        receivers:
+          - uid: pd-critical
+            type: pagerduty
+            settings:
+              integrationKey: ${PAGERDUTY_CRITICAL_ROUTING_KEY}
+              severity: critical
+      - orgId: 1
+        name: pagerduty-warning
+        receivers:
+          - uid: pd-warning
+            type: pagerduty
+            settings:
+              integrationKey: ${PAGERDUTY_WARNING_ROUTING_KEY}
+              severity: warning
+
+  # Notification policy: route by severity label to the matching PagerDuty
+  # escalation (critical pages immediately; warning uses the low-urgency policy).
+  notification-policies.yaml: |
+    apiVersion: 1
+    policies:
+      - orgId: 1
+        receiver: pagerduty-warning
+        group_by: ["alertname", "cluster", "service"]
+        routes:
+          - receiver: pagerduty-critical
+            matchers:
+              - severity = critical
+            group_wait: 0s
+            repeat_interval: 30m
+          - receiver: pagerduty-warning
+            matchers:
+              - severity = warning
+            group_wait: 30s
+            repeat_interval: 4h
+
+  # Sync configuration consumed by sync-oncall.sh.
+  oncall-sync.yaml: |
+    pagerduty:
+      # Schedules to mirror into Grafana (schedule id -> logical team name).
+      schedules:
+        - id: PSCHED01
+          team: platform
+        - id: PSCHED02
+          team: backend
+      # Escalation policy -> Grafana receiver mapping.
+      escalation_mapping:
+        critical: pagerduty-critical
+        warning: pagerduty-warning
+    grafana:
+      # Where the current on-call is published for dashboards/annotations.
+      oncall_configmap: grafana-current-oncall
+      namespace: monitoring

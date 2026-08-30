@@ -1,0 +1,56 @@
+# Terraform workspace activity monitoring rules.
+# Alerts on the signals monitor-workspace-activity.sh surfaces, assuming those
+# metrics are exported into Prometheus (e.g. by a small exporter that runs the
+# script's queries, or via the TFE metrics/webhook integration).
+
+groups:
+  - name: terraform-workspace-activity
+    rules:
+      # --- Recording rules: normalize activity into stable series ------------
+      - record: tfe:runs_failed:increase1h
+        expr: increase(tfe_run_status_total{status="errored"}[1h])
+
+      - record: tfe:plan_duration_seconds:p95
+        expr: histogram_quantile(0.95, sum(rate(tfe_plan_duration_seconds_bucket[1h])) by (le, workspace))
+
+      # --- Failed run alerting ---------------------------------------------
+      - alert: TerraformRunFailed
+        expr: increase(tfe_run_status_total{status="errored"}[15m]) > 0
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Terraform run failed in {{ $labels.workspace }}"
+          description: "A Terraform run errored in workspace {{ $labels.workspace }}; check the run log."
+
+      # --- Long-running plan detection -------------------------------------
+      - alert: TerraformPlanSlow
+        expr: tfe:plan_duration_seconds:p95 > 1200
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Terraform plans slow in {{ $labels.workspace }}"
+          description: "p95 plan duration in {{ $labels.workspace }} exceeded 20m; a large state or provider slowness is likely."
+
+      # --- Unusual activity: applies outside change windows ----------------
+      - alert: TerraformApplyOutsideWindow
+        expr: increase(tfe_run_status_total{status="applied"}[5m]) > 0 and on() (hour() < 8 or hour() > 20)
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "Terraform apply outside business hours"
+          description: "An apply completed outside the 08:00–20:00 change window; confirm it was authorized."
+
+      # --- Stuck / long-pending runs ---------------------------------------
+      - alert: TerraformRunPendingTooLong
+        expr: tfe_run_pending_seconds > 3600
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Terraform run pending > 1h in {{ $labels.workspace }}"
+          description: "A run has been pending for over an hour — a stuck queue or missing approval is likely."

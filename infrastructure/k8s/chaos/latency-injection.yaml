@@ -1,0 +1,94 @@
+---
+# Network latency chaos experiment.
+# Runs a time-boxed latency injection against pods selected by label, with
+# NET_ADMIN so it can program tc netem, and a hard activeDeadlineSeconds so the
+# experiment always terminates (cleanup then restores the interface).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: chaos-latency-injection
+  namespace: chaos
+  labels:
+    app.kubernetes.io/name: chaos-latency
+    chaos.gistpin.io/experiment: network-latency
+spec:
+  # Hard stop: the experiment cannot outlive this even if something hangs.
+  activeDeadlineSeconds: 300
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: chaos-latency
+    spec:
+      restartPolicy: Never
+      serviceAccountName: chaos-latency
+      containers:
+        - name: injector
+          image: ghcr.io/pinspace-org/chaos-toolbox:latest
+          securityContext:
+            capabilities:
+              # tc netem requires NET_ADMIN; nothing else is granted.
+              add: ["NET_ADMIN"]
+              drop: ["ALL"]
+          env:
+            - name: TARGET_LABEL
+              value: "app=backend"
+            - name: TARGET_NAMESPACE
+              value: "backend"
+            - name: LATENCY
+              value: "200ms"
+            - name: JITTER
+              value: "50ms"
+            - name: DURATION
+              value: "120"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              POD=$(kubectl -n "$TARGET_NAMESPACE" get pods -l "$TARGET_LABEL" \
+                     -o jsonpath='{.items[0].metadata.name}')
+              echo "Injecting ${LATENCY} (jitter ${JITTER}) into ${POD} for ${DURATION}s"
+              /scripts/inject-latency.sh --pod "$POD" --namespace "$TARGET_NAMESPACE" \
+                --latency "$LATENCY" --jitter "$JITTER" --duration "$DURATION"
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: chaos-scripts
+            defaultMode: 0755
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chaos-latency
+  namespace: chaos
+---
+# Minimal RBAC: read pods and exec into them in the target namespaces only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: chaos-latency
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: chaos-latency
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chaos-latency
+subjects:
+  - kind: ServiceAccount
+    name: chaos-latency
+    namespace: chaos

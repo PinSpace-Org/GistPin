@@ -1,0 +1,90 @@
+name: Validate Terraform Module Docs
+
+on:
+  pull_request:
+    paths:
+      - "infrastructure/terraform/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-module-docs:
+    name: Enforce module interface documentation standard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check each module has a compliant README and described inputs/outputs
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+
+          # Only reusable modules are held to the standard — the root config in
+          # infrastructure/terraform/ is not a module. A "module" is any directory
+          # under these roots that contains variables.tf or outputs.tf.
+          MODULE_ROOTS = [
+              "infrastructure/terraform/modules",
+              "infrastructure/terraform/module-template",
+          ]
+          REQUIRED_SECTIONS = ["## Overview", "## Usage", "## Requirements", "## Inputs", "## Outputs"]
+
+          failures = []
+
+          def blocks(text, keyword):
+              # Yield (name, body) for each `keyword "name" { ... }` block.
+              for m in re.finditer(rf'{keyword}\s+"([^"]+)"\s*{{', text):
+                  name = m.group(1)
+                  start = m.end()
+                  depth = 1
+                  i = start
+                  while i < len(text) and depth > 0:
+                      if text[i] == '{':
+                          depth += 1
+                      elif text[i] == '}':
+                          depth -= 1
+                      i += 1
+                  yield name, text[start:i]
+
+          def has_description(body):
+              return re.search(r'\bdescription\s*=', body) is not None
+
+          module_dirs = []
+          for root in MODULE_ROOTS:
+              if not os.path.isdir(root):
+                  continue
+              for dirpath, _dirs, files in os.walk(root):
+                  if {"variables.tf", "outputs.tf"} & set(files):
+                      module_dirs.append(dirpath)
+
+          for dirpath in module_dirs:
+              rel = dirpath
+
+              # 1) README with required sections.
+              readme = os.path.join(dirpath, "README.md")
+              if not os.path.exists(readme):
+                  failures.append(f"{rel}: missing README.md")
+              else:
+                  content = open(readme).read()
+                  for section in REQUIRED_SECTIONS:
+                      if section not in content:
+                          failures.append(f"{rel}: README missing required section '{section}'")
+
+              # 2) Every variable/output has a description.
+              for tf, kw in (("variables.tf", "variable"), ("outputs.tf", "output")):
+                  path = os.path.join(dirpath, tf)
+                  if not os.path.exists(path):
+                      continue
+                  text = open(path).read()
+                  for name, body in blocks(text, kw):
+                      if not has_description(body):
+                          failures.append(f"{rel}: {kw} '{name}' has no description")
+
+          if failures:
+              print("Module documentation standard violations:")
+              for f in failures:
+                  print(f"  - {f}")
+              sys.exit(1)
+          print("All modules conform to the documentation standard.")
+          PY
