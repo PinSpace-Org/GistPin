@@ -1,0 +1,148 @@
+---
+# Central (global) Prometheus that federates from each per-cluster Prometheus.
+# It holds only aggregated series (see federation-scrape-config.yml), giving a
+# single cross-cluster view for global dashboards and alerting.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-federation-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-central
+    app.kubernetes.io/component: federation
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      evaluation_interval: 30s
+      # external_labels tag every series ingested by the central instance so it
+      # is distinguishable from series scraped locally at each cluster.
+      external_labels:
+        role: central
+        monitor: gistpin-global
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+    # Federation jobs are loaded from the mounted scrape config.
+    scrape_config_files:
+      - /etc/prometheus/federation/federation-scrape-config.yml
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus-central
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-central
+    app.kubernetes.io/component: federation
+spec:
+  serviceName: prometheus-central
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-central
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prometheus-central
+        app.kubernetes.io/component: federation
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.53.0
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=90d"
+            - "--web.enable-lifecycle"
+          ports:
+            - name: web
+              containerPort: 9090
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: web
+            initialDelaySeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: web
+            initialDelaySeconds: 60
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: federation
+              mountPath: /etc/prometheus/federation
+            - name: data
+              mountPath: /prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-federation-config
+        - name: federation
+          # Generated from federation-scrape-config.yml, e.g.:
+          #   kubectl -n monitoring create configmap prometheus-federation-scrape \
+          #     --from-file=federation-scrape-config.yml=infrastructure/monitoring/federation-scrape-config.yml
+          configMap:
+            name: prometheus-federation-scrape
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-central
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-central
+spec:
+  selector:
+    app.kubernetes.io/name: prometheus-central
+  ports:
+    - name: web
+      port: 9090
+      targetPort: web
+---
+# Health of the federation itself: alert if a cluster Prometheus stops being
+# federated (its `up` for the federate job goes to 0) so a silent cross-cluster
+# blind spot is caught quickly.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: federation-health-rules
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-central
+data:
+  federation-health.yml: |
+    groups:
+      - name: federation-health
+        rules:
+          - alert: FederationTargetDown
+            expr: up{job=~"federate-.*"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Federation target {{ $labels.cluster }} is down"
+              description: "Central Prometheus cannot scrape /federate from {{ $labels.cluster }} for 5m; cross-cluster view is incomplete."
+          - alert: FederationScrapeSlow
+            expr: scrape_duration_seconds{job=~"federate-.*"} > 20
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Federation scrape from {{ $labels.cluster }} is slow"
+              description: "The /federate scrape is taking >20s; consider narrowing match[] selectors."

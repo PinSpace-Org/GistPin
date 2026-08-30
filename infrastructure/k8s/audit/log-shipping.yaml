@@ -1,0 +1,139 @@
+---
+# Ships API server audit logs to the SIEM. A fluent-bit DaemonSet tails the
+# audit log written by the API server on the control-plane nodes, forwards it to
+# the SIEM, and raises alerts on sensitive operations.
+#
+# On managed control planes (e.g. EKS) the audit log is delivered to CloudWatch
+# instead; this manifest covers self-managed / kubeadm control planes where the
+# API server writes --audit-log-path on the host.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audit-log-shipper-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: audit-log-shipper
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         5
+        Log_Level     info
+        Parsers_File  parsers.conf
+
+    [INPUT]
+        Name              tail
+        Tag               k8s.audit
+        Path              /var/log/kubernetes/audit/audit.log
+        Parser            audit_json
+        DB                /var/log/kubernetes/audit/audit.db
+        Mem_Buf_Limit     50MB
+        Skip_Long_Lines   On
+
+    # Flag sensitive operations so the SIEM can alert on them in real time.
+    [FILTER]
+        Name    modify
+        Match   k8s.audit
+        Add     pipeline gistpin-control-plane-audit
+
+    [OUTPUT]
+        Name    forward
+        Match   k8s.audit
+        Host    ${SIEM_FORWARD_HOST}
+        Port    ${SIEM_FORWARD_PORT}
+        tls     On
+        tls.verify On
+
+  parsers.conf: |
+    [PARSER]
+        Name        audit_json
+        Format      json
+        Time_Key    requestReceivedTimestamp
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: audit-log-shipper
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: audit-log-shipper
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: audit-log-shipper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: audit-log-shipper
+    spec:
+      # Control-plane nodes only.
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: fluent-bit
+          image: cr.fluentbit.io/fluent/fluent-bit:3.1
+          env:
+            - name: SIEM_FORWARD_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: siem-forwarder
+                  key: host
+            - name: SIEM_FORWARD_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: siem-forwarder
+                  key: port
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /fluent-bit/etc/
+            - name: audit-logs
+              mountPath: /var/log/kubernetes/audit
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: audit-log-shipper-config
+        - name: audit-logs
+          hostPath:
+            path: /var/log/kubernetes/audit
+            type: Directory
+---
+# Prometheus alerts derived from audit events forwarded into the metrics
+# pipeline (via the SIEM or a mtail sidecar). Fires on sensitive operations.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audit-sensitive-op-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: audit-log-shipper
+data:
+  audit-alerts.yml: |
+    groups:
+      - name: control-plane-audit
+        rules:
+          - alert: ClusterRoleBindingModified
+            expr: increase(audit_event_total{resource="clusterrolebindings", verb=~"create|update|delete"}[5m]) > 0
+            labels:
+              severity: warning
+            annotations:
+              summary: "ClusterRoleBinding changed"
+              description: "A clusterrolebinding was modified — review the audit event for the actor and target."
+          - alert: PodExecInvoked
+            expr: increase(audit_event_total{resource="pods/exec"}[5m]) > 0
+            labels:
+              severity: warning
+            annotations:
+              summary: "kubectl exec used"
+              description: "An interactive exec/attach session was opened against a pod."

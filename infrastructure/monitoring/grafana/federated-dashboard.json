@@ -1,0 +1,60 @@
+{
+  "title": "Cross-Cluster Federated Overview",
+  "description": "Global view across all federated clusters, sourced from the central Prometheus. Use the `cluster` template variable to focus a single cluster.",
+  "templating": {
+    "list": [
+      {
+        "name": "cluster",
+        "type": "query",
+        "datasource": "prometheus-central",
+        "query": "label_values(up{job=~\"federate-.*\"}, cluster)",
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Federation Target Health",
+      "type": "stat",
+      "targets": [{"expr": "up{job=~\"federate-.*\", cluster=~\"$cluster\"}"}]
+    },
+    {
+      "id": 2,
+      "title": "API Server Availability by Cluster",
+      "type": "timeseries",
+      "targets": [{"expr": "sum by (cluster) (rate(apiserver_request_total{code=~\"2..|3..\", cluster=~\"$cluster\"}[5m])) / sum by (cluster) (rate(apiserver_request_total{cluster=~\"$cluster\"}[5m])) * 100"}]
+    },
+    {
+      "id": 3,
+      "title": "Request Rate by Cluster",
+      "type": "timeseries",
+      "targets": [{"expr": "sum by (cluster) (rate(http_requests_total{cluster=~\"$cluster\"}[5m]))"}]
+    },
+    {
+      "id": 4,
+      "title": "5xx Error Rate by Cluster",
+      "type": "timeseries",
+      "targets": [{"expr": "sum by (cluster) (rate(http_requests_total{status=~\"5..\", cluster=~\"$cluster\"}[5m]))"}]
+    },
+    {
+      "id": 5,
+      "title": "p95 Latency by Cluster",
+      "type": "timeseries",
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (cluster, le) (rate(http_request_duration_seconds_bucket{cluster=~\"$cluster\"}[5m])))"}]
+    },
+    {
+      "id": 6,
+      "title": "Pod Restarts by Cluster (1h)",
+      "type": "timeseries",
+      "targets": [{"expr": "sum by (cluster) (increase(kube_pod_container_status_restarts_total{cluster=~\"$cluster\"}[1h]))"}]
+    },
+    {
+      "id": 7,
+      "title": "Federation Scrape Duration",
+      "type": "timeseries",
+      "targets": [{"expr": "scrape_duration_seconds{job=~\"federate-.*\", cluster=~\"$cluster\"}"}]
+    }
+  ]
+}
