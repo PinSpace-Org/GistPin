@@ -1,0 +1,109 @@
+---
+# Reusable downscale-protection profiles and a business-hours override.
+# These are referenced when composing HPAs so protection behaviour is
+# consistent across services rather than hand-tuned per HPA.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hpa-stabilization-profiles
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: hpa-stabilization
+data:
+  profiles.yaml: |
+    # Each profile is a scaleDown `behavior` fragment. Apply the profile that
+    # matches the workload's criticality.
+    profiles:
+      critical:
+        # Longest protection: slow, small downscales.
+        stabilizationWindowSeconds: 600
+        maxPercentPerPeriod: 10
+        periodSeconds: 300
+      standard:
+        stabilizationWindowSeconds: 300
+        maxPercentPerPeriod: 25
+        periodSeconds: 120
+      batch:
+        # Batch workloads can shrink aggressively when idle.
+        stabilizationWindowSeconds: 60
+        maxPercentPerPeriod: 50
+        periodSeconds: 60
+
+    # Business-hours protection: during peak hours, force critical services onto
+    # the strictest profile and raise the floor so a mid-day dip can't shrink
+    # capacity that the next spike will immediately need back.
+    business_hours:
+      timezone: UTC
+      # 08:00–20:00 Mon–Fri.
+      peak_cron: "0 8-20 * * 1-5"
+      during_peak:
+        profile: critical
+        min_replicas_floor: 5
+
+    # Override mechanism: a workload can pin its floor/profile regardless of the
+    # schedule by setting these annotations on its Deployment:
+    #   gistpin.io/hpa-profile: "critical"
+    #   gistpin.io/hpa-min-floor: "6"
+    override:
+      profile_annotation: "gistpin.io/hpa-profile"
+      floor_annotation: "gistpin.io/hpa-min-floor"
+---
+# CronJob that raises the replica floor during business hours for critical HPAs,
+# implementing the business_hours protection above. Reverts after peak.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hpa-business-hours-floor
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: hpa-stabilization
+spec:
+  # At 08:00 UTC on weekdays, raise the floor; a companion schedule lowers it.
+  schedule: "0 8 * * 1-5"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: hpa-stabilization
+          containers:
+            - name: set-floor
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  kubectl -n backend patch hpa backend --type merge \
+                    -p '{"spec":{"minReplicas":5}}'
+          # A second CronJob (schedule "0 20 * * 1-5") would restore minReplicas: 3.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hpa-stabilization
+  namespace: backend
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hpa-stabilization
+  namespace: backend
+rules:
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hpa-stabilization
+  namespace: backend
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hpa-stabilization
+subjects:
+  - kind: ServiceAccount
+    name: hpa-stabilization
+    namespace: backend
