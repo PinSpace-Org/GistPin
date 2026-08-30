@@ -1,0 +1,63 @@
+---
+# Configuration for the ConfigMap hot-reload mechanism.
+# Watched ConfigMaps are annotated so the reloader knows which workloads to
+# signal, and how, when their content changes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: reload-config
+  namespace: platform
+  labels:
+    app.kubernetes.io/name: configmap-reloader
+data:
+  reloader.yaml: |
+    # Global reload behaviour.
+    watch:
+      # Only ConfigMaps carrying this annotation are watched, so unrelated
+      # config changes don't trigger reloads.
+      annotationSelector: "gistpin.io/reload=enabled"
+      namespaces:
+        - backend
+        - analytics
+
+    reload:
+      # How a target is told to reload:
+      #   signal   - send a UNIX signal to PID 1 (app reloads config in place)
+      #   rollout  - trigger a rolling restart (for apps that only read config at boot)
+      strategy: signal
+      signal: SIGHUP
+
+    validation:
+      # After signalling, the target must report healthy within this window or
+      # the change is rolled back.
+      healthCheckPath: /healthz
+      timeoutSeconds: 30
+
+    rollback:
+      # If validation fails, restore the previous ConfigMap revision and
+      # re-signal so the app returns to a known-good config.
+      enabled: true
+
+    events:
+      # Emit a Kubernetes Event on every reload (success or rollback) for
+      # traceability.
+      emitKubernetesEvents: true
+---
+# Example: a ConfigMap opted into hot reload. Applications reading this mount
+# will be signalled (not restarted) when its data changes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-app-config
+  namespace: backend
+  annotations:
+    gistpin.io/reload: "enabled"
+    # Target workload to signal on change.
+    gistpin.io/reload-target: "deployment/backend"
+  labels:
+    app.kubernetes.io/name: backend
+data:
+  app.yaml: |
+    log_level: info
+    feature_flags:
+      new_search: true

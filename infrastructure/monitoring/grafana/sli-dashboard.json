@@ -1,0 +1,56 @@
+{
+  "title": "Service SLIs",
+  "description": "Per-service SLI measurements against their SLO targets. Sourced from the sli:<service>:<indicator> recording rules.",
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "custom",
+        "query": "backend_api,analytics,database",
+        "current": {"text": "backend_api", "value": "backend_api"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Backend API — Availability SLI (target 99.9%)",
+      "type": "stat",
+      "targets": [{"expr": "sli:backend_api:availability * 100"}]
+    },
+    {
+      "id": 2,
+      "title": "Backend API — p95 Latency SLI (target < 500ms)",
+      "type": "gauge",
+      "targets": [{"expr": "sli:backend_api:latency_p95"}]
+    },
+    {
+      "id": 3,
+      "title": "Analytics — Availability SLI (target 99.5%)",
+      "type": "stat",
+      "targets": [{"expr": "sli:analytics:availability * 100"}]
+    },
+    {
+      "id": 4,
+      "title": "Analytics — Freshness SLI (target 99%)",
+      "type": "stat",
+      "targets": [{"expr": "sli:analytics:freshness * 100"}]
+    },
+    {
+      "id": 5,
+      "title": "Database — Availability SLI (target 99.95%)",
+      "type": "stat",
+      "targets": [{"expr": "sli:database:availability * 100"}]
+    },
+    {
+      "id": 6,
+      "title": "Availability SLIs — 24h Trend",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sli:backend_api:availability * 100"},
+        {"expr": "sli:analytics:availability * 100"},
+        {"expr": "sli:database:availability * 100"}
+      ]
+    }
+  ]
+}
