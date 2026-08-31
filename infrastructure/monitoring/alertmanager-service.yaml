@@ -1,0 +1,55 @@
+---
+# Headless service: gives each StatefulSet replica a stable DNS name
+# (alertmanager-N.alertmanager-cluster...) used for gossip peering.
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-cluster
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: gossip
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true   # peers must resolve each other before Ready
+  selector:
+    app.kubernetes.io/name: alertmanager
+  ports:
+    - name: cluster
+      port: 9094
+      targetPort: cluster
+---
+# Load-balanced service: Prometheus sends alerts here and it fans out across the
+# three replicas. Because the replicas gossip, it doesn't matter which one
+# receives a given alert — the cluster de-duplicates notifications.
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+    app.kubernetes.io/component: alerting
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: alertmanager
+  ports:
+    - name: web
+      port: 9093
+      targetPort: web
+---
+# PodDisruptionBudget: keep at least 2 of 3 replicas up during voluntary
+# disruptions (node drains, upgrades) so the cluster keeps quorum on state.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager

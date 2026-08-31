@@ -1,0 +1,44 @@
+---
+# AWS provider for the Secrets Store CSI Driver.
+#
+# The base driver (see install.yaml, which enables syncSecretEnabled and
+# enableSecretRotation) is provider-agnostic. This adds the AWS Secrets Manager
+# provider DaemonSet alongside the existing Vault provider, so workloads can pull
+# secrets from AWS Secrets Manager as well as Vault.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: secrets-store-csi-driver-provider-aws
+  namespace: kube-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: secrets-store-csi-driver-provider-aws
+      sourceRef:
+        kind: HelmRepository
+        name: aws-secrets-manager
+        namespace: flux-system
+      version: "0.3.x"
+  values:
+    # Run on every node so any pod can mount from AWS Secrets Manager.
+    tolerations:
+      - operator: Exists
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+---
+# ServiceAccount used by workloads that mount AWS secrets. IRSA maps this to an
+# IAM role permitted to read the specific secrets (least privilege). The role
+# ARN annotation is environment-specific and injected at deploy time.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gistpin-aws-secrets
+  namespace: backend
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/gistpin-backend-secrets-reader"

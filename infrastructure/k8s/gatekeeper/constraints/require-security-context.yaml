@@ -1,0 +1,49 @@
+---
+# Constraint: apply the K8sRequiredSecurityContext template to workloads.
+#
+# Rollout strategy (see gatekeeper-setup.md):
+#   1. Start with enforcementAction: dryrun to AUDIT existing violations
+#      without blocking.
+#   2. Once workloads are compliant, switch to `deny` to enforce.
+#
+# This manifest ships in `dryrun` mode; flip enforcementAction to `deny` after
+# the audit is clean.
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredSecurityContext
+metadata:
+  name: require-security-context
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    # Scope to application namespaces; never enforce on system namespaces where
+    # components legitimately need broader privileges.
+    excludedNamespaces:
+      - kube-system
+      - gatekeeper-system
+      - kube-node-lease
+      - kube-public
+  parameters:
+    exemptImages:
+      # Images that legitimately need a writable root filesystem.
+      - ghcr.io/pinspace-org/legacy-migrator
+---
+# Per-namespace enforcement example: the `backend` namespace is fully enforced
+# (deny) once it has been audited clean, while the rest remain in dryrun via the
+# constraint above.
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredSecurityContext
+metadata:
+  name: require-security-context-backend
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - backend
+  parameters:
+    exemptImages: []
