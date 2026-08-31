@@ -1,0 +1,77 @@
+# CIS Kubernetes worker-node hardening benchmark (Level 1).
+# Declarative description of the controls harden-nodes.sh applies and the
+# compliance scan verifies. Each control lists the check and the expected state.
+
+metadata:
+  benchmark: CIS Kubernetes Benchmark
+  profile: Level 1 - Worker Node
+  applies_to: kubernetes-worker-nodes
+
+controls:
+  # --- Kernel / sysctl hardening ------------------------------------------
+  - id: sysctl.net.ipv4.ip_forward
+    description: IP forwarding is required by the CNI; keep enabled but audited
+    setting: net.ipv4.ip_forward
+    expected: "1"
+  - id: sysctl.net.ipv4.conf.all.rp_filter
+    description: Enable reverse-path filtering to drop spoofed packets
+    setting: net.ipv4.conf.all.rp_filter
+    expected: "1"
+  - id: sysctl.net.ipv4.conf.all.accept_redirects
+    description: Do not accept ICMP redirects
+    setting: net.ipv4.conf.all.accept_redirects
+    expected: "0"
+  - id: sysctl.net.ipv4.conf.all.send_redirects
+    description: Do not send ICMP redirects
+    setting: net.ipv4.conf.all.send_redirects
+    expected: "0"
+  - id: sysctl.kernel.randomize_va_space
+    description: Full address space layout randomization
+    setting: kernel.randomize_va_space
+    expected: "2"
+  - id: sysctl.fs.protected_hardlinks
+    description: Restrict hardlink creation
+    setting: fs.protected_hardlinks
+    expected: "1"
+  - id: sysctl.fs.protected_symlinks
+    description: Restrict symlink following
+    setting: fs.protected_symlinks
+    expected: "1"
+
+  # --- Kubelet file permissions -------------------------------------------
+  - id: file.kubelet_conf_perms
+    description: kubelet config file permissions must be 600 or stricter
+    path: /var/lib/kubelet/config.yaml
+    expected_mode: "600"
+    expected_owner: root
+  - id: file.kubeconfig_perms
+    description: kubelet kubeconfig permissions must be 600 or stricter
+    path: /etc/kubernetes/kubelet.conf
+    expected_mode: "600"
+    expected_owner: root
+
+  # --- Kubelet configuration ----------------------------------------------
+  - id: kubelet.anonymous_auth
+    description: Anonymous auth to the kubelet must be disabled
+    setting: authentication.anonymous.enabled
+    expected: "false"
+  - id: kubelet.authorization_mode
+    description: Kubelet authorization must not be AlwaysAllow
+    setting: authorization.mode
+    expected: "Webhook"
+  - id: kubelet.read_only_port
+    description: Kubelet read-only port must be disabled
+    setting: readOnlyPort
+    expected: "0"
+
+  # --- Audit daemon --------------------------------------------------------
+  - id: auditd.enabled
+    description: auditd must be running to record host-level security events
+    service: auditd
+    expected: active
+
+  # --- File integrity ------------------------------------------------------
+  - id: aide.installed
+    description: AIDE file integrity monitoring must be installed and initialized
+    package: aide
+    expected: present
