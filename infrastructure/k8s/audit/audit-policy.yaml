@@ -1,0 +1,81 @@
+---
+# Kubernetes API server audit policy.
+# Applied via the API server's --audit-policy-file flag. Rules are evaluated
+# top-down; the first matching rule sets the audit level for the event.
+#
+# Levels:
+#   None            - do not log
+#   Metadata        - log request metadata (user, verb, resource) only
+#   Request         - metadata + request body
+#   RequestResponse - metadata + request + response bodies
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# Never log the (large, low-value) request/response bodies for these stages.
+omitStages:
+  - RequestReceived
+rules:
+  # --- Noise reduction: drop high-volume, low-value reads first -------------
+  - level: None
+    users: ["system:kube-proxy"]
+    verbs: ["watch"]
+    resources:
+      - group: ""
+        resources: ["endpoints", "services", "services/status"]
+
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get"]
+
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /readyz*
+      - /livez*
+      - /version
+      - /metrics
+
+  # --- Secrets & config: metadata only (never log secret values) -----------
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets", "configmaps"]
+      - group: ""
+        resources: ["serviceaccounts/token"]
+
+  # --- Sensitive write operations: full request/response -------------------
+  # RBAC changes, admission webhook config, and any exec/attach are the events
+  # a responder most wants full detail on.
+  - level: RequestResponse
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: "rbac.authorization.k8s.io"
+        resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+      - group: "admissionregistration.k8s.io"
+        resources: ["validatingwebhookconfigurations", "mutatingwebhookconfigurations"]
+
+  - level: RequestResponse
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+
+  # --- Auth decisions: metadata (who did what) ------------------------------
+  - level: Metadata
+    resources:
+      - group: "authentication.k8s.io"
+        resources: ["tokenreviews"]
+      - group: "authorization.k8s.io"
+        resources: ["subjectaccessreviews", "selfsubjectaccessreviews"]
+
+  # --- Workload writes: request body ---------------------------------------
+  - level: Request
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: ""
+        resources: ["pods"]
+      - group: "apps"
+        resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+      - group: "batch"
+        resources: ["jobs", "cronjobs"]
+
+  # --- Everything else: metadata -------------------------------------------
+  - level: Metadata

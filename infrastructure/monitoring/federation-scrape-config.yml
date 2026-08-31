@@ -1,0 +1,71 @@
+# Federation scrape configuration for the central Prometheus.
+# Each job scrapes the /federate endpoint of a per-cluster Prometheus, pulling a
+# curated set of aggregated series (not raw high-cardinality metrics) into the
+# central view.
+#
+# honor_labels: true preserves the source series' job/instance labels; the
+# per-cluster `cluster` external label (added below) is what disambiguates
+# otherwise-identical series across clusters — the label deduplication strategy.
+
+scrape_configs:
+  - job_name: "federate-us-east-1"
+    scrape_interval: 30s
+    honor_labels: true
+    metrics_path: "/federate"
+    params:
+      # Only federate aggregated/recording-rule series and SLI inputs. Pulling
+      # everything would explode cardinality on the central instance.
+      "match[]":
+        - '{__name__=~"job:.*"}'                       # recording rules
+        - '{__name__=~"cluster:.*"}'                   # cluster-level aggregates
+        - 'up'
+        - 'apiserver_request_total'
+        - 'kube_pod_container_status_restarts_total'
+        - 'http_requests_total'
+        - 'http_request_duration_seconds_bucket'
+    static_configs:
+      - targets:
+          - "prometheus.us-east-1.gistpin.internal:9090"
+        labels:
+          cluster: "us-east-1"
+          region: "us-east-1"
+
+  - job_name: "federate-us-west-2"
+    scrape_interval: 30s
+    honor_labels: true
+    metrics_path: "/federate"
+    params:
+      "match[]":
+        - '{__name__=~"job:.*"}'
+        - '{__name__=~"cluster:.*"}'
+        - 'up'
+        - 'apiserver_request_total'
+        - 'kube_pod_container_status_restarts_total'
+        - 'http_requests_total'
+        - 'http_request_duration_seconds_bucket'
+    static_configs:
+      - targets:
+          - "prometheus.us-west-2.gistpin.internal:9090"
+        labels:
+          cluster: "us-west-2"
+          region: "us-west-2"
+
+  - job_name: "federate-eu-west-1"
+    scrape_interval: 30s
+    honor_labels: true
+    metrics_path: "/federate"
+    params:
+      "match[]":
+        - '{__name__=~"job:.*"}'
+        - '{__name__=~"cluster:.*"}'
+        - 'up'
+        - 'apiserver_request_total'
+        - 'kube_pod_container_status_restarts_total'
+        - 'http_requests_total'
+        - 'http_request_duration_seconds_bucket'
+    static_configs:
+      - targets:
+          - "prometheus.eu-west-1.gistpin.internal:9090"
+        labels:
+          cluster: "eu-west-1"
+          region: "eu-west-1"
