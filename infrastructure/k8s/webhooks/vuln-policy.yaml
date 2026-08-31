@@ -1,0 +1,28 @@
+# Image vulnerability admission policy — consumed by image-vuln-blocker.go
+# (mounted at /policy/vuln-policy.yaml). Governs which container images are
+# allowed to be admitted to the cluster based on Trivy scan findings.
+
+# Reject any workload whose image carries an unignored CRITICAL CVE.
+blockOnCritical: true
+
+# Allow, but warn (surfaced as a kubectl warning + logged), when HIGH CVEs exist.
+warnOnHigh: true
+
+# How long a scan result is reused before re-scanning the same image reference.
+cacheTTLMinutes: 60
+
+# Central Trivy server so the vulnerability DB is shared rather than downloaded
+# on every scan. Leave empty to run a fully local scan.
+trivyServerURL: "http://trivy-server.security.svc.cluster.local:4954"
+
+# Exception mechanism: exact image references (tag or digest) that bypass
+# scanning entirely. Each entry should correspond to a tracked risk acceptance.
+approvedImages:
+  # Vendor image with an accepted, documented exception (see risk register).
+  - ghcr.io/pinspace-org/legacy-migrator@sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+# Individual CVE IDs accepted platform-wide (with a tracked exception), excluded
+# from the critical/high counts. Prefer per-image approvals over broad ignores.
+ignoreCVEs:
+  # Example: false-positive in a base image, tracked upstream.
+  # - CVE-2023-00000

@@ -1,0 +1,64 @@
+---
+# Ensures the AWS SSM agent runs on every Kubernetes worker node so the node is
+# registered as an SSM managed instance and can be accessed via Session Manager.
+# On EKS-optimized AMIs the agent is usually preinstalled; this DaemonSet
+# guarantees it is present and running on all nodes (including custom AMIs).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ssm-agent
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: ssm-agent
+    app.kubernetes.io/managed-by: gistpin-infra
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ssm-agent
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ssm-agent
+        app.kubernetes.io/version: "3.x"
+    spec:
+      # The agent manages the host, so it needs host access. It is deliberately
+      # the ONLY privileged host-access path — SSH ingress is removed (see
+      # ssm-access.tf).
+      hostPID: true
+      tolerations:
+        - operator: Exists
+      priorityClassName: system-node-critical
+      containers:
+        - name: ssm-agent
+          image: public.ecr.aws/amazon-ssm-agent/amazon-ssm-agent:latest
+          securityContext:
+            # Required to install/run the agent against the host.
+            privileged: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: ssm-persistent
+              mountPath: /var/lib/amazon/ssm
+            - name: ssm-logs
+              mountPath: /var/log/amazon/ssm
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "pgrep amazon-ssm-agent"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: ssm-persistent
+          hostPath:
+            path: /var/lib/amazon/ssm
+            type: DirectoryOrCreate
+        - name: ssm-logs
+          hostPath:
+            path: /var/log/amazon/ssm
+            type: DirectoryOrCreate
