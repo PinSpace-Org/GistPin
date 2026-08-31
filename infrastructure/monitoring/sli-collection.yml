@@ -1,0 +1,104 @@
+# Service Level Indicator (SLI) collection.
+# Standardizes how SLIs are measured across services and renders them as
+# Prometheus recording rules so every service exposes a consistent
+# `sli:<service>:<indicator>` series. Each SLI maps to an SLO target for error-
+# budget tracking (see sli-definitions.md).
+
+# Per-service SLI catalogue. `expr` computes the SLI as a 0..1 ratio (or a
+# latency quantile in seconds); `slo_target` is the objective the SLI is judged
+# against.
+slis:
+  - service: backend-api
+    indicators:
+      - name: availability
+        type: availability
+        description: Fraction of requests not returning 5xx
+        expr: >
+          sum(rate(http_requests_total{app="backend",status!~"5.."}[5m]))
+          / sum(rate(http_requests_total{app="backend"}[5m]))
+        slo_target: 0.999
+      - name: latency_p95
+        type: latency
+        description: 95th percentile request latency (seconds)
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{app="backend"}[5m])) by (le))
+        slo_target: 0.5
+
+  - service: analytics
+    indicators:
+      - name: availability
+        type: availability
+        description: Fraction of analytics requests not returning 5xx
+        expr: >
+          sum(rate(http_requests_total{app="analytics",status!~"5.."}[5m]))
+          / sum(rate(http_requests_total{app="analytics"}[5m]))
+        slo_target: 0.995
+      - name: freshness
+        type: freshness
+        description: Fraction of dashboards refreshed within SLA
+        expr: >
+          sum(rate(analytics_refresh_within_sla_total[5m]))
+          / sum(rate(analytics_refresh_total[5m]))
+        slo_target: 0.99
+
+  - service: database
+    indicators:
+      - name: availability
+        type: availability
+        description: Fraction of successful DB connections
+        expr: >
+          sum(rate(database_successful_connections_total[5m]))
+          / sum(rate(database_connections_total[5m]))
+        slo_target: 0.9995
+
+# Recording rules generated from the catalogue above. Kept explicit (rather than
+# templated) so `promtool` can lint them directly.
+groups:
+  - name: sli-recording-rules
+    interval: 30s
+    rules:
+      - record: sli:backend_api:availability
+        expr: >
+          sum(rate(http_requests_total{app="backend",status!~"5.."}[5m]))
+          / sum(rate(http_requests_total{app="backend"}[5m]))
+      - record: sli:backend_api:latency_p95
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{app="backend"}[5m])) by (le))
+      - record: sli:analytics:availability
+        expr: >
+          sum(rate(http_requests_total{app="analytics",status!~"5.."}[5m]))
+          / sum(rate(http_requests_total{app="analytics"}[5m]))
+      - record: sli:analytics:freshness
+        expr: >
+          sum(rate(analytics_refresh_within_sla_total[5m]))
+          / sum(rate(analytics_refresh_total[5m]))
+      - record: sli:database:availability
+        expr: >
+          sum(rate(database_successful_connections_total[5m]))
+          / sum(rate(database_connections_total[5m]))
+
+  # SLI violation tracking: fire when an availability SLI drops below its SLO
+  # target, so a breach is visible immediately (error-budget burn is handled by
+  # the SLO burn-rate alerts in slo-definitions.yml).
+  - name: sli-violations
+    rules:
+      - alert: SLIBelowTarget
+        expr: sli:backend_api:availability < 0.999
+        for: 10m
+        labels:
+          severity: warning
+          service: backend-api
+        annotations:
+          summary: "backend-api availability SLI below SLO target"
+          description: "Availability SLI {{ $value | humanizePercentage }} is under the 99.9% target for 10m."
+      - alert: SLIBelowTarget
+        expr: sli:database:availability < 0.9995
+        for: 10m
+        labels:
+          severity: critical
+          service: database
+        annotations:
+          summary: "database availability SLI below SLO target"
+          description: "DB connection success SLI {{ $value | humanizePercentage }} is under the 99.95% target for 10m."

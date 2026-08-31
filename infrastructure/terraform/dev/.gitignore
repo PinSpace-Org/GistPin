@@ -1,0 +1,6 @@
+# Local dev overlay: never commit local state or the provider cache.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log

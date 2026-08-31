@@ -1,0 +1,101 @@
+---
+# ConfigMap reloader controller. Watches annotated ConfigMaps and, on change,
+# signals the target workload to reload config without a full restart —
+# validating the reload and rolling back on failure.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configmap-reloader
+  namespace: platform
+  labels:
+    app.kubernetes.io/name: configmap-reloader
+    app.kubernetes.io/managed-by: gistpin-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: configmap-reloader
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: configmap-reloader
+    spec:
+      serviceAccountName: configmap-reloader
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+      containers:
+        - name: reloader
+          image: ghcr.io/pinspace-org/configmap-reloader:latest
+          args:
+            - "--config=/etc/reloader/reloader.yaml"
+          env:
+            - name: RELOAD_STRATEGY
+              value: "signal"
+          ports:
+            - name: metrics
+              containerPort: 9091
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/reloader
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: reload-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: configmap-reloader
+  namespace: platform
+---
+# The reloader needs to watch ConfigMaps, read pod info to find targets, send
+# the reload (via pod exec / deployment restart), and emit Events.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: configmap-reloader
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["get", "list", "create"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: configmap-reloader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: configmap-reloader
+subjects:
+  - kind: ServiceAccount
+    name: configmap-reloader
+    namespace: platform
