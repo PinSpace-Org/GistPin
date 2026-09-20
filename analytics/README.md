@@ -30,6 +30,10 @@ npm run dev                     # http://localhost:3001
 The dev server runs on port **3001** because the backend and the main
 `Frontend/` both default to port 3000.
 
+The backend allows browser requests from `http://localhost:3001` by default
+(`CORS_ORIGINS`, see `Backend/src/main.ts`). If you serve analytics from another
+origin, add it to `CORS_ORIGINS` in the backend environment.
+
 | Script | Purpose |
 |---|---|
 | `npm run dev` | Dev server with Turbopack on :3001 |
