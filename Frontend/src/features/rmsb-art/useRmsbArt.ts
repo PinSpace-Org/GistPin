@@ -1,10 +1,10 @@
 
 import { useState } from 'react';
-import { Rmsb-artData } from './Rmsb-artTypes';
+import { RmsbArtData } from './RmsbArtTypes';
 
-export const useRmsb-art = () => {
+export const useRmsbArt = () => {
   const [isActive, setIsActive] = useState<boolean>(false);
-  const [data, setData] = useState<Rmsb-artData[]>([]);
+  const [data, setData] = useState<RmsbArtData[]>([]);
   
   const toggleActive = () => setIsActive(prev => !prev);
   const refresh = () => {
