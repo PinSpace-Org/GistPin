@@ -24,3 +24,6 @@ cilium
 
 # Dependency health check reports (generated locally/in CI, not committed)
 infrastructure/ci/reports/
+
+# Claude Code local config (settings, launch configs)
+.claude/
