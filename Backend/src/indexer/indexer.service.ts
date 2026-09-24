@@ -7,6 +7,7 @@ import { SorobanService } from '../soroban/soroban.service';
 import { GistRepository, PG_UNIQUE_VIOLATION } from '../gists/gist.repository';
 import { GeoService } from '../geo/geo.service';
 import { IndexerState } from './indexer-state.entity';
+import { EventLogRepository } from './event-log.repository';
 
 @Injectable()
 export class IndexerService {
@@ -23,6 +24,7 @@ export class IndexerService {
     private readonly soroban: SorobanService,
     private readonly gistRepository: GistRepository,
     private readonly geoService: GeoService,
+    private readonly eventLogRepository: EventLogRepository,
 
     @InjectRepository(IndexerState)
     private readonly indexerStateRepository: Repository<IndexerState>,
@@ -74,6 +76,21 @@ export class IndexerService {
           highestProcessedLedger,
           event.ledger,
         );
+
+        // Log every decoded event — including types handleEvent doesn't
+        // otherwise persist to the gists table — so stats can be derived
+        // from the log alone. Isolated from handleEvent's own
+        // success/failure: a log-write failure must not skip the
+        // gists-table update, and vice versa.
+        try {
+          await this.eventLogRepository.record(event);
+        } catch (err) {
+          this.logger.warn(
+            `Failed to log event at ledger ${event.ledger}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
 
         try {
           await this.handleEvent(event);

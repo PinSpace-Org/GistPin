@@ -18,6 +18,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { InFlightRequestMiddleware } from './common/shutdown/in-flight.middleware';
 import { buildWinstonOptions } from './common/logger/winston.config';
 import { IndexerModule } from './indexer/indexer.module';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { IndexerModule } from './indexer/indexer.module';
 
     // Enables the Soroban indexer when the application starts
     IndexerModule,
+    StatsModule,
   ],
 
   providers: [
