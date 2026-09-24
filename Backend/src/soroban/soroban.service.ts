@@ -126,36 +126,43 @@ export interface GistPostedEvent {
   type: 'gist_posted';
   gist: GistRecord;
   ledger: number;
+  /** Unique Soroban RPC event id (e.g. `<ledger>-<index>`), used to dedupe the event log. */
+  id: string;
 }
 
 export interface GistEditedEvent {
   type: 'gist_edited';
   gist: GistRecord;
   ledger: number;
+  id: string;
 }
 
 export interface GistDeletedEvent {
   type: 'gist_deleted';
   gistId: string;
   ledger: number;
+  id: string;
 }
 
 export interface GistHiddenEvent {
   type: 'gist_hidden';
   gistId: string;
   ledger: number;
+  id: string;
 }
 
 export interface GistUnhiddenEvent {
   type: 'gist_unhidden';
   gistId: string;
   ledger: number;
+  id: string;
 }
 
 export interface GistRemovedEvent {
   type: 'gist_removed';
   gistId: string;
   ledger: number;
+  id: string;
 }
 
 export interface GistReportedEvent {
@@ -163,6 +170,7 @@ export interface GistReportedEvent {
   gistId: string;
   count: number;
   ledger: number;
+  id: string;
 }
 
 export type GistRegistryEvent =
@@ -218,6 +226,7 @@ export function decodeGistRegistryEvent(
   eventName: string,
   value: xdr.ScVal | undefined,
   ledger: number,
+  id: string,
 ): GistRegistryEvent | null {
   if (!value) return null;
 
@@ -229,7 +238,7 @@ export function decodeGistRegistryEvent(
       case GIST_EVENT_TOPICS.EDITED: {
         if (!native || typeof native !== 'object') return null;
         const gist = decodeGistRecord(native as Record<string, unknown>);
-        return { type: eventName, gist, ledger };
+        return { type: eventName, gist, ledger, id };
       }
 
       case GIST_EVENT_TOPICS.DELETED:
@@ -242,7 +251,7 @@ export function decodeGistRegistryEvent(
         if (raw == null) return null;
         const gistId = decoderReadString(raw);
         if (gistId === '[object Object]') return null;
-        return { type: eventName, gistId, ledger };
+        return { type: eventName, gistId, ledger, id };
       }
 
       case GIST_EVENT_TOPICS.REPORTED: {
@@ -253,6 +262,7 @@ export function decodeGistRegistryEvent(
           gistId: decoderReadString(record.gist_id ?? record.gistId),
           count: decoderReadNumber(record.count),
           ledger,
+          id,
         };
       }
 
@@ -887,7 +897,7 @@ export class SorobanService {
     }
 
     const eventName = typeof topic[0] === 'string' ? topic[0] : '';
-    return decodeGistRegistryEvent(eventName, event.value, event.ledger);
+    return decodeGistRegistryEvent(eventName, event.value, event.ledger, event.id);
   }
 
   private readString(value: unknown): string {
