@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SwrProvider } from "@/components/SwrProvider";
 
 export const metadata: Metadata = {
   title: "GistPin Analytics",
@@ -14,7 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <SwrProvider>{children}</SwrProvider>
+      </body>
     </html>
   );
 }
