@@ -1,3 +1,4 @@
+import { Controller, Get } from '@nestjs/common';
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -12,6 +13,15 @@ import { QueryStatsEventsDto } from './dto/query-stats-events.dto';
 export class StatsController {
   constructor(private readonly statsService: StatsService) {}
 
+  @Get('overview')
+  @SkipThrottle()
+  @ApiOperation({
+    summary: 'Platform totals: total/active/expired/hidden/signed/anonymous/reports',
+    description:
+      '"active" means the gist is not hidden, not expired (expires_at > now), and is_active.',
+  })
+  getOverview() {
+    return this.statsService.getOverview();
   @Get('timeseries/gists')
   @SkipThrottle()
   @ApiOperation({ summary: 'Gists created over time, zero-filled per bucket' })
