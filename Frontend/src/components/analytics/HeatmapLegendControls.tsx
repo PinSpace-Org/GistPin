@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 export interface HeatmapScaleConfig {
   minThreshold: number;
   maxThreshold: number;
-  colorScheme: 'indigo' | 'emerald' | 'amber' | 'rose';
+  colorScheme: "indigo" | "emerald" | "amber" | "rose";
 }
 
 export interface HeatmapLegendControlsProps {
@@ -12,7 +12,7 @@ export interface HeatmapLegendControlsProps {
 }
 
 export const HeatmapLegendControls: React.FC<HeatmapLegendControlsProps> = ({
-  initialConfig = { minThreshold: 0, maxThreshold: 100, colorScheme: 'indigo' },
+  initialConfig = { minThreshold: 0, maxThreshold: 100, colorScheme: "indigo" },
   onChange,
 }) => {
   const [config, setConfig] = useState<HeatmapScaleConfig>(initialConfig);
@@ -51,7 +51,7 @@ export const HeatmapLegendControls: React.FC<HeatmapLegendControlsProps> = ({
           <span>Palette:</span>
           <select
             value={config.colorScheme}
-            onChange={e => handleUpdate({ colorScheme: e.target.value as any })}
+            onChange={e => handleUpdate({ colorScheme: e.target.value as HeatmapScaleConfig["colorScheme"] })}
             className="px-2 py-1 border rounded dark:bg-gray-800 dark:border-gray-700"
           >
             <option value="indigo">Indigo</option>
