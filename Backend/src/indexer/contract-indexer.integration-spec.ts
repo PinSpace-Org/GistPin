@@ -95,6 +95,7 @@ describe('Contract-Indexer Integration Flow (integration)', () => {
       sorobanService,
       gistRepository,
       geoService,
+      { record: jest.fn().mockResolvedValue(undefined) } as any,
       indexerStateRepo as any,
     );
   });
@@ -107,6 +108,7 @@ describe('Contract-Indexer Integration Flow (integration)', () => {
       {
         type: 'gist_posted',
         ledger: 100,
+        id: 'evt-int-1',
         gist: {
           gistId: stellarGistId,
           locationCell: 's1t7d8c',
@@ -135,6 +137,7 @@ describe('Contract-Indexer Integration Flow (integration)', () => {
       {
         type: 'gist_posted',
         ledger: 100,
+        id: 'evt-int-1',
         gist: {
           gistId: stellarGistId,
           locationCell: 's1t7d8c',
