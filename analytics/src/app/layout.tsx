@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SwrProvider } from "@/components/SwrProvider";
 import { NO_FLASH_SCRIPT } from "@/lib/theme";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -16,6 +17,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <body className="antialiased">
+        <SwrProvider>{children}</SwrProvider>
       <head>
         {/* Applies the persisted theme before first paint to avoid a flash. */}
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
