@@ -24,6 +24,7 @@ function makeEvent(
   return {
     type: 'gist_posted',
     ledger: 100,
+    id: `evt-${Math.random().toString(36).slice(2)}`,
     gist: {
       gistId: 'gist-1',
       locationCell: 'u4pruyd',
@@ -65,6 +66,7 @@ describe('IndexerService', () => {
     create: jest.Mock;
     save: jest.Mock;
   };
+  let eventLogRepo: { record: jest.Mock };
 
   let logSpy: ReturnType<typeof jest.spyOn>;
   let warnSpy: ReturnType<typeof jest.spyOn>;
@@ -115,10 +117,15 @@ describe('IndexerService', () => {
       async (state: Partial<IndexerState>) => state,
     );
 
+    eventLogRepo = {
+      record: jest.fn().mockResolvedValue(undefined),
+    };
+
     service = new IndexerService(
       soroban,
       gistRepo,
       geoService,
+      eventLogRepo as any,
       indexerStateRepo as any,
     );
 
@@ -576,6 +583,7 @@ describe('IndexerService', () => {
         {
           type: 'gist_edited',
           ledger: 105,
+          id: 'evt-edited-1',
           gist: {
             gistId: 'gist-1',
             locationCell: 'u4pruyd',
@@ -595,8 +603,8 @@ describe('IndexerService', () => {
 
     it('handles gist_deleted and gist_removed events by setting is_active = false', async () => {
       soroban.getEventsSince.mockResolvedValue([
-        { type: 'gist_deleted', ledger: 106, gistId: 'gist-1' },
-        { type: 'gist_removed', ledger: 107, gistId: 'gist-2' },
+        { type: 'gist_deleted', ledger: 106, gistId: 'gist-1', id: 'evt-deleted-1' },
+        { type: 'gist_removed', ledger: 107, gistId: 'gist-2', id: 'evt-removed-1' },
       ]);
 
       await service.poll();
@@ -607,8 +615,8 @@ describe('IndexerService', () => {
 
     it('handles gist_hidden and gist_unhidden events by updating hidden column', async () => {
       soroban.getEventsSince.mockResolvedValue([
-        { type: 'gist_hidden', ledger: 108, gistId: 'gist-1' },
-        { type: 'gist_unhidden', ledger: 109, gistId: 'gist-1' },
+        { type: 'gist_hidden', ledger: 108, gistId: 'gist-1', id: 'evt-hidden-1' },
+        { type: 'gist_unhidden', ledger: 109, gistId: 'gist-1', id: 'evt-unhidden-1' },
       ]);
 
       await service.poll();
@@ -619,7 +627,7 @@ describe('IndexerService', () => {
 
     it('handles gist_reported event by updating report count', async () => {
       soroban.getEventsSince.mockResolvedValue([
-        { type: 'gist_reported', ledger: 110, gistId: 'gist-1', count: 3 },
+        { type: 'gist_reported', ledger: 110, gistId: 'gist-1', count: 3, id: 'evt-reported-1' },
       ]);
 
       await service.poll();
