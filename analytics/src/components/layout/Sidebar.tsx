@@ -10,6 +10,9 @@ const NAV_ITEMS = [
   { href: '/content', label: 'Content' },
   { href: '/moderation', label: 'Moderation' },
   { href: '/authors', label: 'Authors' },
+  { href: '/authors/concentration', label: 'Author Concentration' },
+  { href: '/authors/distribution', label: 'Posts Distribution' },
+  { href: '/authors/new-vs-returning', label: 'New vs Returning' },
   { href: '/onchain', label: 'On-chain' },
   { href: '/system', label: 'System Health' },
 ] as const;

@@ -146,3 +146,50 @@ export interface OverviewResponse {
   indexedOnly: number;
   totalReports: number;
 }
+
+export interface AuthorDetailParams {
+  lat: number;
+  lon: number;
+  radius?: number;
+  limit?: number;
+  cursor?: string;
+  authorAddress: string;
+}
+
+export interface AuthorConcentrationResponse {
+  top10Share: number;
+  giniCoefficient: number;
+  totalAuthors: number;
+  totalGists: number;
+}
+
+export interface PostsPerAuthorDistributionParams {
+  from: string;
+  to: string;
+  bucket: 'hour' | 'day';
+}
+
+export interface PostsPerAuthorDistributionResponse {
+  histogram: Array<{
+    bucket: string;
+    count: number;
+  }>;
+  medianPostsPerAuthor: number;
+  totalAuthors: number;
+}
+
+export interface NewVsReturningAuthorsParams {
+  from: string;
+  to: string;
+  bucket: 'hour' | 'day';
+}
+
+export interface NewVsReturningAuthorsResponse {
+  buckets: Array<{
+    bucket: string;
+    newAuthors: number;
+    returningAuthors: number;
+  }>;
+  totalNew: number;
+  totalReturning: number;
+}
