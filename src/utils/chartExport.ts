@@ -1,0 +1,1 @@
+export function exportChart() {\n    // chart image and JSON export\n}\n

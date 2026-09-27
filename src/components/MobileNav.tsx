@@ -1,0 +1,1 @@
+export function MobileNav() {\n    return <nav>Mobile Nav</nav>;\n}\n
