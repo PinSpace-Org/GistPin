@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SwrProvider } from "@/components/SwrProvider";
 import { NO_FLASH_SCRIPT } from "@/lib/theme";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 export const metadata: Metadata = {
   title: "GistPin Analytics",
@@ -16,18 +15,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        <SwrProvider>{children}</SwrProvider>
+    <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Applies the persisted theme before first paint to avoid a flash. */}
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
       </head>
       <body className="antialiased">
-        <header className="flex justify-end p-4">
-          <ThemeToggle />
-        </header>
-        {children}
+        <SwrProvider>{children}</SwrProvider>
       </body>
     </html>
   );
