@@ -7,6 +7,9 @@ import {
   getAuthorsTimeseries,
   getEventsStats,
   getModerationStats,
+  getAuthorConcentration,
+  getPostsPerAuthorDistribution,
+  getNewVsReturningAuthors,
 } from '@/lib/api/client';
 import type {
   QueryTimeseriesParams,
@@ -19,6 +22,11 @@ import type {
   ModerationStatsParams,
   ModerationStatsResponse,
   OverviewResponse,
+  AuthorConcentrationResponse,
+  PostsPerAuthorDistributionParams,
+  PostsPerAuthorDistributionResponse,
+  NewVsReturningAuthorsParams,
+  NewVsReturningAuthorsResponse,
 } from '@/lib/api/types';
 import { buildApiKey, useApi, type UseApiOptions } from './useApi';
 
@@ -58,6 +66,26 @@ export function useModerationStats(params: ModerationStatsParams, options?: UseA
   return useApi<ModerationStatsResponse>(
     buildApiKey('moderation', params),
     () => getModerationStats(params),
+    options,
+  );
+}
+
+export function useAuthorConcentration(options?: UseApiOptions) {
+  return useApi<AuthorConcentrationResponse>('authors/concentration', () => getAuthorConcentration(), options);
+}
+
+export function usePostsPerAuthorDistribution(params: PostsPerAuthorDistributionParams, options?: UseApiOptions) {
+  return useApi<PostsPerAuthorDistributionResponse>(
+    buildApiKey('authors/distribution', params),
+    () => getPostsPerAuthorDistribution(params),
+    options,
+  );
+}
+
+export function useNewVsReturningAuthors(params: NewVsReturningAuthorsParams, options?: UseApiOptions) {
+  return useApi<NewVsReturningAuthorsResponse>(
+    buildApiKey('authors/new-vs-returning', params),
+    () => getNewVsReturningAuthors(params),
     options,
   );
 }
