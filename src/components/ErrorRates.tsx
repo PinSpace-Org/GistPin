@@ -1,0 +1,1 @@
+export function ErrorRates() {\n    return <div>Error Rates</div>;\n}\n
