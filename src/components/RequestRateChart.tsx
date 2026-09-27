@@ -1,0 +1,1 @@
+export function RequestRateChart() {\n    return <div>Request Rate</div>;\n}\n
