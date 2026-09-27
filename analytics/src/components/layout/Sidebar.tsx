@@ -12,6 +12,8 @@ const NAV_ITEMS = [
   { href: '/content', label: 'Content' },
   { href: '/moderation', label: 'Moderation' },
   { href: '/moderation/action-mix', label: 'Action Mix' },
+  { href: '/moderation/moderator-card', label: 'Moderator Card' },
+  { href: '/moderation/reports-over-time', label: 'Reports Over Time' },
   { href: '/authors', label: 'Authors' },
   { href: '/authors/concentration', label: 'Author Concentration' },
   { href: '/authors/distribution', label: 'Posts Distribution' },
