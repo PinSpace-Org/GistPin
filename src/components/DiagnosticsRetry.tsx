@@ -1,0 +1,1 @@
+export function DiagnosticsRetry() {\n    return <button>Retry</button>;\n}\n
