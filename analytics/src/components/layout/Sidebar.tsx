@@ -5,15 +5,21 @@ import { usePathname } from 'next/navigation';
 
 const NAV_ITEMS = [
   { href: '/overview', label: 'Overview' },
+  { href: '/overview/adoption-rate', label: 'Signed Adoption Rate' },
   { href: '/geospatial', label: 'Geospatial' },
   { href: '/time', label: 'Time' },
+  { href: '/time/signed-anonymous', label: 'Signed vs Anonymous' },
   { href: '/content', label: 'Content' },
   { href: '/moderation', label: 'Moderation' },
+  { href: '/moderation/action-mix', label: 'Action Mix' },
   { href: '/authors', label: 'Authors' },
   { href: '/authors/concentration', label: 'Author Concentration' },
   { href: '/authors/distribution', label: 'Posts Distribution' },
   { href: '/authors/new-vs-returning', label: 'New vs Returning' },
   { href: '/onchain', label: 'On-chain' },
+  { href: '/onchain/event-type-mix', label: 'Event Type Mix' },
+  { href: '/onchain/events-by-type', label: 'Events by Type' },
+  { href: '/onchain/events-feed', label: 'Events Feed' },
   { href: '/system', label: 'System Health' },
 ] as const;
 
