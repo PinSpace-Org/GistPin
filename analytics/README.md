@@ -41,9 +41,29 @@ origin, add it to `CORS_ORIGINS` in the backend environment.
 | `npm run start` | Serve the production build on :3001 |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
+| `npm run test` | Run unit tests with Vitest |
+| `npm run test:watch` | Run tests in watch mode |
 
-Before opening a PR, `npm run typecheck && npm run lint && npm run build`
+Before opening a PR, `npm run typecheck && npm run lint && npm run build && npm run test`
 should all pass.
+
+## Testing
+
+Unit tests use **Vitest** with **Testing Library** and **jsdom**:
+
+```bash
+npm run test          # Run all tests once
+npm run test:watch    # Run tests in watch mode
+```
+
+The test configuration:
+- Vitest with React plugin and jsdom environment
+- `@/` path alias resolves inside tests (see `vitest.config.ts`)
+- Tests located alongside source files as `*.test.{ts,tsx}`
+- Example pure function test: `src/lib/format.test.ts`
+- Example React component test: `src/hooks/useApi.test.tsx`
+
+To add a new test, create a `*.test.ts` or `*.test.tsx` file next to the code being tested.
 
 ## Project layout
 
