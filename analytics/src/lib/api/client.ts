@@ -16,6 +16,11 @@ import type {
   ModerationStatsParams,
   ModerationStatsResponse,
   OverviewResponse,
+  AuthorConcentrationResponse,
+  PostsPerAuthorDistributionParams,
+  PostsPerAuthorDistributionResponse,
+  NewVsReturningAuthorsParams,
+  NewVsReturningAuthorsResponse,
 } from './types';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -150,4 +155,22 @@ export function getModerationStats(
   options?: RequestOptions,
 ): Promise<ModerationStatsResponse> {
   return request(`/v1/stats/moderation${buildQuery(params)}`, options);
+}
+
+export function getAuthorConcentration(options?: RequestOptions): Promise<AuthorConcentrationResponse> {
+  return request('/v1/stats/authors/concentration', options);
+}
+
+export function getPostsPerAuthorDistribution(
+  params: PostsPerAuthorDistributionParams,
+  options?: RequestOptions,
+): Promise<PostsPerAuthorDistributionResponse> {
+  return request(`/v1/stats/authors/distribution${buildQuery(params)}`, options);
+}
+
+export function getNewVsReturningAuthors(
+  params: NewVsReturningAuthorsParams,
+  options?: RequestOptions,
+): Promise<NewVsReturningAuthorsResponse> {
+  return request(`/v1/stats/authors/new-vs-returning${buildQuery(params)}`, options);
 }
