@@ -1,0 +1,1 @@
+export function parsePrometheusText() {\n    // text format parser\n}\n
