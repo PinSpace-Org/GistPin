@@ -6,6 +6,16 @@ import type {
   ModeratorResponse,
   PaginatedResponse,
   QueryGistsParams,
+  QueryTimeseriesParams,
+  TimeseriesBucket,
+  AuthorsTopResponse,
+  AuthorsTimeseriesParams,
+  AuthorsTimeseriesResponse,
+  EventsStatsParams,
+  EventsStatsResponse,
+  ModerationStatsParams,
+  ModerationStatsResponse,
+  OverviewResponse,
 } from './types';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -104,4 +114,40 @@ export function getModerator(options?: RequestOptions): Promise<ModeratorRespons
 
 export function getHealth(options?: RequestOptions): Promise<HealthResponse> {
   return request('/v1/health', options);
+}
+
+export function getOverview(options?: RequestOptions): Promise<OverviewResponse> {
+  return request('/v1/stats/overview', options);
+}
+
+export function getGistsTimeseries(
+  params: QueryTimeseriesParams,
+  options?: RequestOptions,
+): Promise<TimeseriesBucket[]> {
+  return request(`/v1/stats/timeseries/gists${buildQuery(params)}`, options);
+}
+
+export function getAuthorsTop(options?: RequestOptions): Promise<AuthorsTopResponse> {
+  return request('/v1/stats/authors', options);
+}
+
+export function getAuthorsTimeseries(
+  params: AuthorsTimeseriesParams,
+  options?: RequestOptions,
+): Promise<AuthorsTimeseriesResponse> {
+  return request(`/v1/stats/authors/timeseries${buildQuery(params)}`, options);
+}
+
+export function getEventsStats(
+  params: EventsStatsParams,
+  options?: RequestOptions,
+): Promise<EventsStatsResponse> {
+  return request(`/v1/stats/events${buildQuery(params)}`, options);
+}
+
+export function getModerationStats(
+  params: ModerationStatsParams,
+  options?: RequestOptions,
+): Promise<ModerationStatsResponse> {
+  return request(`/v1/stats/moderation${buildQuery(params)}`, options);
 }

@@ -60,3 +60,89 @@ export interface HealthResponse {
     postgis: { status: 'ok' | 'error'; message?: string };
   };
 }
+
+export interface QueryTimeseriesParams {
+  from: string;
+  to: string;
+  bucket: 'hour' | 'day';
+}
+
+export interface TimeseriesBucket {
+  bucket: string;
+  count: number;
+  signed: number;
+  anonymous: number;
+}
+
+export interface AuthorsTopResponse {
+  authors: Array<{
+    address: string;
+    postCount: number;
+  }>;
+}
+
+export interface AuthorsTimeseriesParams {
+  from: string;
+  to: string;
+  bucket: 'hour' | 'day';
+}
+
+export interface AuthorsTimeseriesResponse {
+  buckets: Array<{
+    bucket: string;
+    uniqueAuthors: number;
+  }>;
+}
+
+export interface EventsStatsParams {
+  from: string;
+  to: string;
+  bucket: 'hour' | 'day';
+  type?: string;
+  recentLimit?: number;
+}
+
+export interface EventsStatsResponse {
+  buckets: Array<{
+    bucket: string;
+    counts: Record<string, number>;
+  }>;
+  recent: Array<{
+    type: string;
+    ledger: number;
+    stellarGistId: string | null;
+    observedAt: string;
+  }>;
+}
+
+export interface ModerationStatsParams {
+  limit?: number;
+}
+
+export interface ModerationStatsResponse {
+  hiddenCount: number;
+  reportedCount: number;
+  totalReports: number;
+  histogram: Array<{
+    bucket: string;
+    count: number;
+  }>;
+  topReported: Array<{
+    id: string;
+    reportCount: number;
+    hidden: boolean;
+  }>;
+}
+
+export interface OverviewResponse {
+  total: number;
+  active: number;
+  expired: number;
+  hidden: number;
+  uniqueAuthors: number;
+  signed: number;
+  anonymous: number;
+  apiSubmitted: number;
+  indexedOnly: number;
+  totalReports: number;
+}
