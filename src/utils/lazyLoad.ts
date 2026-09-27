@@ -1,0 +1,1 @@
+export function lazyLoad() {\n    // Bundle size optimization\n}\n
