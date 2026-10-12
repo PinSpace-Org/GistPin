@@ -70,9 +70,32 @@ To add a new test, create a `*.test.ts` or `*.test.tsx` file next to the code be
 ```
 analytics/
 ├── src/
-│   └── app/            # App Router routes, layout and global styles
-├── .env.example        # documented environment variables
-└── ...config files
+│   ├── app/             # App Router routes, layout and global styles
+│   │   ├── authors/     # author distribution and concentration views
+│   │   ├── content/     # content and hashtag views
+│   │   ├── geospatial/  # location-based views
+│   │   ├── moderation/  # moderation overview and reports
+│   │   ├── onchain/     # Soroban event views
+│   │   ├── overview/    # adoption and overview views
+│   │   ├── system/      # health and system views
+│   │   ├── time/        # time-based and signed-anonymous views
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/      # reusable UI components and charts
+│   │   ├── charts/
+│   │   └── layout/
+│   ├── hooks/           # React hooks and hook tests
+│   └── lib/             # API clients, types, formatters and pure logic
+│       └── api/         # backend client and API types
+├── .env.example         # documented environment variables
+├── eslint.config.mjs    # ESLint configuration
+├── next.config.ts       # Next.js configuration
+├── package.json         # scripts and dependencies
+├── package-lock.json    # locked dependency versions
+├── postcss.config.mjs   # PostCSS/Tailwind configuration
+├── tsconfig.json        # TypeScript configuration
+└── vitest.config.ts     # unit-test configuration
 ```
 
 As features land, keep to this convention:
