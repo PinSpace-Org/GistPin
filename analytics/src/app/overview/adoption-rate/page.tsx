@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { BucketSelector } from '@/components/BucketSelector';
@@ -13,10 +13,10 @@ import { formatPercent, formatCompactNumber } from '@/lib/format';
 import { useGistsTimeseries, useOverview } from '@/hooks';
 
 export default function SignedPostAdoptionRatePage() {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('day');
-  const [comparisonPeriod, setComparisonPeriod] = useState<'previous' | 'same-period-last-week' | 'same-period-last-month'>('previous');
+  const searchParams = useSearchParams();
+  const from = searchParams.get('from') ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const to = searchParams.get('to') ?? new Date().toISOString();
+  const bucket = (searchParams.get('bucket') as 'hour' | 'day') ?? 'day';
 
   const { data: timeseries, isLoading: tsLoading, error: tsError, refetch: refetchTs } = useGistsTimeseries(
     { from, to, bucket },
