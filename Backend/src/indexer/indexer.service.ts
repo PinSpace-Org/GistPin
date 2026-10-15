@@ -239,9 +239,7 @@ export class IndexerService {
       return latestLedger;
     }
 
-    return Number(
-      state.lastProcessedLedger,
-    );
+    return state.lastProcessedLedger;
   }
 
   /**

@@ -14,6 +14,10 @@ import {
 } from '@stellar/stellar-sdk';
 import { randomBytes } from 'crypto';
 
+import { GistRegistryEvent, decodeGistRegistryEvent } from './event-decoder';
+
+export * from './event-decoder';
+
 /**
  * Canonical event name emitted by the GistRegistry Soroban contract on a new
  * gist. Must match the symbol published in contracts/src/lib.rs (see
@@ -98,181 +102,10 @@ export interface GistEvent {
   createdAt: number;
 }
 
-// ── Event topic constants & discriminated union ────────────────────────────────
 
-export const GIST_EVENT_TOPICS = {
-  POSTED: 'gist_posted',
-  EDITED: 'gist_edited',
-  DELETED: 'gist_deleted',
-  HIDDEN: 'gist_hidden',
-  UNHIDDEN: 'gist_unhidden',
-  REMOVED: 'gist_removed',
-  REPORTED: 'gist_reported',
-} as const;
-
-export type GistEventTopic = (typeof GIST_EVENT_TOPICS)[keyof typeof GIST_EVENT_TOPICS];
-
-export interface GistRecord {
-  gistId: string;
-  locationCell: string;
-  contentHash: string;
-  author: string | null;
-  createdAt: number;
-  expiresAt: number;
-  hidden: boolean;
-}
-
-export interface GistPostedEvent {
-  type: 'gist_posted';
-  gist: GistRecord;
-  ledger: number;
-  /** Unique Soroban RPC event id (e.g. `<ledger>-<index>`), used to dedupe the event log. */
-  id: string;
-}
-
-export interface GistEditedEvent {
-  type: 'gist_edited';
-  gist: GistRecord;
-  ledger: number;
-  id: string;
-}
-
-export interface GistDeletedEvent {
-  type: 'gist_deleted';
-  gistId: string;
-  ledger: number;
-  id: string;
-}
-
-export interface GistHiddenEvent {
-  type: 'gist_hidden';
-  gistId: string;
-  ledger: number;
-  id: string;
-}
-
-export interface GistUnhiddenEvent {
-  type: 'gist_unhidden';
-  gistId: string;
-  ledger: number;
-  id: string;
-}
-
-export interface GistRemovedEvent {
-  type: 'gist_removed';
-  gistId: string;
-  ledger: number;
-  id: string;
-}
-
-export interface GistReportedEvent {
-  type: 'gist_reported';
-  gistId: string;
-  count: number;
-  ledger: number;
-  id: string;
-}
-
-export type GistRegistryEvent =
-  | GistPostedEvent
-  | GistEditedEvent
-  | GistDeletedEvent
-  | GistHiddenEvent
-  | GistUnhiddenEvent
-  | GistRemovedEvent
-  | GistReportedEvent;
-
-// ── Event decoder helpers ─────────────────────────────────────────────────────
-
-function decoderReadString(value: unknown): string {
-  if (typeof value === 'bigint') return value.toString();
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object' && 'toString' in value) return String(value);
-  throw new Error('Expected a string-like value');
-}
-
-function decoderReadNumber(value: unknown): number {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'bigint') return Number(value);
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) throw new Error('Expected a numeric value');
-  return parsed;
-}
-
-function decoderReadMaybeString(value: unknown): string | null {
-  if (value == null) return null;
-  return decoderReadString(value);
-}
-
-function decodeGistRecord(payload: Record<string, unknown>): GistRecord {
-  return {
-    gistId: decoderReadString(payload.gist_id ?? payload.gistId),
-    locationCell: decoderReadString(payload.location_cell ?? payload.locationCell),
-    contentHash: decoderReadString(payload.content_hash ?? payload.contentHash),
-    author: decoderReadMaybeString(payload.author),
-    createdAt: decoderReadNumber(payload.created_at ?? payload.createdAt),
-    expiresAt: decoderReadNumber(payload.expires_at ?? payload.expiresAt),
-    hidden: Boolean(payload.hidden),
-  };
-}
-
-/**
- * Decode a raw Soroban event emitted by the GistRegistry contract into a
- * typed, discriminated-union result. Returns `null` for unrecognized or
- * malformed events — it never throws.
- */
-export function decodeGistRegistryEvent(
-  eventName: string,
-  value: xdr.ScVal | undefined,
-  ledger: number,
-  id: string,
-): GistRegistryEvent | null {
-  if (!value) return null;
-
-  try {
-    const native = scValToNative(value);
-
-    switch (eventName) {
-      case GIST_EVENT_TOPICS.POSTED:
-      case GIST_EVENT_TOPICS.EDITED: {
-        if (!native || typeof native !== 'object') return null;
-        const gist = decodeGistRecord(native as Record<string, unknown>);
-        return { type: eventName, gist, ledger, id };
-      }
-
-      case GIST_EVENT_TOPICS.DELETED:
-      case GIST_EVENT_TOPICS.HIDDEN:
-      case GIST_EVENT_TOPICS.UNHIDDEN:
-      case GIST_EVENT_TOPICS.REMOVED: {
-        if (!native || typeof native !== 'object') return null;
-        const record = native as Record<string, unknown>;
-        const raw = record.gist_id ?? record.gistId;
-        if (raw == null) return null;
-        const gistId = decoderReadString(raw);
-        if (gistId === '[object Object]') return null;
-        return { type: eventName, gistId, ledger, id };
-      }
-
-      case GIST_EVENT_TOPICS.REPORTED: {
-        if (!native || typeof native !== 'object') return null;
-        const record = native as Record<string, unknown>;
-        return {
-          type: 'gist_reported',
-          gistId: decoderReadString(record.gist_id ?? record.gistId),
-          count: decoderReadNumber(record.count),
-          ledger,
-          id,
-        };
-      }
-
-      default:
-        return null;
-    }
-  } catch {
-    return null;
-  }
-}
+/** Page size and safety bound for paginated `getEvents` reads. */
+const EVENTS_PAGE_LIMIT = 200;
+const EVENTS_MAX_PAGES = 50;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -739,15 +572,48 @@ export class SorobanService {
   private async getEventsSinceLive(ledger: number): Promise<GistRegistryEvent[]> {
     const rpcServer = this.getRpcServer();
     const contract = this.getContract();
+    const filters = [{ type: 'contract' as const, contractIds: [contract.contractId()] }];
 
-    const response = await rpcServer.getEvents({
-      filters: [{ type: 'contract', contractIds: [contract.contractId()] }],
-      startLedger: ledger,
-    });
+    const collected: SorobanRpc.Api.EventResponse[] = [];
+    let cursor: string | undefined;
+    let startLedger = ledger;
 
-    return response.events
+    for (let page = 0; page < EVENTS_MAX_PAGES; page++) {
+      let response: SorobanRpc.Api.GetEventsResponse;
+      try {
+        response = await rpcServer.getEvents(
+          cursor
+            ? { filters, cursor, limit: EVENTS_PAGE_LIMIT }
+            : { filters, startLedger, limit: EVENTS_PAGE_LIMIT },
+        );
+      } catch (err) {
+        // The RPC only retains a window of ledgers. If our cursor fell out of it,
+        // re-seed from the oldest ledger it still has instead of failing every poll.
+        const oldest = cursor ? null : this.parseOldestRetainedLedger(err);
+        if (oldest === null || oldest <= startLedger) throw err;
+        this.logger.warn(
+          `startLedger ${startLedger} is outside the RPC's retained range; re-seeding from ledger ${oldest}`,
+        );
+        startLedger = oldest;
+        page -= 1;
+        continue;
+      }
+
+      collected.push(...response.events);
+      if (response.events.length < EVENTS_PAGE_LIMIT || !response.cursor) break;
+      cursor = response.cursor;
+    }
+
+    return collected
       .map((event) => this.decodeGistEvent(event))
       .filter((event): event is GistRegistryEvent => event !== null);
+  }
+
+  /** Extracts the oldest retained ledger from a "startLedger must be within the ledger range" RPC error. */
+  private parseOldestRetainedLedger(err: unknown): number | null {
+    const message = err instanceof Error ? err.message : String(err);
+    const match = /ledger range:\s*(\d+)\s*-\s*(\d+)/i.exec(message);
+    return match ? Number(match[1]) : null;
   }
 
   private async getLatestLedgerLive(): Promise<number> {

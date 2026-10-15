@@ -5,6 +5,13 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+/** node-postgres returns bigint columns as strings; expose them as numbers. */
+const bigintToNumber = {
+  to: (value?: number | null) => value,
+  from: (value?: string | number | null) =>
+    value === null || value === undefined ? value : Number(value),
+};
+
 @Entity('indexer_state')
 export class IndexerState {
   @PrimaryGeneratedColumn()
@@ -17,6 +24,7 @@ export class IndexerState {
     name: 'last_processed_ledger',
     type: 'bigint',
     default: 0,
+    transformer: bigintToNumber,
   })
   lastProcessedLedger: number;
 
