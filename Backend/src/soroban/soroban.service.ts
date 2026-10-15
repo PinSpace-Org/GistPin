@@ -14,13 +14,6 @@ import {
 } from '@stellar/stellar-sdk';
 import { randomBytes } from 'crypto';
 
-/**
- * Canonical event name emitted by the GistRegistry Soroban contract on a new
- * gist. Must match the symbol published in contracts/src/lib.rs (see
- * contracts/README.md "Events").
- */
-const GIST_POSTED_EVENT = 'gist_posted';
-
 // ── GistError codes (matches contracts/src/lib.rs GistError enum) ─────────────
 
 export enum GistError {

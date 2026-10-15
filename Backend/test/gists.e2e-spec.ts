@@ -22,8 +22,8 @@ describe('Gists lifecycle (e2e)', () => {
   let moduleFixture: TestingModule;
   let dataSource: DataSource;
   let gistRepository: GistRepository;
-  let ipfsMock = createIpfsServiceMock();
-  let sorobanMock = createSorobanServiceMock();
+  const ipfsMock = createIpfsServiceMock();
+  const sorobanMock = createSorobanServiceMock();
 
   const seedGist = async (overrides: Partial<Gist> & { lat: number; lon: number }) => {
     return gistRepository.create({

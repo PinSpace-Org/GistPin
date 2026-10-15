@@ -298,6 +298,8 @@ Table: `gists` (entity: `src/gists/entities/gist.entity.ts`; schema from `src/da
 | `npm run start:dev` | Start with hot-reload |
 | `npm run build` | Compile TypeScript |
 | `npm run start:prod` | Run compiled output |
+| `npm run lint` | ESLint, auto-fixing files in place (for local use) |
+| `npm run lint:check` | ESLint without `--fix` (for CI and hooks) |
 | `npm test` | Unit tests |
 | `npm run test:e2e` | End-to-end tests |
 | `npm run test:integration` | Integration tests (including contract-indexer end-to-end flow) |
