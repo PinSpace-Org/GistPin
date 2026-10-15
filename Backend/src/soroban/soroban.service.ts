@@ -493,7 +493,7 @@ export class SorobanService {
 
     const simulation = await rpcServer.simulateTransaction(
       new TransactionBuilder(
-        await rpcServer.getAccount(this.getSigner().publicKey()),
+        await rpcServer.getAccount(this.getReadAccountKey()),
         { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
       )
         .addOperation(contract.call('get_admin'))
@@ -551,6 +551,16 @@ export class SorobanService {
       throw new Error('Soroban live mode is unavailable without a contract id');
     }
     return this.contract;
+  }
+
+  /**
+   * Source account for read-only simulations. Simulation needs a funded public
+   * account but no signature, so reads use `SOROBAN_READ_ACCOUNT` when set and
+   * fall back to the signer's public key otherwise.
+   */
+  private getReadAccountKey(): string {
+    const configured = this.config.get<string>('SOROBAN_READ_ACCOUNT');
+    return configured || this.getSigner().publicKey();
   }
 
   private getSigner(): Keypair {
@@ -626,7 +636,7 @@ export class SorobanService {
 
     const simulation = await rpcServer.simulateTransaction(
       new TransactionBuilder(
-        await rpcServer.getAccount(this.getSigner().publicKey()),
+        await rpcServer.getAccount(this.getReadAccountKey()),
         { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
       )
         .addOperation(
@@ -658,7 +668,7 @@ export class SorobanService {
 
     const simulation = await rpcServer.simulateTransaction(
       new TransactionBuilder(
-        await rpcServer.getAccount(this.getSigner().publicKey()),
+        await rpcServer.getAccount(this.getReadAccountKey()),
         { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
       )
         .addOperation(
@@ -690,7 +700,7 @@ export class SorobanService {
 
     const simulation = await rpcServer.simulateTransaction(
       new TransactionBuilder(
-        await rpcServer.getAccount(this.getSigner().publicKey()),
+        await rpcServer.getAccount(this.getReadAccountKey()),
         { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
       )
         .addOperation(

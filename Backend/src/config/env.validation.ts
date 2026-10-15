@@ -27,6 +27,11 @@ export const envValidationSchema = Joi.object({
   ),
   CONTRACT_ID_GIST_REGISTRY: Joi.string().allow('').default(''),
   STELLAR_SECRET_KEY: Joi.string().allow('').default(''),
+  // Funded public key used as the simulation source for read-only calls (no secret needed)
+  SOROBAN_READ_ACCOUNT: Joi.string()
+    .pattern(/^G[A-Z2-7]{55}$/)
+    .allow('')
+    .default(''),
 
   // IPFS (Pinata) — optional; empty means mock CIDs in dev
   PINATA_API_KEY: Joi.string().allow('').default(''),
