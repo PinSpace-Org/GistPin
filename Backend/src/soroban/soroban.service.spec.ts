@@ -1,5 +1,4 @@
 jest.mock('@stellar/stellar-sdk', () => {
-  const noop = () => {};
   return {
     StrKey: { encodeEd25519PublicKey: jest.fn((k: string) => k) },
     Address: jest.fn().mockImplementation((k: string) => ({ toString: () => k })),
@@ -35,7 +34,7 @@ jest.mock('@stellar/stellar-sdk', () => {
     },
     rpc: {
       Server: jest.fn().mockImplementation(() => ({
-        prepareTransaction: jest.fn().mockImplementation((tx: unknown) =>
+        prepareTransaction: jest.fn().mockImplementation(() =>
           Promise.resolve({
             toXDR: jest.fn().mockReturnValue('prepared-xdr'),
           }),
