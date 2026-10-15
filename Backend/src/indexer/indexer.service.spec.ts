@@ -118,7 +118,7 @@ describe('IndexerService', () => {
     );
 
     eventLogRepo = {
-      record: jest.fn().mockResolvedValue(undefined),
+      record: jest.fn(async () => undefined),
     };
 
     service = new IndexerService(
