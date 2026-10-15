@@ -1,5 +1,8 @@
 import { utilities as nestWinstonUtilities, WinstonModuleOptions } from 'nest-winston';
 import * as winston from 'winston';
+// winston-daily-rotate-file is a CommonJS module without a default export; tsconfig has no
+// esModuleInterop, so the `import = require` form is needed for the class to be constructible.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 import DailyRotateFile = require('winston-daily-rotate-file');
 import { getCorrelationId } from './correlation-id.store';
 
