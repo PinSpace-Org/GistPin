@@ -50,7 +50,7 @@ export class GistsService {
     // Security (#1040): Backend-submitted on-chain posts are ALWAYS anonymous (author = undefined).
     // The backend cannot verify ownership of a client-supplied authorAddress.
     // Signed posts must be submitted wallet-direct client-side by the user's wallet.
-    const { gistId, txHash } = await this.sorobanService.postGist(
+    const { gistId, txHash, mock } = await this.sorobanService.postGist(
       undefined,
       locationCell,
       cid,
@@ -59,8 +59,7 @@ export class GistsService {
 
     this.logger.log(`Gist posted → cell=${locationCell} cid=${cid} gistId=${gistId}`);
 
-    const ttlHours = dto.ttlHours ?? DEFAULT_TTL_HOURS;
-    const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
+    const expiresAt = await this.resolveExpiry(gistId, mock, dto.ttlHours ?? DEFAULT_TTL_HOURS);
 
     try {
       return await this.dataSource.transaction(async (manager) => {
@@ -90,6 +89,26 @@ export class GistsService {
       }
       throw err;
     }
+  }
+
+  /**
+   * The contract derives expiry from ledger time plus `ttl_secs`, which can
+   * drift from the server clock. Prefer the expiry the contract actually
+   * assigned; fall back to the server-clock estimate (mock mode, or if the
+   * read fails).
+   */
+  private async resolveExpiry(gistId: string, mock: boolean | undefined, ttlHours: number): Promise<Date> {
+    if (!mock) {
+      try {
+        const onChain = await this.sorobanService.getGist(gistId);
+        if (onChain?.expiresAt) return new Date(onChain.expiresAt * 1000);
+      } catch (err) {
+        this.logger.warn(
+          `Could not read on-chain expiry for gist ${gistId}; using server clock: ${(err as Error).message}`,
+        );
+      }
+    }
+    return new Date(Date.now() + ttlHours * 60 * 60 * 1000);
   }
 
   async findNearby(query: QueryGistsDto): Promise<PaginatedResponse<Gist>> {

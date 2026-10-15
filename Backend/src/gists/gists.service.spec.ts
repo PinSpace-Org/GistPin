@@ -73,6 +73,7 @@ describe('GistsService', () => {
           provide: SorobanService,
           useValue: {
             postGist: jest.fn().mockResolvedValue({ gistId: 'gist-1', txHash: 'mock_tx' }),
+            getGist: jest.fn(),
             reportGist: jest.fn().mockResolvedValue({ count: 3, mock: true }),
           },
         },
@@ -143,6 +144,31 @@ describe('GistsService', () => {
       const delta = expiresAt.getTime() - before;
       expect(delta).toBeGreaterThanOrEqual(2 * 60 * 60 * 1000 - 100);
       expect(delta).toBeLessThanOrEqual(2 * 60 * 60 * 1000 + (after - before) + 100);
+    });
+
+    it('stores the expiry the contract assigned instead of the server-clock estimate', async () => {
+      const sorobanService = (service as any).sorobanService;
+      sorobanService.postGist.mockResolvedValueOnce({ gistId: 'gist-1', txHash: 'tx', mock: false });
+      sorobanService.getGist.mockResolvedValueOnce({ gistId: 'gist-1', expiresAt: 1_900_000_000 });
+      gistRepository.create.mockResolvedValue(buildGist());
+
+      await service.create(buildDto({ ttlHours: 2 }));
+
+      const expiresAt: Date = gistRepository.create.mock.calls[0][0].expires_at as Date;
+      expect(expiresAt.getTime()).toBe(1_900_000_000 * 1000);
+    });
+
+    it('falls back to the server clock when the on-chain read fails', async () => {
+      const sorobanService = (service as any).sorobanService;
+      sorobanService.postGist.mockResolvedValueOnce({ gistId: 'gist-1', txHash: 'tx', mock: false });
+      sorobanService.getGist.mockRejectedValueOnce(new Error('rpc down'));
+      gistRepository.create.mockResolvedValue(buildGist());
+      const before = Date.now();
+
+      await service.create(buildDto({ ttlHours: 2 }));
+
+      const expiresAt: Date = gistRepository.create.mock.calls[0][0].expires_at as Date;
+      expect(expiresAt.getTime() - before).toBeGreaterThanOrEqual(2 * 60 * 60 * 1000 - 100);
     });
 
     it('always passes undefined as author to SorobanService.postGist even if authorAddress is provided in DTO (#1040)', async () => {
