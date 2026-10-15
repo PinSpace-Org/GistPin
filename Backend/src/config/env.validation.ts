@@ -33,6 +33,16 @@ export const envValidationSchema = Joi.object({
   PINATA_SECRET_KEY: Joi.string().allow('').default(''),
   IPFS_GATEWAY: Joi.string().uri().default('https://gateway.pinata.cloud/ipfs'),
 
+  // Retries and cache
+  IPFS_RETRY_ATTEMPTS: Joi.number().integer().min(1).max(10).default(3),
+  SOROBAN_RETRY_ATTEMPTS: Joi.number().integer().min(1).max(10).default(3),
+  STATS_CACHE_TTL_MS: Joi.number().integer().min(0).default(30000),
+
+  // Moderator — optional Stellar public key (G... address); leave unset to use the default
+  MODERATOR_ADDRESS: Joi.string()
+    .pattern(/^G[A-Z2-7]{55}$/)
+    .messages({ 'string.pattern.base': 'MODERATOR_ADDRESS must be a Stellar public key' }),
+
   // CORS
   CORS_ORIGINS: Joi.string().allow('').default(''),
 
