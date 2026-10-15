@@ -539,4 +539,40 @@ describe('GistRepository (integration)', () => {
       // The hidden gist's cell should not inflate counts
     });
   });
+
+  describe('is_active filtering', () => {
+    const MARKER = `inactive-${Date.now()}`;
+    let gistId: string;
+
+    beforeAll(async () => {
+      const gist = await repository.create({
+        content: 'gist that will be deactivated',
+        lat: 9.0579,
+        lon: 7.4951,
+        location_cell: 's1t7d8c',
+        stellar_gist_id: MARKER,
+      });
+      gistId = gist.id;
+    });
+
+    afterAll(async () => {
+      await dataSource.query(`DELETE FROM gists WHERE stellar_gist_id = $1`, [MARKER]);
+    });
+
+    it('returns an active gist from findByGistId and findNearby', async () => {
+      expect((await repository.findByGistId(gistId))?.id).toBe(gistId);
+      const page = await repository.findNearby({ lat: 9.0579, lon: 7.4951, radiusMeters: 500, limit: 100 });
+      expect(page.data.some((g) => g.id === gistId)).toBe(true);
+    });
+
+    it('hides the gist everywhere once is_active is false', async () => {
+      const before = await repository.countNearby(9.0579, 7.4951, 500);
+      await repository.setGistActive(MARKER, false);
+
+      expect(await repository.findByGistId(gistId)).toBeNull();
+      const page = await repository.findNearby({ lat: 9.0579, lon: 7.4951, radiusMeters: 500, limit: 100 });
+      expect(page.data.some((g) => g.id === gistId)).toBe(false);
+      expect(await repository.countNearby(9.0579, 7.4951, 500)).toBe(before - 1);
+    });
+  });
 });

@@ -1,4 +1,3 @@
-import { Controller, Get } from '@nestjs/common';
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -22,6 +21,8 @@ export class StatsController {
   })
   getOverview() {
     return this.statsService.getOverview();
+  }
+
   @Get('timeseries/gists')
   @SkipThrottle()
   @ApiOperation({ summary: 'Gists created over time, zero-filled per bucket' })
@@ -34,6 +35,8 @@ export class StatsController {
   @ApiOperation({ summary: 'Moderation signals: hidden/reported counts and top-reported gists' })
   getModeration(@Query() query: QueryModerationDto) {
     return this.statsService.getModerationStats(query);
+  }
+
   @Get('events')
   @SkipThrottle()
   @ApiOperation({ summary: 'Event counts per type per time bucket, plus recent events' })

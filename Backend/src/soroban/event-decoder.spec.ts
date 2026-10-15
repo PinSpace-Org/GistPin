@@ -11,6 +11,7 @@ import { nativeToScVal } from '@stellar/stellar-sdk';
  */
 describe('decodeGistRegistryEvent', () => {
   const LEDGER = 12345;
+  const EVENT_ID = '0000012345-0000000001';
 
   const buildGistPayload = (overrides: Record<string, unknown> = {}) =>
     nativeToScVal({
@@ -36,11 +37,13 @@ describe('decodeGistRegistryEvent', () => {
         GIST_EVENT_TOPICS.POSTED,
         buildGistPayload(),
         LEDGER,
+        EVENT_ID,
       );
 
       expect(result).not.toBeNull();
       expect(result!.type).toBe('gist_posted');
       if (result!.type === 'gist_posted') {
+        expect(result!.id).toBe(EVENT_ID);
         expect(result!.gist.gistId).toBe('1');
         expect(result!.gist.locationCell).toBe('s1t7d8c');
         expect(result!.gist.contentHash).toBe('Qm123');
@@ -54,6 +57,7 @@ describe('decodeGistRegistryEvent', () => {
         GIST_EVENT_TOPICS.POSTED,
         buildGistPayload({ author: 'GABC123' }),
         LEDGER,
+        EVENT_ID,
       );
 
       expect(result).not.toBeNull();
@@ -69,6 +73,7 @@ describe('decodeGistRegistryEvent', () => {
         GIST_EVENT_TOPICS.EDITED,
         buildGistPayload({ content_hash: 'Qm456' }),
         LEDGER,
+        EVENT_ID,
       );
 
       expect(result).not.toBeNull();
@@ -85,6 +90,7 @@ describe('decodeGistRegistryEvent', () => {
         GIST_EVENT_TOPICS.DELETED,
         buildIdPayload(BigInt(99)),
         LEDGER,
+        EVENT_ID,
       );
 
       expect(result).not.toBeNull();
@@ -102,6 +108,7 @@ describe('decodeGistRegistryEvent', () => {
         GIST_EVENT_TOPICS.HIDDEN,
         buildIdPayload(BigInt(5)),
         LEDGER,
+        EVENT_ID,
       );
 
       expect(result).not.toBeNull();
@@ -118,6 +125,7 @@ describe('decodeGistRegistryEvent', () => {
         GIST_EVENT_TOPICS.UNHIDDEN,
         buildIdPayload(BigInt(5)),
         LEDGER,
+        EVENT_ID,
       );
 
       expect(result).not.toBeNull();
@@ -134,6 +142,7 @@ describe('decodeGistRegistryEvent', () => {
         GIST_EVENT_TOPICS.REMOVED,
         buildIdPayload(BigInt(10)),
         LEDGER,
+        EVENT_ID,
       );
 
       expect(result).not.toBeNull();
@@ -150,6 +159,7 @@ describe('decodeGistRegistryEvent', () => {
         GIST_EVENT_TOPICS.REPORTED,
         buildReportPayload(BigInt(7), BigInt(3)),
         LEDGER,
+        EVENT_ID,
       );
 
       expect(result).not.toBeNull();
@@ -163,18 +173,18 @@ describe('decodeGistRegistryEvent', () => {
 
   describe('unknown and malformed events', () => {
     it('returns null for an unrecognized topic', () => {
-      const result = decodeGistRegistryEvent('future_event', buildIdPayload(), LEDGER);
+      const result = decodeGistRegistryEvent('future_event', buildIdPayload(), LEDGER, EVENT_ID);
       expect(result).toBeNull();
     });
 
     it('returns null when value is undefined', () => {
-      const result = decodeGistRegistryEvent(GIST_EVENT_TOPICS.POSTED, undefined, LEDGER);
+      const result = decodeGistRegistryEvent(GIST_EVENT_TOPICS.POSTED, undefined, LEDGER, EVENT_ID);
       expect(result).toBeNull();
     });
 
     it('returns null when payload is malformed (no gist_id)', () => {
       const badPayload = nativeToScVal({ wrong_field: 'x' });
-      const result = decodeGistRegistryEvent(GIST_EVENT_TOPICS.DELETED, badPayload, LEDGER);
+      const result = decodeGistRegistryEvent(GIST_EVENT_TOPICS.DELETED, badPayload, LEDGER, EVENT_ID);
       expect(result).toBeNull();
     });
   });

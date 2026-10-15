@@ -21,7 +21,6 @@ jest.mock('../soroban/soroban.service', () => ({
 describe('GistsService', () => {
   let service: GistsService;
   let gistRepository: jest.Mocked<GistRepository>;
-  let ipfsService: jest.Mocked<IpfsService>;
   let transactionMock: jest.Mock;
 
   const buildGist = (overrides: Partial<Gist> = {}): Gist => ({
@@ -83,7 +82,6 @@ describe('GistsService', () => {
 
     service = module.get(GistsService);
     gistRepository = module.get(GistRepository) as jest.Mocked<GistRepository>;
-    ipfsService = module.get(IpfsService) as jest.Mocked<IpfsService>;
 
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
@@ -197,7 +195,7 @@ describe('GistsService', () => {
       gistRepository.create.mockRejectedValue(driverError);
       gistRepository.findByStellarGistId.mockResolvedValue(existing);
 
-      const result = await service.create(buildDto());
+      await service.create(buildDto());
 
       expect(gistRepository.findByStellarGistId).toHaveBeenCalledWith('gist-1');
     });

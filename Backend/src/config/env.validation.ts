@@ -27,11 +27,26 @@ export const envValidationSchema = Joi.object({
   ),
   CONTRACT_ID_GIST_REGISTRY: Joi.string().allow('').default(''),
   STELLAR_SECRET_KEY: Joi.string().allow('').default(''),
+  // Funded public key used as the simulation source for read-only calls (no secret needed)
+  SOROBAN_READ_ACCOUNT: Joi.string()
+    .pattern(/^G[A-Z2-7]{55}$/)
+    .allow('')
+    .default(''),
 
   // IPFS (Pinata) — optional; empty means mock CIDs in dev
   PINATA_API_KEY: Joi.string().allow('').default(''),
   PINATA_SECRET_KEY: Joi.string().allow('').default(''),
   IPFS_GATEWAY: Joi.string().uri().default('https://gateway.pinata.cloud/ipfs'),
+
+  // Retries and cache
+  IPFS_RETRY_ATTEMPTS: Joi.number().integer().min(1).max(10).default(3),
+  SOROBAN_RETRY_ATTEMPTS: Joi.number().integer().min(1).max(10).default(3),
+  STATS_CACHE_TTL_MS: Joi.number().integer().min(0).default(30000),
+
+  // Moderator — optional Stellar public key (G... address); leave unset to use the default
+  MODERATOR_ADDRESS: Joi.string()
+    .pattern(/^G[A-Z2-7]{55}$/)
+    .messages({ 'string.pattern.base': 'MODERATOR_ADDRESS must be a Stellar public key' }),
 
   // CORS
   CORS_ORIGINS: Joi.string().allow('').default(''),

@@ -45,7 +45,7 @@ describe('HttpMetricsInterceptor', () => {
   });
 
   it('should record 4xx status on client error', (done) => {
-    const { counter, histogram, stopTimer } = makeMetrics();
+    const { counter, histogram } = makeMetrics();
     const interceptor = new HttpMetricsInterceptor(
       counter as Counter<string>,
       histogram as Histogram<string>,

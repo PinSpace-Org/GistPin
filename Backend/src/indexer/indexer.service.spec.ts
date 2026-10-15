@@ -5,14 +5,6 @@ import { GistRepository } from '../gists/gist.repository';
 import { GeoService } from '../geo/geo.service';
 import { GistPostedEvent } from '../soroban/soroban.service';
 import { IndexerState } from './indexer-state.entity';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  jest,
-} from '@jest/globals';
 
 jest.mock('../soroban/soroban.service', () => ({
   SorobanService: class SorobanService {},
@@ -118,7 +110,7 @@ describe('IndexerService', () => {
     );
 
     eventLogRepo = {
-      record: jest.fn().mockResolvedValue(undefined),
+      record: jest.fn(async () => undefined),
     };
 
     service = new IndexerService(

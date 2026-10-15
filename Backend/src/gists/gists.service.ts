@@ -13,11 +13,6 @@ import { stripHtml } from '../common/utils/sanitize';
 
 const DEFAULT_TTL_HOURS = 24;
 
-interface CacheEntry {
-  data: Record<string, unknown>;
-  expiresAt: number;
-}
-
 export interface CountNearbyResult {
   count: number;
   radius: number;
@@ -29,8 +24,6 @@ export interface CountNearbyResult {
 @Injectable()
 export class GistsService {
   private readonly logger = new Logger(GistsService.name);
-  private readonly contentCache = new Map<string, CacheEntry>();
-  private static readonly CACHE_TTL_MS = 5 * 60 * 1000;
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
