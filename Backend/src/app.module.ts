@@ -13,6 +13,7 @@ import { GistsModule } from './gists/gists.module';
 import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { ShutdownModule } from './common/shutdown/shutdown.module';
+import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { InFlightRequestMiddleware } from './common/shutdown/in-flight.middleware';
@@ -24,6 +25,7 @@ import { StatsModule } from './stats/stats.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [configuration],
       validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,

@@ -79,6 +79,7 @@ export class GistRepository {
 
     clauses.push(`g.expires_at > NOW()`);
     clauses.push(`g.hidden = false`);
+    clauses.push(`g.is_active = true`);
 
     if (cursor) {
       const decoded = PaginationHelper.decodeCursor(cursor) ?? cursor;
@@ -145,6 +146,7 @@ export class GistRepository {
       WHERE id = $1
         AND expires_at > NOW()
         AND hidden = false
+        AND is_active = true
       LIMIT 1
       `,
       [id],
@@ -194,7 +196,8 @@ export class GistRepository {
          ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
          $3
        ) AND expires_at > NOW()
-       AND hidden = false`,
+       AND hidden = false
+       AND is_active = true`,
       [lon, lat, radiusMeters],
     );
     return parseInt(row.count, 10);
@@ -212,6 +215,7 @@ export class GistRepository {
          $3
        ) AND expires_at > NOW()
        AND hidden = false
+       AND is_active = true
        GROUP BY location_cell ORDER BY count DESC`,
       [lon, lat, radiusMeters],
     );

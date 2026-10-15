@@ -162,18 +162,20 @@ and never touches the chain. To exercise the real Soroban path:
 
 ## API Overview
 
+All routes are URI-versioned: the base path is `/v1`.
+
 ### Health
 
 ```
-GET /health
+GET /v1/health
 ```
 
-Returns `{ "status": "ok" }`.
+Returns `{ "status": "ok" | "degraded", "timestamp": "...", "services": { "database": ..., "postgis": ... } }`.
 
 ### Query Gists by Location
 
 ```
-GET /gists?lat=5.6037&lon=-0.1870&radius=500&limit=20&cursor=
+GET /v1/gists?lat=5.6037&lon=-0.1870&radius=500&limit=20&cursor=
 ```
 
 | Param | Type | Default | Description |
@@ -183,11 +185,31 @@ GET /gists?lat=5.6037&lon=-0.1870&radius=500&limit=20&cursor=
 | `radius` | number | `500` | Radius in metres (max 5000) |
 | `limit` | number | `20` | Max results (max 100) |
 | `cursor` | string | — | Pagination cursor |
+| `authorAddress` | string | — | Filter by author Stellar address |
+
+### Routes
+
+| Route | Description |
+|---|---|
+| `GET /v1/health` | Database and PostGIS health |
+| `GET /v1/gists` | Gists near a point |
+| `POST /v1/gists` | Create a gist |
+| `GET /v1/gists/count` | Count of gists near a point (`breakdown=true` groups by location cell) |
+| `GET /v1/gists/moderator` | Current moderator address |
+| `GET /v1/gists/:id` | A single gist by UUID |
+| `GET /v1/gists/:id/content` | Raw IPFS content for a gist |
+| `POST /v1/gists/:id/report` | Report a gist for review |
+| `GET /v1/stats/overview` | Platform totals |
+| `GET /v1/stats/timeseries/gists` | Gists created over time |
+| `GET /v1/stats/moderation` | Moderation signals |
+| `GET /v1/stats/events` | Event counts per type per time bucket |
+
+Swagger docs are served at `/v1/docs`.
 
 ### Create a Gist
 
 ```
-POST /gists
+POST /v1/gists
 Content-Type: application/json
 ```
 
@@ -195,15 +217,16 @@ Content-Type: application/json
 {
   "lat": 5.6037,
   "lon": -0.1870,
-  "text": "Great street food here tonight",
+  "content": "Great street food here tonight",
+  "ttlHours": 24,
   "authorAddress": "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 }
 ```
 
-`authorAddress` is optional — used only as an off-chain display/filter hint.
+`content` (max 280 chars), `lat` and `lon` are required. `ttlHours` (1-168, default 24) and `authorAddress` are optional — `authorAddress` is used only as an off-chain display/filter hint. Unknown fields are rejected with 400.
 
 > **Security Note — Wallet-Direct Model for Signed Posts:**
-> All backend-submitted on-chain posts (`POST /gists`) are provably anonymous (`author = None`) on-chain. The backend cannot verify ownership of a client-supplied `authorAddress` without a signed transaction, so it never attributes posts on-chain on the caller's behalf. Signed/attributed posts must be submitted directly client-side by the user's wallet.
+> All backend-submitted on-chain posts (`POST /v1/gists`) are provably anonymous (`author = None`) on-chain. The backend cannot verify ownership of a client-supplied `authorAddress` without a signed transaction, so it never attributes posts on-chain on the caller's behalf. Signed/attributed posts must be submitted directly client-side by the user's wallet.
 
 **What happens internally:**
 1. Validate + sanitise input
@@ -220,7 +243,7 @@ Content-Type: application/json
 The MVP API is **open by design**. All endpoints are publicly accessible with no API-key requirement. Abuse prevention is handled by:
 
 - **Global rate limiting** — NestJS throttler configured via `THROTTLE_TTL_MS` and `THROTTLE_LIMIT` env vars (defaults: 10 requests / 60 s).
-- **Per-route throttling** — write endpoints (`POST /gists`) have a tighter limit (10 / 60 s) via `@Throttle`.
+- **Per-route throttling** — write endpoints (`POST /v1/gists`) have a tighter limit (10 / 60 s) via `@Throttle`.
 - **On-chain rate limiting** — the `GistRegistry` contract enforces a 60-second cooldown per (author, cell) for signed posts.
 
 An API-key module (`ApiKeyGuard` + `ApiKeyService`) was prototyped but intentionally removed — the anonymous-first ethos of GistPin means requiring keys would break the core UX. API-key auth is a pre-launch follow-up if needed.
@@ -229,10 +252,25 @@ An API-key module (`ApiKeyGuard` + `ApiKeyService`) was prototyped but intention
 
 ## Database Model
 
-Table: `gists`
+Table: `gists` (entity: `src/gists/entities/gist.entity.ts`; schema from `src/database/migrations`)
 
 | Column | Type | Notes |
 |---|---|---|
+| `id` | `uuid` PK | Generated; internal primary key |
+| `content` | `text` NOT NULL | Gist text |
+| `location_cell` | `varchar(20)` | Nullable — coarse geohash cell |
+| `content_hash` | `varchar(100)` | Nullable — content hash/CID |
+| `stellar_gist_id` | `varchar(80)` | Nullable, unique — on-chain gist ID |
+| `tx_hash` | `varchar(80)` | Nullable — Stellar transaction hash |
+| `author_address` | `varchar(80)` | Nullable — anonymous posts allowed |
+| `location` | `geography(Point, 4326)` | Nullable — PostGIS point (latitude/longitude live here; there are no `lat`/`lon` columns) |
+| `created_at` | `timestamptz` NOT NULL | Default `NOW()` |
+| `expires_at` | `timestamptz` NOT NULL | Default `NOW() + 24 hours` |
+| `hidden` | `boolean` NOT NULL | Default `false` |
+| `report_count` | `integer` NOT NULL | Default `0` |
+| `is_active` | `boolean` NOT NULL | Default `true` |
+
+---|---|---|
 | `id` | `uuid` PK | Internal primary key |
 | `gist_id` | `bigint` UNIQUE | On-chain ID from GistRegistry contract |
 | `location_cell` | `text` | Coarse geohash cell |
@@ -260,6 +298,8 @@ Table: `gists`
 | `npm run start:dev` | Start with hot-reload |
 | `npm run build` | Compile TypeScript |
 | `npm run start:prod` | Run compiled output |
+| `npm run lint` | ESLint, auto-fixing files in place (for local use) |
+| `npm run lint:check` | ESLint without `--fix` (for CI and hooks) |
 | `npm test` | Unit tests |
 | `npm run test:e2e` | End-to-end tests |
 | `npm run test:integration` | Integration tests (including contract-indexer end-to-end flow) |

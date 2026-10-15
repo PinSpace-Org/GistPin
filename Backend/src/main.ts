@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { ValidationPipe, VersioningType } from '@nestjs/common';
+import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 import { AppModule } from './app.module';
@@ -59,9 +59,10 @@ async function bootstrap() {
   process.on('SIGINT', handle);
 
   await app.listen(process.env.PORT ?? 3000);
-  console.log(`Gist API running on port ${process.env.PORT ?? 3000}`);
-  console.log(`Swagger docs → http://localhost:${process.env.PORT ?? 3000}/api/docs`);
-  console.log(
+  const logger = new Logger('Bootstrap');
+  logger.log(`Gist API running on port ${process.env.PORT ?? 3000}`);
+  logger.log(`Swagger docs → http://localhost:${process.env.PORT ?? 3000}/v1/docs`);
+  logger.log(
     `Graceful shutdown armed (SHUTDOWN_TIMEOUT_MS=${configService.get<number>('SHUTDOWN_TIMEOUT_MS', 25000)})`,
   );
 }

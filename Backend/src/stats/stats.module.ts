@@ -7,9 +7,5 @@ import { StatsCacheService } from './cache/stats-cache.service';
 @Module({
   controllers: [StatsController],
   providers: [StatsService, StatsCacheService],
-
-@Module({
-  controllers: [StatsController],
-  providers: [StatsService],
 })
 export class StatsModule {}

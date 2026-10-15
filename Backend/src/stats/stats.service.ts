@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
+import { GIST_EVENT_TOPICS } from '../soroban/soroban.service';
 import { StatsCacheService } from './cache/stats-cache.service';
+import { QueryTimeseriesDto } from './dto/query-timeseries.dto';
+import { QueryModerationDto } from './dto/query-moderation.dto';
+import { QueryStatsEventsDto } from './dto/query-stats-events.dto';
 
 interface OverviewRow {
   total: string;
@@ -15,16 +19,9 @@ interface OverviewRow {
   api_submitted: string;
   indexed_only: string;
   total_reports: string;
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
-
-import { QueryTimeseriesDto } from './dto/query-timeseries.dto';
-import { QueryModerationDto } from './dto/query-moderation.dto';
+}
 
 const MAX_POINTS = 1000;
-import { GIST_EVENT_TOPICS } from '../soroban/soroban.service';
-import { QueryStatsEventsDto } from './dto/query-stats-events.dto';
 
 const BUCKET_MS: Record<string, number> = {
   hour: 60 * 60 * 1000,
@@ -82,14 +79,13 @@ export class StatsService {
         totalReports: Number(row?.total_reports ?? 0),
       };
     });
-  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
+  }
 
   /**
    * #1239 — gists created over time, zero-filled with generate_series so
    * charts have no gaps.
    */
   async getGistsTimeseries(query: QueryTimeseriesDto) {
-  async getEventStats(query: QueryStatsEventsDto) {
     const from = new Date(query.from);
     const to = new Date(query.to);
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from >= to) {
@@ -190,6 +186,15 @@ export class StatsService {
         hidden: r.hidden,
       })),
     };
+  }
+
+  async getEventStats(query: QueryStatsEventsDto) {
+    const from = new Date(query.from);
+    const to = new Date(query.to);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from >= to) {
+      throw new BadRequestException('`from` must be a valid ISO date before `to`');
+    }
+
     const bucketMs = BUCKET_MS[query.bucket];
     const bucketCount = Math.ceil((to.getTime() - from.getTime()) / bucketMs);
     if (bucketCount > MAX_BUCKETS) {

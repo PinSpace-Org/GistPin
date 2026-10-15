@@ -1,10 +1,8 @@
-import { StatsService } from './stats.service';
-import { StatsCacheService } from './cache/stats-cache.service';
-
-describe('StatsService.getOverview', () => {
-  let dataSource: { query: jest.Mock };
-  let cache: StatsCacheService;
 import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
+
+import { StatsCacheService } from './cache/stats-cache.service';
 import { StatsService } from './stats.service';
 
 describe('StatsService', () => {
@@ -15,50 +13,52 @@ describe('StatsService', () => {
     dataSource = { query: jest.fn() };
     // Real cache with a throwaway ConfigService so getOverview's single
     // query is actually exercised, not short-circuited by a mock cache.
-    cache = new StatsCacheService({ get: jest.fn().mockReturnValue(30_000) } as any);
-    service = new StatsService(dataSource as any, cache);
+    const config = { get: jest.fn().mockReturnValue(30_000) } as unknown as ConfigService;
+    const cache = new StatsCacheService(config);
+    service = new StatsService(dataSource as unknown as DataSource, cache);
   });
 
-  it('maps each FILTER-clause counter from the aggregate row', async () => {
-    dataSource.query.mockResolvedValue([
-      {
-        total: '10',
-        active: '6',
-        expired: '2',
-        hidden: '1',
-        unique_authors: '4',
-        signed: '5',
-        anonymous: '5',
-        api_submitted: '3',
-        indexed_only: '7',
-        total_reports: '9',
-      },
-    ]);
+  describe('getOverview', () => {
+    it('maps each FILTER-clause counter from the aggregate row', async () => {
+      dataSource.query.mockResolvedValue([
+        {
+          total: '10',
+          active: '6',
+          expired: '2',
+          hidden: '1',
+          unique_authors: '4',
+          signed: '5',
+          anonymous: '5',
+          api_submitted: '3',
+          indexed_only: '7',
+          total_reports: '9',
+        },
+      ]);
 
-    const result = await service.getOverview();
+      const result = await service.getOverview();
 
-    expect(result).toEqual({
-      total: 10,
-      active: 6,
-      expired: 2,
-      hidden: 1,
-      uniqueAuthors: 4,
-      signed: 5,
-      anonymous: 5,
-      apiSubmitted: 3,
-      indexedOnly: 7,
-      totalReports: 9,
+      expect(result).toEqual({
+        total: 10,
+        active: 6,
+        expired: 2,
+        hidden: 1,
+        uniqueAuthors: 4,
+        signed: 5,
+        anonymous: 5,
+        apiSubmitted: 3,
+        indexedOnly: 7,
+        totalReports: 9,
+      });
     });
-  });
 
-  it('caches the result so a second call does not re-query', async () => {
-    dataSource.query.mockResolvedValue([{}]);
+    it('caches the result so a second call does not re-query', async () => {
+      dataSource.query.mockResolvedValue([{}]);
 
-    await service.getOverview();
-    await service.getOverview();
+      await service.getOverview();
+      await service.getOverview();
 
-    expect(dataSource.query).toHaveBeenCalledTimes(1);
-    service = new StatsService(dataSource as any);
+      expect(dataSource.query).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('getGistsTimeseries', () => {
@@ -108,45 +108,49 @@ describe('StatsService', () => {
       ]);
       expect(result.topReported).toEqual([]);
     });
-  it('rejects a range producing more buckets than the max', async () => {
-    await expect(
-      service.getEventStats({
-        from: '2020-01-01T00:00:00.000Z',
-        to: '2021-01-01T00:00:00.000Z',
+  });
+
+  describe('getEventStats', () => {
+    it('rejects a range producing more buckets than the max', async () => {
+      await expect(
+        service.getEventStats({
+          from: '2020-01-01T00:00:00.000Z',
+          to: '2021-01-01T00:00:00.000Z',
+          bucket: 'hour',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('zero-fills buckets with no matching rows', async () => {
+      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const result = await service.getEventStats({
+        from: '2026-01-01T00:00:00.000Z',
+        to: '2026-01-01T02:00:00.000Z',
         bucket: 'hour',
-      } as any),
-    ).rejects.toThrow(BadRequestException);
-  });
+        type: 'gist_posted',
+      });
 
-  it('zero-fills buckets with no matching rows', async () => {
-    dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      expect(result.buckets).toHaveLength(2);
+      expect(result.buckets[0].counts.gist_posted).toBe(0);
+    });
 
-    const result = await service.getEventStats({
-      from: '2026-01-01T00:00:00.000Z',
-      to: '2026-01-01T02:00:00.000Z',
-      bucket: 'hour',
-      type: 'gist_posted',
-    } as any);
+    it('returns the recent array from the second query', async () => {
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([
+          { event_type: 'gist_posted', ledger: '10', stellar_gist_id: 'g1', observed_at: new Date() },
+        ]);
 
-    expect(result.buckets).toHaveLength(2);
-    expect(result.buckets[0].counts.gist_posted).toBe(0);
-  });
+      const result = await service.getEventStats({
+        from: '2026-01-01T00:00:00.000Z',
+        to: '2026-01-01T01:00:00.000Z',
+        bucket: 'hour',
+      });
 
-  it('returns the recent array from the second query', async () => {
-    dataSource.query
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { event_type: 'gist_posted', ledger: '10', stellar_gist_id: 'g1', observed_at: new Date() },
+      expect(result.recent).toEqual([
+        expect.objectContaining({ type: 'gist_posted', ledger: 10, stellarGistId: 'g1' }),
       ]);
-
-    const result = await service.getEventStats({
-      from: '2026-01-01T00:00:00.000Z',
-      to: '2026-01-01T01:00:00.000Z',
-      bucket: 'hour',
-    } as any);
-
-    expect(result.recent).toEqual([
-      expect.objectContaining({ type: 'gist_posted', ledger: 10, stellarGistId: 'g1' }),
-    ]);
+    });
   });
 });
