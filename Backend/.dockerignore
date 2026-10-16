@@ -1,0 +1,29 @@
+# Dependency directories
+node_modules
+npm-debug.log*
+
+# Build outputs
+dist
+build
+
+# Test & coverage outputs
+coverage
+.nyc_output
+
+# Environment variable files
+.env*
+!.env.example
+
+# Version control
+.git
+.github
+
+# Logs
+logs
+*.log
+
+# OS & IDE metadata
+.DS_Store
+.idea
+.vscode
+*.sublime-workspace
