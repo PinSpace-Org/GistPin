@@ -75,17 +75,17 @@ jobs:
       - name: Check for breaking changes
         run: |
           SCHEMA_FIELDS=$(python3 -c "
-import json
-with open('infrastructure/k8s/helm/gistpin/values.schema.json') as f:
-    schema = json.load(f)
-def count_props(obj, path=''):
-    count = 0
-    if 'properties' in obj:
-        for k, v in obj['properties'].items():
-            count += 1 + count_props(v, f'{path}.{k}')
-    return count
-print('Schema defines', count_props(schema), 'validatable properties')
-")
+          import json
+          with open('infrastructure/k8s/helm/gistpin/values.schema.json') as f:
+              schema = json.load(f)
+          def count_props(obj, path=''):
+              count = 0
+              if 'properties' in obj:
+                  for k, v in obj['properties'].items():
+                      count += 1 + count_props(v, f'{path}.{k}')
+              return count
+          print('Schema defines', count_props(schema), 'validatable properties')
+          ")
           echo "$SCHEMA_FIELDS"
 
       - name: Upload validation report

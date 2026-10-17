@@ -18,7 +18,7 @@ The backend API and on-chain indexer for GistPin. This service is the bridge bet
 | Language | TypeScript |
 | Runtime | Node.js >= 20 |
 | Framework | NestJS |
-| Database | PostgreSQL 15 + PostGIS extension |
+| Database | PostgreSQL 16 + PostGIS extension |
 | ORM / Query | TypeORM (with PostGIS support) |
 | Blockchain | Stellar Horizon + Soroban RPC |
 | Storage bridge | IPFS via Pinata (or self-hosted node) |
@@ -67,7 +67,7 @@ Backend/
 ## Prerequisites
 
 - **Node.js** >= 20 — [nodejs.org](https://nodejs.org)
-- **PostgreSQL 15** with the **PostGIS extension**
+- **PostgreSQL 16** with the **PostGIS extension**
 - **npm** (comes with Node.js)
 
 > **Why PostGIS?** The core feature of GistPin is querying gists by distance — *"show me everything within 500m of these coordinates."* PostGIS adds a spatial index that makes this instant, even at scale.
@@ -95,14 +95,14 @@ docker run -d \
   -e POSTGRES_PASSWORD=gist \
   -e POSTGRES_DB=gist \
   -p 5432:5432 \
-  postgis/postgis:15-3.3
+  postgis/postgis:16-3.4
 ```
 
 **Option B — Homebrew (macOS)**
 
 ```bash
-brew install postgresql@15 postgis
-brew services start postgresql@15
+brew install postgresql@16 postgis
+brew services start postgresql@16
 psql -U postgres -c "CREATE USER gist WITH PASSWORD 'gist';"
 psql -U postgres -c "CREATE DATABASE gist OWNER gist;"
 psql -U gist -d gist -c "CREATE EXTENSION postgis;"

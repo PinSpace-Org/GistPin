@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 # Automated Kubernetes cluster conformance test runner
 echo "Starting Kubernetes cluster conformance tests..."
 kubectl get nodes || exit 1

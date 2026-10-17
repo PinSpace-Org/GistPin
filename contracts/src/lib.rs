@@ -138,12 +138,7 @@ impl GistRegistry {
             env.storage().persistent().set(&last_key, &now);
         }
 
-        let gist_id: u64 = env
-            .storage()
-            .instance()
-            .get(&GIST_COUNT)
-            .unwrap_or(0u64)
-            + 1;
+        let gist_id: u64 = env.storage().instance().get(&GIST_COUNT).unwrap_or(0u64) + 1;
 
         let gist = Gist {
             gist_id,
@@ -155,7 +150,9 @@ impl GistRegistry {
             hidden: false,
         };
 
-        env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Gist(gist_id), &gist);
         env.storage().instance().set(&GIST_COUNT, &gist_id);
 
         // --- secondary index by cell (#875) --------------------------------
@@ -326,7 +323,9 @@ impl GistRegistry {
     pub fn edit_gist(env: Env, gist_id: u64, new_content_hash: String) -> Result<(), GistError> {
         let mut gist = Self::load_authored(&env, gist_id)?;
         gist.content_hash = new_content_hash;
-        env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Gist(gist_id), &gist);
         env.events()
             .publish((Symbol::new(&env, "gist_edited"),), gist);
         Ok(())
@@ -383,7 +382,9 @@ impl GistRegistry {
             .get(&DataKey::Gist(gist_id))
             .ok_or(GistError::NotFound)?;
         gist.hidden = hidden;
-        env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Gist(gist_id), &gist);
         Ok(())
     }
 }
@@ -396,7 +397,7 @@ impl GistRegistry {
 mod tests {
     use super::*;
     use soroban_sdk::testutils::{Address as _, Events, Ledger};
-    use soroban_sdk::{Env, String};
+    use soroban_sdk::{Env, String, TryIntoVal, Val};
 
     fn setup(env: &Env) -> GistRegistryClient<'_> {
         let contract_id = env.register(GistRegistry, ());
@@ -644,7 +645,12 @@ mod tests {
         let env = Env::default();
         let client = setup(&env);
 
-        assert_eq!(client.list_gists_by_cell(&cell(&env, "nope"), &0, &10).len(), 0);
+        assert_eq!(
+            client
+                .list_gists_by_cell(&cell(&env, "nope"), &0, &10)
+                .len(),
+            0
+        );
     }
 
     // -- initialization / moderator (#878) -----------------------------------
@@ -696,7 +702,9 @@ mod tests {
         // excluded from listings and inactive, but still auditable
         assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
         assert!(!client.is_active(&id));
-        let gist = client.get_gist(&id).expect("hidden gist is still retrievable");
+        let gist = client
+            .get_gist(&id)
+            .expect("hidden gist is still retrievable");
         assert!(gist.hidden);
 
         client.unhide_gist(&id);
@@ -882,5 +890,172 @@ mod tests {
         client.unhide_gist(&id);
         assert!(!client.is_active(&id));
         assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
+    }
+
+    // -- event emission ------------------------------------------------------
+    //
+    // Every state-changing entry point publishes exactly one contract event so
+    // the API layer and explorers can follow the registry. These tests pin down
+    // the topic and the payload of each one; a silent rename of a topic symbol
+    // breaks every downstream indexer, so the assertions are deliberately
+    // literal.
+
+    /// Decode the most recently published event as `(topic, data)`.
+    ///
+    /// Works whether `env.events().all()` is cumulative or per-invocation,
+    /// because the interesting event is always the last one published.
+    fn last_event(env: &Env) -> (Symbol, Val) {
+        let events = env.events().all();
+        let (_, topics, data) = events.get(events.len() - 1).unwrap();
+        let topic = topics.get(0).unwrap().try_into_val(env).unwrap();
+        (topic, data)
+    }
+
+    /// `report_gist` publishes its payload as a `(gist_id, count)` pair.
+    fn decode_report_payload(env: &Env, data: Val) -> (u64, u32) {
+        let parts: Vec<Val> = data.try_into_val(env).unwrap();
+        (
+            parts.get(0).unwrap().try_into_val(env).unwrap(),
+            parts.get(1).unwrap().try_into_val(env).unwrap(),
+        )
+    }
+
+    // -- #1427: edit / delete ------------------------------------------------
+
+    #[test]
+    fn editing_a_gist_emits_gist_edited() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        let author = Address::generate(&env);
+        let id = client.post_gist(
+            &Some(author),
+            &cell(&env, "r3gx"),
+            &cell(&env, "Qm1"),
+            &None,
+        );
+        let new_hash = cell(&env, "Qm2");
+        client.edit_gist(&id, &new_hash);
+
+        let (topic, data) = last_event(&env);
+        assert_eq!(topic, Symbol::new(&env, "gist_edited"));
+
+        // The payload is the full updated gist, so an indexer can pick up the
+        // new content pointer without a follow-up read.
+        let gist: Gist = data.try_into_val(&env).unwrap();
+        assert_eq!(gist.gist_id, id);
+        assert_eq!(gist.content_hash, new_hash);
+    }
+
+    #[test]
+    fn deleting_a_gist_emits_gist_deleted() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        let author = Address::generate(&env);
+        let id = client.post_gist(
+            &Some(author),
+            &cell(&env, "r3gx"),
+            &cell(&env, "Qm1"),
+            &None,
+        );
+        client.delete_gist(&id);
+
+        let (topic, data) = last_event(&env);
+        assert_eq!(topic, Symbol::new(&env, "gist_deleted"));
+
+        let payload: u64 = data.try_into_val(&env).unwrap();
+        assert_eq!(payload, id);
+
+        // and the deletion itself is observable
+        assert!(client.get_gist(&id).is_none());
+    }
+
+    // -- #1428: hide / unhide / remove / report ------------------------------
+
+    #[test]
+    fn hiding_a_gist_emits_gist_hidden() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        let id = client.post_gist(&None, &cell(&env, "r3gx"), &cell(&env, "Qm1"), &None);
+        client.hide_gist(&id);
+
+        let (topic, data) = last_event(&env);
+        assert_eq!(topic, Symbol::new(&env, "gist_hidden"));
+
+        let payload: u64 = data.try_into_val(&env).unwrap();
+        assert_eq!(payload, id);
+    }
+
+    #[test]
+    fn unhiding_a_gist_emits_gist_unhidden() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        let id = client.post_gist(&None, &cell(&env, "r3gx"), &cell(&env, "Qm1"), &None);
+        client.hide_gist(&id);
+        client.unhide_gist(&id);
+
+        // the last of the two events is the unhide, not the hide
+        let (topic, data) = last_event(&env);
+        assert_eq!(topic, Symbol::new(&env, "gist_unhidden"));
+
+        let payload: u64 = data.try_into_val(&env).unwrap();
+        assert_eq!(payload, id);
+    }
+
+    #[test]
+    fn removing_a_gist_emits_gist_removed() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        let id = client.post_gist(&None, &cell(&env, "r3gx"), &cell(&env, "Qm1"), &None);
+        client.remove_gist(&id);
+
+        let (topic, data) = last_event(&env);
+        assert_eq!(topic, Symbol::new(&env, "gist_removed"));
+
+        let payload: u64 = data.try_into_val(&env).unwrap();
+        assert_eq!(payload, id);
+
+        assert!(client.get_gist(&id).is_none());
+    }
+
+    #[test]
+    fn reporting_a_gist_emits_gist_reported_with_a_running_count() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+
+        let id = client.post_gist(&None, &cell(&env, "r3gx"), &cell(&env, "Qm1"), &None);
+
+        assert_eq!(client.report_gist(&id), 1);
+        let (topic, data) = last_event(&env);
+        assert_eq!(topic, Symbol::new(&env, "gist_reported"));
+        let (reported_id, count) = decode_report_payload(&env, data);
+        assert_eq!(reported_id, id);
+        assert_eq!(count, 1);
+
+        // A second report moves both the return value and the published count.
+        assert_eq!(client.report_gist(&id), 2);
+        let (topic, data) = last_event(&env);
+        assert_eq!(topic, Symbol::new(&env, "gist_reported"));
+        let (reported_id, count) = decode_report_payload(&env, data);
+        assert_eq!(reported_id, id);
+        assert_eq!(count, 2);
+
+        assert_eq!(client.report_count(&id), 2);
     }
 }

@@ -12,8 +12,8 @@ GistPin is an early-stage, actively developed open-source project. Here's an hon
 
 | Layer | Status | Notes |
 |---|---|---|
-| **Smart contract** (`contracts/`) | ✅ MVP implemented & tested | `GistRegistry` — post, get, and list gists by location cell. Anonymous posting supported. |
-| **Backend API** (`Backend/`) | ✅ Largely implemented | NestJS + PostGIS geo queries, IPFS pinning, Soroban client (with dev mock mode), rate limiting, metrics, e2e tests. |
+| **Smart contract** (`contracts/`) | ✅ MVP implemented, tested & deployed on testnet | `GistRegistry` — 13 functions including post, get, list, edit, delete, hide, unhide, remove, report, expiry, cooldown. [Testnet contract](https://stellar.expert/explorer/testnet/contract/CCOVX5S3SYHVKUKM3NUXLH6COIYLV5BL3XD6HPFLLR4VLQEQGINJMDRV). |
+| **Backend API** (`Backend/`) | ✅ Largely implemented | NestJS + PostGIS geo queries, IPFS pinning, Soroban client (with dev mock mode), rate limiting, metrics, e2e tests, indexer, stats endpoints. |
 | **Frontend** (`Frontend/`) | 🚧 UI prototype | Map + posting UI built, but currently runs on **mock data** — not yet wired to the backend, no wallet integration yet. |
 | **End-to-end flow** | ❌ Not yet connected | Frontend ↔ Backend ↔ Contract are each functional in isolation; connecting them is the current priority. |
 
@@ -78,6 +78,7 @@ The fastest way to get the API and database running is Docker Compose:
 
 ```bash
 # Postgres + PostGIS and the backend API
+cp Backend/.env.example Backend/.env   # create env file from template
 docker compose up
 # API:      http://localhost:3000
 # Swagger:  http://localhost:3000/v1/docs
