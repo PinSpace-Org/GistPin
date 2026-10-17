@@ -1,7 +1,15 @@
 FROM node:20-alpine
 WORKDIR /app
+
 COPY package*.json ./
-RUN npm install
-COPY . .
+# Install exactly what package-lock.json pins (and fail the build if the
+# lockfile and package.json have drifted apart).
+RUN npm ci
+
+# Hand the source tree to the unprivileged user that ships with the node image,
+# so nothing under /app is left root-owned when the process starts.
+COPY --chown=node:node . .
+
+USER node
 EXPOSE 3000
 CMD ["npm", "run", "start:dev"]
