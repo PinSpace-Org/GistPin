@@ -36,12 +36,16 @@ echo "==> Running tests"
 cargo test
 
 echo "==> Building WASM (release)"
-cargo build --target wasm32-unknown-unknown --release
-
-echo "==> Optimizing"
-stellar contract optimize --wasm "$WASM" || echo "(optimize unavailable — deploying unoptimized)"
-OPTIMIZED="target/wasm32-unknown-unknown/release/gistpin_contracts.optimized.wasm"
-[[ -f "$OPTIMIZED" ]] || OPTIMIZED="$WASM"
+# `stellar contract build --optimize` replaces BOTH `cargo build --release` and
+# the deprecated `stellar contract optimize`: it compiles for the wasm32 target
+# with the release profile (landing at the same $WASM path above) and, as the
+# deprecation notice says, runs the optimiser for you.
+#
+# The optimiser writes gistpin_contracts.optimized.wasm and then renames it back
+# over gistpin_contracts.wasm, so the optimised artefact to deploy is $WASM
+# itself — there is no separate .optimized.wasm for the script to read.
+stellar contract build --optimize
+OPTIMIZED="$WASM"
 
 echo "==> Deploying to $NETWORK"
 CONTRACT_ID=$(stellar contract deploy \
@@ -52,12 +56,41 @@ CONTRACT_ID=$(stellar contract deploy \
 echo "==> Deployed: $CONTRACT_ID"
 
 ADMIN="${2:-$(stellar keys address "$IDENTITY")}"
+
+# `initialize` can fail transiently right after a deploy (the freshly created
+# contract may not be queryable yet), so retry it a bounded number of times
+# before declaring failure.
+INIT_ATTEMPTS=3
+INIT_RETRY_DELAY=10
+
 echo "==> Initializing moderator: $ADMIN"
-stellar contract invoke \
-  --id "$CONTRACT_ID" \
-  --source "$IDENTITY" \
-  --network "$NETWORK" \
-  -- initialize --admin "$ADMIN"
+INITIALIZED=0
+for ((attempt = 1; attempt <= INIT_ATTEMPTS; attempt++)); do
+  if ((attempt > 1)); then
+    echo "==> initialize attempt ${attempt}/${INIT_ATTEMPTS} — previous attempt failed, retrying in ${INIT_RETRY_DELAY}s"
+    sleep "$INIT_RETRY_DELAY"
+  else
+    echo "==> initialize attempt ${attempt}/${INIT_ATTEMPTS}"
+  fi
+
+  if stellar contract invoke \
+    --id "$CONTRACT_ID" \
+    --source "$IDENTITY" \
+    --network "$NETWORK" \
+    -- initialize --admin "$ADMIN"; then
+    INITIALIZED=1
+    break
+  fi
+
+  echo "==> initialize attempt ${attempt}/${INIT_ATTEMPTS} failed" >&2
+done
+
+if ((INITIALIZED == 0)); then
+  echo "error: initialize failed after ${INIT_ATTEMPTS} attempts." >&2
+  echo "  contract id : $CONTRACT_ID" >&2
+  echo "  moderator   : $ADMIN" >&2
+  exit 1
+fi
 
 cat <<EOF
 
