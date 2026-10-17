@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AddGistModalProps {
@@ -16,6 +16,35 @@ export default function AddGistModal({
 }: AddGistModalProps) {
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const previouslyFocused = useRef<HTMLElement | null>(null);
+
+  // Move focus into the dialog when it opens and restore it on close.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previouslyFocused.current = document.activeElement as HTMLElement | null;
+    textareaRef.current?.focus();
+
+    return () => {
+      previouslyFocused.current?.focus();
+    };
+  }, [isOpen]);
+
+  // Close the dialog on Escape.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   const handleSubmit = () => {
     if (!content.trim()) return;
@@ -40,6 +69,9 @@ export default function AddGistModal({
           onClick={onClose}
         >
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-gist-title"
             initial={{ y: '100%' }}
             animate={{ y: '0%' }}
             exit={{ y: '100%' }}
@@ -47,10 +79,18 @@ export default function AddGistModal({
             className="w-full max-w-lg p-6 bg-white dark:bg-gray-800 rounded-t-2xl shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+            <h2
+              id="add-gist-title"
+              className="text-xl font-bold mb-4 text-gray-900 dark:text-white"
+            >
               Pin a New Gist
             </h2>
+            <label htmlFor="gist-content" className="sr-only">
+              Gist content
+            </label>
             <textarea
+              id="gist-content"
+              ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="What's the gist? (max 280 characters)"
