@@ -11,5 +11,8 @@
     "chart.js": "^4.5.1",
     "chartjs-plugin-annotation": "^3.1.0",
     "react-chartjs-2": "^5.3.1"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
