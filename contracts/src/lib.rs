@@ -138,12 +138,7 @@ impl GistRegistry {
             env.storage().persistent().set(&last_key, &now);
         }
 
-        let gist_id: u64 = env
-            .storage()
-            .instance()
-            .get(&GIST_COUNT)
-            .unwrap_or(0u64)
-            + 1;
+        let gist_id: u64 = env.storage().instance().get(&GIST_COUNT).unwrap_or(0u64) + 1;
 
         let gist = Gist {
             gist_id,
@@ -155,7 +150,9 @@ impl GistRegistry {
             hidden: false,
         };
 
-        env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Gist(gist_id), &gist);
         env.storage().instance().set(&GIST_COUNT, &gist_id);
 
         // --- secondary index by cell (#875) --------------------------------
@@ -326,7 +323,9 @@ impl GistRegistry {
     pub fn edit_gist(env: Env, gist_id: u64, new_content_hash: String) -> Result<(), GistError> {
         let mut gist = Self::load_authored(&env, gist_id)?;
         gist.content_hash = new_content_hash;
-        env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Gist(gist_id), &gist);
         env.events()
             .publish((Symbol::new(&env, "gist_edited"),), gist);
         Ok(())
@@ -383,7 +382,9 @@ impl GistRegistry {
             .get(&DataKey::Gist(gist_id))
             .ok_or(GistError::NotFound)?;
         gist.hidden = hidden;
-        env.storage().persistent().set(&DataKey::Gist(gist_id), &gist);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Gist(gist_id), &gist);
         Ok(())
     }
 }
@@ -644,7 +645,12 @@ mod tests {
         let env = Env::default();
         let client = setup(&env);
 
-        assert_eq!(client.list_gists_by_cell(&cell(&env, "nope"), &0, &10).len(), 0);
+        assert_eq!(
+            client
+                .list_gists_by_cell(&cell(&env, "nope"), &0, &10)
+                .len(),
+            0
+        );
     }
 
     // -- initialization / moderator (#878) -----------------------------------
@@ -696,7 +702,9 @@ mod tests {
         // excluded from listings and inactive, but still auditable
         assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
         assert!(!client.is_active(&id));
-        let gist = client.get_gist(&id).expect("hidden gist is still retrievable");
+        let gist = client
+            .get_gist(&id)
+            .expect("hidden gist is still retrievable");
         assert!(gist.hidden);
 
         client.unhide_gist(&id);
