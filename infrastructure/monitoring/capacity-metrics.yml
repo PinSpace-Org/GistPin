@@ -37,7 +37,7 @@ groups:
         expr: >
           count(kube_pod_info{namespace="gistpin"}) by (node)
 
-      - record:gistpin:node_pod_ratio
+      - record: gistpin:node_pod_ratio
         expr: >
           gistpin:node_pod_count
           /
