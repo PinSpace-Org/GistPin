@@ -15,9 +15,9 @@ route:
     - match:
         severity: warning
       receiver: slack-warnings
-
-# Include log alert routes
-{{ include "alertmanager-routes.yml" . }}
+    - match:
+        severity: security
+      receiver: slack-security
 
 receivers:
   - name: slack-critical

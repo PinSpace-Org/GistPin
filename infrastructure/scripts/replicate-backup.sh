@@ -1,5 +1,5 @@
-
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 # This script is responsible for creating a database backup and uploading it to the primary S3 bucket.
 # From there, S3 replication will automatically copy the backup to a secondary region.
