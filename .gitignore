@@ -27,3 +27,7 @@ infrastructure/ci/reports/
 
 # Claude Code local config (settings, launch configs)
 .claude/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
