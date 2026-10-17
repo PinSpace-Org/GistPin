@@ -1,1 +1,3 @@
 cd Backend && npx lint-staged
+cd Frontend && npx eslint --max-warnings 0 $(git diff --cached --name-only --diff-filter=d | grep -E '\.(ts|tsx)$' | head -20)
+cd contracts && cargo fmt --check

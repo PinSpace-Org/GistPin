@@ -78,6 +78,7 @@ The fastest way to get the API and database running is Docker Compose:
 
 ```bash
 # Postgres + PostGIS and the backend API
+cp Backend/.env.example Backend/.env   # create env file from template
 docker compose up
 # API:      http://localhost:3000
 # Swagger:  http://localhost:3000/v1/docs

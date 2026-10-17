@@ -9,6 +9,10 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
   },
-  "eslint.workingDirectories": ["Backend"],
-  "prettier.requireConfig": true
+  "eslint.workingDirectories": [
+    "Backend",
+    "Frontend",
+    "analytics"
+  ],
+  "prettier.requireConfig": false
 }
