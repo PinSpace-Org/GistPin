@@ -10,6 +10,7 @@ import { Card } from '@/components/Card';
 import { BarChart } from '@/components/charts/BarChart';
 import { EmptyState } from '@/components/EmptyState';
 import { formatCompactNumber } from '@/lib/format';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/Table';
 import { useEventsStats } from '@/hooks';
 
 const EVENT_TYPES = [
