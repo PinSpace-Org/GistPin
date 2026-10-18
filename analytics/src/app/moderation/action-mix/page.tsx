@@ -7,7 +7,7 @@ import { BucketSelector } from '@/components/BucketSelector';
 import { RefreshControl } from '@/components/RefreshControl';
 import { KPICard } from '@/components/KPICard';
 import { Card } from '@/components/Card';
-import { BarChart } from '@/components/charts/BarChart';
+import { BarChart, type BarDataPoint } from '@/components/charts/BarChart';
 import { EmptyState } from '@/components/EmptyState';
 import { StatCard } from '@/components/StatCard';
 import { useEventsStats, useModerationStats } from '@/hooks';
@@ -38,8 +38,8 @@ export default function ModerationActionMixPage() {
   const buckets = eventsData?.buckets ?? [];
   const moderationTypes = ['gist_hidden', 'gist_unhidden', 'gist_removed'];
 
-  const chartData = buckets.map((b) => {
-    const entry: Record<string, string | number> = { label: new Date(b.bucket).toLocaleDateString() };
+  const chartData: BarDataPoint[] = buckets.map((b) => {
+    const entry: BarDataPoint = { label: new Date(b.bucket).toLocaleDateString() };
     for (const type of moderationTypes) {
       entry[type] = b.counts[type] ?? 0;
     }
