@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { RefreshControl } from '@/components/RefreshControl';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/Table';
