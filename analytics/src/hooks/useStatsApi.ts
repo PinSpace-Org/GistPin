@@ -10,6 +10,7 @@ import {
   getAuthorConcentration,
   getPostsPerAuthorDistribution,
   getNewVsReturningAuthors,
+  getIndexerStats,
 } from '@/lib/api/client';
 import type {
   QueryTimeseriesParams,
@@ -27,6 +28,7 @@ import type {
   PostsPerAuthorDistributionResponse,
   NewVsReturningAuthorsParams,
   NewVsReturningAuthorsResponse,
+  IndexerStatsResponse,
 } from '@/lib/api/types';
 import { buildApiKey, useApi, type UseApiOptions } from './useApi';
 
@@ -88,4 +90,8 @@ export function useNewVsReturningAuthors(params: NewVsReturningAuthorsParams, op
     () => getNewVsReturningAuthors(params),
     options,
   );
+}
+
+export function useIndexerStats(options?: UseApiOptions) {
+  return useApi<IndexerStatsResponse>('indexer', () => getIndexerStats(), options);
 }

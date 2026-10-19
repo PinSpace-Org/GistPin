@@ -3,18 +3,30 @@
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/Card';
 import { KPICard } from '@/components/KPICard';
-import { useHealth } from '@/hooks';
+import { IndexerHealthCard } from '@/components/IndexerHealthCard';
+import { useHealth, useIndexerStats } from '@/hooks';
 import { formatRelativeTime } from '@/lib/format';
 
 export default function SystemPage() {
   const { data: health, isLoading, error, refetch } = useHealth({ refreshInterval: 30000 });
+  const {
+    data: indexerStats,
+    isLoading: isIndexerLoading,
+    error: indexerError,
+    refetch: refetchIndexer,
+  } = useIndexerStats({ refreshInterval: 15000 });
+
+  const handleRefresh = () => {
+    refetch();
+    refetchIndexer();
+  };
 
   return (
     <DashboardLayout title="System Health" description="Backend and infrastructure health status">
       <div className="mb-6 flex items-center justify-between">
         <div />
         <button
-          onClick={refetch}
+          onClick={handleRefresh}
           className="inline-flex items-center gap-1.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -22,6 +34,15 @@ export default function SystemPage() {
           </svg>
           Refresh
         </button>
+      </div>
+
+      <div className="mb-6">
+        <IndexerHealthCard
+          data={indexerStats}
+          isLoading={isIndexerLoading}
+          error={indexerError}
+          onRefresh={refetchIndexer}
+        />
       </div>
 
       {isLoading && (

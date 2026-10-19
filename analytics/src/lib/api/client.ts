@@ -21,6 +21,7 @@ import type {
   PostsPerAuthorDistributionResponse,
   NewVsReturningAuthorsParams,
   NewVsReturningAuthorsResponse,
+  IndexerStatsResponse,
 } from './types';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -173,4 +174,8 @@ export function getNewVsReturningAuthors(
   options?: RequestOptions,
 ): Promise<NewVsReturningAuthorsResponse> {
   return request(`/v1/stats/authors/new-vs-returning${buildQuery(params)}`, options);
+}
+
+export function getIndexerStats(options?: RequestOptions): Promise<IndexerStatsResponse> {
+  return request('/v1/stats/indexer', options);
 }

@@ -193,3 +193,12 @@ export interface NewVsReturningAuthorsResponse {
   totalNew: number;
   totalReturning: number;
 }
+
+export interface IndexerStatsResponse {
+  cursorLedger: number;
+  latestLedger: number;
+  lag: number;
+  status: 'healthy' | 'syncing' | 'degraded' | 'stalled';
+  mockMode?: boolean;
+  lastUpdated?: string;
+}

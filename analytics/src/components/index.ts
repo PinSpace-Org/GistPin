@@ -14,3 +14,4 @@ export { LineChart } from './charts/LineChart';
 export { BarChart } from './charts/BarChart';
 export { AreaChart } from './charts/AreaChart';
 export { DonutChart } from './charts/DonutChart';
+export { IndexerHealthCard, type IndexerHealthCardProps } from './IndexerHealthCard';
