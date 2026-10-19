@@ -10,13 +10,12 @@ import { Card } from '@/components/Card';
 import { BarChart } from '@/components/charts/BarChart';
 import { EmptyState } from '@/components/EmptyState';
 import { StatCard } from '@/components/StatCard';
-import { formatCompactNumber } from '@/lib/format';
 import { usePostsPerAuthorDistribution } from '@/hooks';
 
 export default function PostsPerAuthorDistributionPage() {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
+  const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const to = new Date().toISOString();
+  const bucket: 'hour' | 'day' = 'hour';
   const [logScale, setLogScale] = useState(false);
 
   const { data, isLoading, error, refetch } = usePostsPerAuthorDistribution(
