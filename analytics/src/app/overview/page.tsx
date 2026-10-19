@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { BucketSelector } from '@/components/BucketSelector';
@@ -13,15 +12,15 @@ import { DonutChart } from '@/components/charts/DonutChart';
 import { useOverview, useGistsTimeseries } from '@/hooks';
 
 export default function OverviewPage() {
-  const { data: overview, isLoading: overviewLoading, error: overviewError, refetch: refetchOverview } = useOverview({
+  const { data: overview, refetch: refetchOverview } = useOverview({
     refreshInterval: 30000,
   });
 
-  const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
+  const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const to = new Date().toISOString();
+  const bucket: 'hour' | 'day' = 'hour';
 
-  const { data: timeseries, isLoading: tsLoading, error: tsError } = useGistsTimeseries(
+  const { data: timeseries } = useGistsTimeseries(
     { from, to, bucket },
     { refreshInterval: 30000 },
   );
