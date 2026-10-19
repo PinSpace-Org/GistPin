@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { BucketSelector } from '@/components/BucketSelector';
@@ -13,9 +12,9 @@ import { StatCard } from '@/components/StatCard';
 import { useEventsStats, useModerationStats } from '@/hooks';
 
 export default function ModerationActionMixPage() {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
+  const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const to = new Date().toISOString();
+  const bucket: 'hour' | 'day' = 'hour';
 
   const { data: eventsData, isLoading: eventsLoading, error: eventsError, refetch: refetchEvents } = useEventsStats(
     { from, to, bucket, type: undefined, recentLimit: 20 },

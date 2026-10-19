@@ -10,13 +10,12 @@ import { Card } from '@/components/Card';
 import { LineChart } from '@/components/charts/LineChart';
 import { EmptyState } from '@/components/EmptyState';
 import { StatCard } from '@/components/StatCard';
-import { formatCompactNumber } from '@/lib/format';
 import { useEventsStats, useModerationStats } from '@/hooks';
 
 export default function ReportsOverTimePage() {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
+  const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const to = new Date().toISOString();
+  const bucket: 'hour' | 'day' = 'hour';
 
   const { data: eventsData, isLoading: eventsLoading, error: eventsError, refetch: refetchEvents } = useEventsStats(
     { from, to, bucket, type: 'gist_reported', recentLimit: 20 },
