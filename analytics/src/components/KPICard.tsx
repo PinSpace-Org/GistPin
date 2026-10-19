@@ -3,13 +3,14 @@
 interface KPICardProps {
   title: string;
   value: string | number;
+  description?: string;
   change?: number;
   changeLabel?: string;
   sparkline?: number[];
   className?: string;
 }
 
-export function KPICard({ title, value, change, changeLabel, sparkline, className = '' }: KPICardProps) {
+export function KPICard({ title, value, description, change, changeLabel, sparkline, className = '' }: KPICardProps) {
   const isPositive = change !== undefined && change >= 0;
 
   return (
@@ -18,6 +19,9 @@ export function KPICard({ title, value, change, changeLabel, sparkline, classNam
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400 truncate">{title}</p>
           <p className="mt-1 text-2xl font-bold text-neutral-900 dark:text-neutral-100">{value}</p>
+          {description && (
+            <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">{description}</p>
+          )}
           {change !== undefined && (
             <div className="mt-2 flex items-center gap-1">
               <span className={`text-sm font-medium ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>

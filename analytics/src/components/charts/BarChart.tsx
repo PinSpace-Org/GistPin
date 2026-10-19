@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 
-interface BarDataPoint {
+export interface BarDataPoint {
   label: string;
   [key: string]: string | number;
 }
