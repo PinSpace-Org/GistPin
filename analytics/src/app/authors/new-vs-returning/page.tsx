@@ -10,13 +10,13 @@ import { Card } from '@/components/Card';
 import { BarChart } from '@/components/charts/BarChart';
 import { DonutChart } from '@/components/charts/DonutChart';
 import { EmptyState } from '@/components/EmptyState';
-import { formatCompactNumber, formatPercent } from '@/lib/format';
+import { formatPercent } from '@/lib/format';
 import { useNewVsReturningAuthors } from '@/hooks';
 
 export default function NewVsReturningAuthorsPage() {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
+  const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const to = new Date().toISOString();
+  const bucket: 'hour' | 'day' = 'hour';
   const [view, setView] = useState<'stacked' | 'donut'>('stacked');
 
   const { data, isLoading, error, refetch } = useNewVsReturningAuthors(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { use, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { BucketSelector } from '@/components/BucketSelector';
@@ -21,13 +21,8 @@ export default function AuthorDetailPage({ params }: AuthorDetailPageProps) {
   const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
   const [to, setTo] = useState(() => new Date().toISOString());
   const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
-  const [resolvedParams, setResolvedParams] = useState<{ address: string } | null>(null);
 
-  const { address } = resolvedParams ?? (await params);
-  
-  if (!resolvedParams) {
-    setResolvedParams({ address });
-  }
+  const { address } = use(params);
 
   const isValidAddress = (addr: string) => /^G[A-Z0-9]{55}$/.test(addr);
 

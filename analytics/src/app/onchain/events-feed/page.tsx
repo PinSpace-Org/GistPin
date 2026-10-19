@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { BucketSelector } from '@/components/BucketSelector';
@@ -10,7 +10,7 @@ import { Card } from '@/components/Card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/Table';
 import { EmptyState } from '@/components/EmptyState';
 import { CopyButton } from '@/components/CopyButton';
-import { formatCompactNumber, formatIsoToLocal, truncateAddress } from '@/lib/format';
+import { formatIsoToLocal, truncateAddress } from '@/lib/format';
 import { useEventsStats } from '@/hooks';
 
 const EVENT_TYPES = [
@@ -44,9 +44,9 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
 };
 
 export default function ContractEventsFeedPage() {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
+  const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const to = new Date().toISOString();
+  const bucket: 'hour' | 'day' = 'hour';
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [autoRefresh, setAutoRefresh] = useState(true);
 

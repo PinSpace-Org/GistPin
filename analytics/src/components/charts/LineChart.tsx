@@ -103,12 +103,14 @@ export function LineChart({
           ))}
         </g>
 
-        {points.map((point, i) => {
+        {showTooltip && points.map((point, i) => {
           const x = xScale(data[i][xKey]);
           return (
             <g key={i} className="tooltip-target">
               {yKeys.map((key, keyIndex) => {
                 const y = yScale(point[key]);
+                const val = point[key];
+                const formattedVal = tooltipFormatter ? tooltipFormatter(val, key) : `${key}: ${val}`;
                 return (
                   <circle
                     key={key}
@@ -119,7 +121,9 @@ export function LineChart({
                     stroke="white"
                     strokeWidth={2}
                     className="opacity-0 hover:opacity-100 transition-opacity"
-                  />
+                  >
+                    <title>{formattedVal}</title>
+                  </circle>
                 );
               })}
             </g>

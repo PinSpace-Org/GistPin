@@ -2,9 +2,7 @@
 
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card } from '@/components/Card';
-import { KPICard } from '@/components/KPICard';
 import { CopyButton } from '@/components/CopyButton';
-import { EmptyState } from '@/components/EmptyState';
 import { truncateAddress } from '@/lib/format';
 import { useModerator } from '@/hooks';
 
