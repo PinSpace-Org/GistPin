@@ -102,6 +102,7 @@ export function BarChart({
                   const barHeight = (value / maxValue) * innerHeight;
                   const y = height - padding.bottom - yOffset - barHeight;
                   yOffset += barHeight;
+                  const formattedVal = tooltipFormatter ? tooltipFormatter(value, key) : `${key}: ${value}`;
 
                   return (
                     <rect
@@ -113,7 +114,9 @@ export function BarChart({
                       fill={colors[keyIndex % colors.length]}
                       rx={2}
                       ry={2}
-                    />
+                    >
+                      {showTooltip && <title>{formattedVal}</title>}
+                    </rect>
                   );
                 })}
               </g>
@@ -125,6 +128,7 @@ export function BarChart({
                   const value = point[key];
                   const barHeight = (value / maxValue) * innerHeight;
                   const x = baseX + (keyIndex - (valueKeys.length - 1) / 2) * barWidth;
+                  const formattedVal = tooltipFormatter ? tooltipFormatter(value, key) : `${key}: ${value}`;
 
                   return (
                     <rect
@@ -136,7 +140,9 @@ export function BarChart({
                       fill={colors[keyIndex % colors.length]}
                       rx={2}
                       ry={2}
-                    />
+                    >
+                      {showTooltip && <title>{formattedVal}</title>}
+                    </rect>
                   );
                 })}
               </g>

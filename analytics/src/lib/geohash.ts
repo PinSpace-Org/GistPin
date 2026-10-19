@@ -33,8 +33,8 @@ export interface GeohashNeighbours {
 
 /** Encode a lat/lon pair into a geohash of the given precision (1-9). */
 export function encode(lat: number, lon: number, precision = 7): string {
-  let latRange: [number, number] = [-90, 90];
-  let lonRange: [number, number] = [-180, 180];
+  const latRange: [number, number] = [-90, 90];
+  const lonRange: [number, number] = [-180, 180];
   let hash = '';
   let bit = 0;
   let bitCount = 0;
@@ -80,8 +80,8 @@ export function decode(hash: string): LatLon {
 
 /** The bounding box a geohash cell covers. */
 export function bounds(hash: string): GeohashBounds {
-  let latRange: [number, number] = [-90, 90];
-  let lonRange: [number, number] = [-180, 180];
+  const latRange: [number, number] = [-90, 90];
+  const lonRange: [number, number] = [-180, 180];
   let even = true;
 
   for (const char of hash.toLowerCase()) {
