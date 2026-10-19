@@ -10,6 +10,7 @@ import { Card } from '@/components/Card';
 import { BarChart } from '@/components/charts/BarChart';
 import { EmptyState } from '@/components/EmptyState';
 import { formatCompactNumber } from '@/lib/format';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/Table';
 import { useEventsStats } from '@/hooks';
 
 const EVENT_TYPES = [
@@ -43,9 +44,9 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
 };
 
 export default function EventsByTypeOverTimePage() {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
+  const from = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const to = new Date().toISOString();
+  const bucket: 'hour' | 'day' = 'hour';
   const [visibleTypes, setVisibleTypes] = useState<Set<string>>(new Set(EVENT_TYPES));
 
   const { data, isLoading, error, refetch } = useEventsStats(

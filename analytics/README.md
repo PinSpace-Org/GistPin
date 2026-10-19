@@ -70,8 +70,12 @@ To add a new test, create a `*.test.ts` or `*.test.tsx` file next to the code be
 ```
 analytics/
 ├── src/
-│   └── app/            # App Router routes, layout and global styles
-├── .env.example        # documented environment variables
+│   ├── app/            # App Router routes, layout and global styles
+│   ├── components/     # Reusable UI components and charts
+│   ├── hooks/          # React hooks for API data and query state
+│   └── lib/            # Pure logic (API client, formatters, geohash)
+├── vitest.config.ts    # Unit test runner configuration
+├── .env.example        # Documented environment variables
 └── ...config files
 ```
 
