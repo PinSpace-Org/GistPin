@@ -27,17 +27,14 @@ export function AreaChart({
   tooltipFormatter,
   className = '',
 }: AreaChartProps) {
-  const { minX, maxX, minY, maxY, points, totals } = useMemo(() => {
+  const { minX, maxX, maxY, points } = useMemo(() => {
     if (data.length === 0) {
-      return { minX: 0, maxX: 1, minY: 0, maxY: 1, points: [], totals: [] };
+      return { minX: 0, maxX: 1, maxY: 1, points: [] };
     }
 
     const xValues = data.map((d) => d[xKey]);
     const minX = Math.min(...xValues.map((v) => (typeof v === 'string' ? new Date(v).getTime() : v)));
     const maxX = Math.max(...xValues.map((v) => (typeof v === 'string' ? new Date(v).getTime() : v)));
-
-    let minY = Infinity;
-    let maxY = -Infinity;
 
     const points = data.map((d) => {
       const point: Record<string, number> = {};
@@ -49,10 +46,9 @@ export function AreaChart({
     });
 
     const totals = points.map((p) => Object.values(p).reduce((a, b) => a + b, 0));
-    minY = 0;
-    maxY = Math.max(...totals, 1);
+    const maxY = Math.max(...totals, 1);
 
-    return { minX, maxX, minY, maxY, points, totals };
+    return { minX, maxX, maxY, points };
   }, [data, xKey, yKeys]);
 
   const width = typeof window !== 'undefined' ? 800 : 800;
@@ -119,6 +115,33 @@ export function AreaChart({
             />
           ))}
         </g>
+
+        {showTooltip && data.map((d, i) => {
+          const x = xScale(d[xKey]);
+          return (
+            <g key={i} className="tooltip-target">
+              {yKeys.map((key, keyIndex) => {
+                const y = yScale(cumulativePoints[i][key]);
+                const val = points[i][key];
+                const formattedVal = tooltipFormatter ? tooltipFormatter(val, key) : `${key}: ${val}`;
+                return (
+                  <circle
+                    key={key}
+                    cx={x}
+                    cy={y}
+                    r={4}
+                    fill={colors[keyIndex % colors.length]}
+                    stroke="white"
+                    strokeWidth={2}
+                    className="opacity-0 hover:opacity-100 transition-opacity"
+                  >
+                    <title>{formattedVal}</title>
+                  </circle>
+                );
+              })}
+            </g>
+          );
+        })}
 
         {yKeys.map((key, keyIndex) => {
           const color = colors[keyIndex % colors.length];
