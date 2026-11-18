@@ -2,12 +2,10 @@ import { ConfigService } from '@nestjs/config';
 
 import { IpfsService } from './ipfs.service';
 
-const pinJSONToIPFS = jest.fn();
-const PinataClient = jest.fn().mockImplementation(() => ({ pinJSONToIPFS }));
-
-jest.mock('@pinata/sdk', () => PinataClient, { virtual: true });
-
 describe('IpfsService with Pinata keys set', () => {
+  const originalFetch = global.fetch;
+  const fetchMock = jest.fn();
+
   const buildService = () => {
     const values: Record<string, unknown> = {
       PINATA_API_KEY: 'dummy-key',
@@ -20,22 +18,32 @@ describe('IpfsService with Pinata keys set', () => {
   };
 
   beforeEach(() => {
-    PinataClient.mockClear();
-    pinJSONToIPFS.mockReset();
+    fetchMock.mockReset();
+    global.fetch = fetchMock as unknown as typeof fetch;
   });
 
-  it('constructs the Pinata client with the configured keys', () => {
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('is not in dev mode and does not call Pinata on construction', () => {
     buildService();
 
-    expect(PinataClient).toHaveBeenCalledWith('dummy-key', 'dummy-secret');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('pins through the Pinata client and returns a non-mock CID', async () => {
-    pinJSONToIPFS.mockResolvedValue({ IpfsHash: 'QmRealCid' });
+  it('pins via the Pinata REST API with the configured keys and returns a non-mock CID', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ IpfsHash: 'QmRealCid' }) });
 
     const result = await buildService().pinJson({ hello: 'world' });
 
-    expect(pinJSONToIPFS).toHaveBeenCalledWith({ hello: 'world' }, expect.any(Object));
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://api.pinata.cloud/pinning/pinJSONToIPFS');
+    expect(init.headers).toMatchObject({
+      pinata_api_key: 'dummy-key',
+      pinata_secret_api_key: 'dummy-secret',
+    });
+    expect(JSON.parse(init.body)).toMatchObject({ pinataContent: { hello: 'world' } });
     expect(result).toEqual({ cid: 'QmRealCid', mock: false });
   });
 });

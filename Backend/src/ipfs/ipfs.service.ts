@@ -7,6 +7,8 @@ export interface PinResult {
   mock: boolean;
 }
 
+const PINATA_PIN_JSON_URL = 'https://api.pinata.cloud/pinning/pinJSONToIPFS';
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function withRetry<T>(
@@ -35,21 +37,20 @@ export class IpfsService {
   private readonly maxRetries: number;
   private readonly gateway: string;
 
-  private pinata: any;
+  private readonly apiKey?: string;
+  private readonly secretKey?: string;
 
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.get<string>('PINATA_API_KEY');
     const secretKey = this.config.get<string>('PINATA_SECRET_KEY');
     this.maxRetries = this.config.get<number>('IPFS_RETRY_ATTEMPTS', 3);
     this.gateway = this.config.get<string>('ipfs.gateway', 'https://gateway.pinata.cloud/ipfs');
+    this.apiKey = apiKey;
+    this.secretKey = secretKey;
     this.devMode = !apiKey || !secretKey;
 
     if (this.devMode) {
       this.logger.warn('IPFS running in DEV MODE — mock CIDs will be generated');
-    } else {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const PinataClient = require('@pinata/sdk');
-      this.pinata = new PinataClient(apiKey, secretKey);
     }
   }
 
@@ -58,10 +59,23 @@ export class IpfsService {
 
     return withRetry(
       async () => {
-        const result = await this.pinata.pinJSONToIPFS(content, {
-          pinataMetadata: { name: `gist-${Date.now()}` },
+        // Pinata REST API (replaces the @pinata/sdk dependency).
+        const res = await fetch(PINATA_PIN_JSON_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            pinata_api_key: this.apiKey as string,
+            pinata_secret_api_key: this.secretKey as string,
+          },
+          body: JSON.stringify({
+            pinataContent: content,
+            pinataMetadata: { name: `gist-${Date.now()}` },
+          }),
         });
-        return { cid: result.IpfsHash as string, mock: false };
+        if (!res.ok) throw new Error(`Pinata pinJSONToIPFS failed: ${res.status}`);
+        const result = (await res.json()) as { IpfsHash?: string };
+        if (!result.IpfsHash) throw new Error('Pinata response did not include IpfsHash');
+        return { cid: result.IpfsHash, mock: false };
       },
       'IPFS.pinJson',
       this.maxRetries,

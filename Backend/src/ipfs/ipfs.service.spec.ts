@@ -3,10 +3,8 @@ import { ConfigService } from '@nestjs/config';
 
 import { IpfsService } from './ipfs.service';
 
-const pinJSONToIPFS = jest.fn();
-const PinataClient = jest.fn().mockImplementation(() => ({ pinJSONToIPFS }));
-
-jest.mock('@pinata/sdk', () => PinataClient, { virtual: true });
+const fetchMock = jest.fn();
+const originalFetchGlobal = global.fetch;
 
 const buildService = (values: Record<string, unknown> = {}) => {
   const config = {
@@ -19,8 +17,8 @@ const LIVE = { PINATA_API_KEY: 'key', PINATA_SECRET_KEY: 'secret' };
 
 describe('IpfsService', () => {
   beforeEach(() => {
-    pinJSONToIPFS.mockReset();
-    PinataClient.mockClear();
+    fetchMock.mockReset();
+    global.fetch = fetchMock as unknown as typeof fetch;
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
   });
@@ -28,6 +26,7 @@ describe('IpfsService', () => {
   afterEach(() => {
     jest.useRealTimers();
     jest.restoreAllMocks();
+    global.fetch = originalFetchGlobal;
   });
 
   describe('dev mode (no Pinata keys)', () => {
@@ -38,7 +37,7 @@ describe('IpfsService', () => {
 
       expect(result.mock).toBe(true);
       expect(result.cid).toMatch(/^mock_Qm[0-9a-f]{32}$/);
-      expect(PinataClient).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('returns a placeholder document from getJson', async () => {
@@ -51,39 +50,46 @@ describe('IpfsService', () => {
   });
 
   describe('live mode', () => {
-    it('pins through the Pinata client and returns the IpfsHash', async () => {
-      pinJSONToIPFS.mockResolvedValue({ IpfsHash: 'QmLive' });
+    it('pins through the Pinata REST API and returns the IpfsHash', async () => {
+      fetchMock.mockResolvedValue({ ok: true, json: async () => ({ IpfsHash: 'QmLive' }) });
 
       const result = await buildService(LIVE).pinJson({ a: 1 });
 
-      expect(PinataClient).toHaveBeenCalledWith('key', 'secret');
-      expect(pinJSONToIPFS).toHaveBeenCalledWith({ a: 1 }, expect.any(Object));
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('https://api.pinata.cloud/pinning/pinJSONToIPFS');
+      expect(init.method).toBe('POST');
+      expect(init.headers).toMatchObject({
+        pinata_api_key: 'key',
+        pinata_secret_api_key: 'secret',
+      });
+      expect(JSON.parse(init.body)).toMatchObject({ pinataContent: { a: 1 } });
       expect(result).toEqual({ cid: 'QmLive', mock: false });
     });
 
     it('retries a failed pin and succeeds', async () => {
       jest.useFakeTimers();
-      pinJSONToIPFS
+      fetchMock
         .mockRejectedValueOnce(new Error('temporary'))
-        .mockResolvedValueOnce({ IpfsHash: 'QmRetry' });
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ IpfsHash: 'QmRetry' }) });
 
       const promise = buildService(LIVE).pinJson({ a: 1 });
       await jest.advanceTimersByTimeAsync(500);
 
       await expect(promise).resolves.toEqual({ cid: 'QmRetry', mock: false });
-      expect(pinJSONToIPFS).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it('throws the last error once all attempts fail', async () => {
       jest.useFakeTimers();
-      pinJSONToIPFS.mockRejectedValue(new Error('still down'));
+      fetchMock.mockRejectedValue(new Error('still down'));
 
       const promise = buildService({ ...LIVE, IPFS_RETRY_ATTEMPTS: 2 }).pinJson({ a: 1 });
       const assertion = expect(promise).rejects.toThrow('still down');
       await jest.advanceTimersByTimeAsync(1000);
 
       await assertion;
-      expect(pinJSONToIPFS).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 
