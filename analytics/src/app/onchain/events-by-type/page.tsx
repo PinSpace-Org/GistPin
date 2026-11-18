@@ -7,7 +7,7 @@ import { BucketSelector } from '@/components/BucketSelector';
 import { RefreshControl } from '@/components/RefreshControl';
 import { KPICard } from '@/components/KPICard';
 import { Card } from '@/components/Card';
-import { BarChart } from '@/components/charts/BarChart';
+import { BarChart, type BarDataPoint } from '@/components/charts/BarChart';
 import { EmptyState } from '@/components/EmptyState';
 import { formatCompactNumber } from '@/lib/format';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/Table';
@@ -60,8 +60,8 @@ export default function EventsByTypeOverTimePage() {
 
   const buckets = data?.buckets ?? [];
 
-  const chartData = buckets.map((b) => {
-    const entry: Record<string, string | number> = { label: new Date(b.bucket).toLocaleDateString() };
+  const chartData: BarDataPoint[] = buckets.map((b) => {
+    const entry: BarDataPoint = { label: new Date(b.bucket).toLocaleDateString() };
     for (const type of EVENT_TYPES) {
       if (visibleTypes.has(type)) {
         entry[EVENT_TYPE_LABELS[type]] = b.counts[type] ?? 0;
