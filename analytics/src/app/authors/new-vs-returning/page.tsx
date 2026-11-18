@@ -153,8 +153,8 @@ export default function NewVsReturningAuthorsPage() {
               <h4 className="font-medium text-neutral-900 dark:text-neutral-100">Methodology</h4>
               <ul className="text-sm text-neutral-600 dark:text-neutral-400 mt-2 space-y-1 list-disc list-inside">
                 <li>Only signed authors are counted (anonymous posts excluded)</li>
-                <li>An author is "new" if their first gist falls within the range</li>
-                <li>An author is "returning" if they have gists before the range and within it</li>
+                <li>An author is &quot;new&quot; if their first gist falls within the range</li>
+                <li>An author is &quot;returning&quot; if they have gists before the range and within it</li>
                 <li>Counts are per time bucket, then aggregated for totals</li>
                 <li>Retention rate = Returning Authors / Total Authors</li>
               </ul>

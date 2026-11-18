@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseParam, serializeParam } from './query-state';
+import { parseParam, serializeParam, type QueryParamSchema } from './query-state';
 
 describe('parseParam', () => {
   it('parses a string param', () => {
@@ -48,16 +48,22 @@ describe('parseParam', () => {
 
 describe('serializeParam', () => {
   it('serializes a string', () => {
-    expect(serializeParam('hello', { type: 'string', defaultValue: '' })).toBe('hello');
+    const schema: QueryParamSchema<string> = { type: 'string', defaultValue: '' };
+    expect(serializeParam('hello', schema)).toBe('hello');
   });
 
   it('serializes a number', () => {
-    expect(serializeParam(42, { type: 'number', defaultValue: 0 })).toBe('42');
+    const schema: QueryParamSchema<number> = { type: 'number', defaultValue: 0 };
+    expect(serializeParam(42, schema)).toBe('42');
   });
 
   it('serializes an enum value', () => {
-    expect(
-      serializeParam('week', { type: 'enum', values: ['hour', 'day', 'week'] as const, defaultValue: 'day' }),
-    ).toBe('week');
+    type Bucket = 'hour' | 'day' | 'week';
+    const schema: QueryParamSchema<Bucket> = {
+      type: 'enum',
+      values: ['hour', 'day', 'week'],
+      defaultValue: 'day',
+    };
+    expect(serializeParam<Bucket>('week', schema)).toBe('week');
   });
 });
