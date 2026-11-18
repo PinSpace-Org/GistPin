@@ -146,7 +146,7 @@ resource "aws_securityhub_finding_aggregator" "this" {
 # 4. Automated Remediation
 #    EventBridge rule matches Security Hub findings (NEW/NOTIFIED, non-passed)
 #    for the configured finding types and invokes a remediation Lambda, which
-#    shells out to the logic in remediate-findings.sh.
+#    shells out to the logic in remediate-security-hub-findings.sh.
 ############################################
 
 resource "aws_sns_topic" "security_alerts" {

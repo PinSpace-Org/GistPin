@@ -5,7 +5,7 @@ configured allow-list of GeneratorIds. Applies a safe, idempotent fix for
 each supported finding type, then updates the finding's workflow status
 and posts a summary to SNS.
 
-Mirrors the logic in infrastructure/scripts/remediate-findings.sh so the same
+Mirrors the logic in infrastructure/scripts/remediate-security-hub-findings.sh so the same
 remediation can be run ad-hoc (CLI) or automatically (Lambda).
 """
 import json

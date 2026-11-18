@@ -41,7 +41,7 @@ single Security Hub view reflects the account's full posture.
 | Terraform module | `infrastructure/terraform/security-hub.tf` | Enables Security Hub, subscribes to standards, sets up aggregation, remediation Lambda + EventBridge rule, and the weekly report Lambda + schedule. |
 | Remediation Lambda | `infrastructure/lambda/remediation/index.py` | Automated fix-on-finding, triggered by EventBridge. |
 | Compliance report Lambda | `infrastructure/lambda/compliance-report/index.py` | Weekly summary of active findings, written to S3 and emailed via SNS. |
-| CLI remediation script | `infrastructure/scripts/remediate-findings.sh` | Manual/SSM-runnable equivalent of the remediation Lambda, for ad-hoc fixes, dry runs, or environments without the Lambda wired up. |
+| CLI remediation script | `infrastructure/scripts/remediate-security-hub-findings.sh` | Manual/SSM-runnable equivalent of the remediation Lambda, for ad-hoc fixes, dry runs, or environments without the Lambda wired up. |
 
 ## Standards enabled
 
@@ -90,9 +90,9 @@ Design principles:
 To run the same fixes manually or via SSM Run Command:
 
 ```bash
-./infrastructure/scripts/remediate-findings.sh --list
-./infrastructure/scripts/remediate-findings.sh --scan --dry-run
-./infrastructure/scripts/remediate-findings.sh --finding-type s3-public-access --bucket my-bucket
+./infrastructure/scripts/remediate-security-hub-findings.sh --list
+./infrastructure/scripts/remediate-security-hub-findings.sh --scan --dry-run
+./infrastructure/scripts/remediate-security-hub-findings.sh --finding-type s3-public-access --bucket my-bucket
 ```
 
 ## Weekly compliance report
@@ -148,7 +148,7 @@ To add a new auto-remediated finding type:
    (decorate with `@remediates("<generator-id>")`), and grant any new IAM
    permissions it needs in `aws_iam_role_policy.remediation_lambda`.
 3. Add the equivalent manual fix function to
-   `infrastructure/scripts/remediate-findings.sh` so operators can run it
+   `infrastructure/scripts/remediate-security-hub-findings.sh` so operators can run it
    outside the Lambda path.
 4. Test with `--dry-run` against a non-production account before enabling
    the EventBridge rule in production.
