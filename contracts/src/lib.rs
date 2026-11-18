@@ -51,6 +51,8 @@ pub enum GistError {
     /// Anonymous gists have no provable owner, so they cannot be edited or
     /// deleted by users — only moderated.
     AnonymousImmutable = 8,
+    /// This reporter has already reported this gist.
+    AlreadyReported = 9,
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +102,8 @@ pub enum DataKey {
     Admin,
     /// Number of reports filed against a gist (advisory, for off-chain review).
     Reports(u64),
+    /// Marker that `reporter` has already reported the gist (dedupe).
+    Reported(u64, Address),
 }
 
 const GIST_COUNT: Symbol = symbol_short!("GCOUNT");
@@ -274,7 +278,11 @@ impl GistRegistry {
     /// Set the moderator address. Callable exactly once, at deploy time.
     ///
     /// Posting works without initialization; only moderator actions require it.
+    ///
+    /// `admin` must authorize the call, so nobody can front-run deployment and
+    /// install themselves (or an arbitrary address) as moderator.
     pub fn initialize(env: Env, admin: Address) -> Result<(), GistError> {
+        admin.require_auth();
         if env.storage().instance().has(&DataKey::Admin) {
             return Err(GistError::AlreadyInitialized);
         }
@@ -317,21 +325,33 @@ impl GistRegistry {
     /// removal is irreversible and leaves no record beyond the event.
     pub fn remove_gist(env: Env, gist_id: u64) -> Result<(), GistError> {
         Self::require_admin(&env)?;
-        if !env.storage().persistent().has(&DataKey::Gist(gist_id)) {
-            return Err(GistError::NotFound);
-        }
+        let gist: Gist = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Gist(gist_id))
+            .ok_or(GistError::NotFound)?;
         env.storage().persistent().remove(&DataKey::Gist(gist_id));
+        Self::remove_from_cell_index(&env, &gist.location_cell, gist_id);
         env.events()
             .publish((Symbol::new(&env, "gist_removed"),), gist_id);
         Ok(())
     }
 
-    /// Flag a gist for off-chain review. Callable by anyone; advisory only —
-    /// it never hides content on its own.
-    pub fn report_gist(env: Env, gist_id: u64) -> Result<u32, GistError> {
+    /// Flag a gist for off-chain review. Callable by any address, once per
+    /// (reporter, gist); advisory only — it never hides content on its own.
+    ///
+    /// `reporter` must authorize the call, and a second report of the same
+    /// gist by the same reporter fails with [`GistError::AlreadyReported`].
+    pub fn report_gist(env: Env, gist_id: u64, reporter: Address) -> Result<u32, GistError> {
+        reporter.require_auth();
         if !env.storage().persistent().has(&DataKey::Gist(gist_id)) {
             return Err(GistError::NotFound);
         }
+        let reported_key = DataKey::Reported(gist_id, reporter);
+        if env.storage().persistent().has(&reported_key) {
+            return Err(GistError::AlreadyReported);
+        }
+        env.storage().persistent().set(&reported_key, &true);
         let key = DataKey::Reports(gist_id);
         let count: u32 = env.storage().persistent().get(&key).unwrap_or(0) + 1;
         env.storage().persistent().set(&key, &count);
@@ -372,8 +392,9 @@ impl GistRegistry {
     ///
     /// Anonymous gists cannot be deleted by users — only moderated.
     pub fn delete_gist(env: Env, gist_id: u64) -> Result<(), GistError> {
-        Self::load_authored(&env, gist_id)?;
+        let gist = Self::load_authored(&env, gist_id)?;
         env.storage().persistent().remove(&DataKey::Gist(gist_id));
+        Self::remove_from_cell_index(&env, &gist.location_cell, gist_id);
         env.events()
             .publish((Symbol::new(&env, "gist_deleted"),), gist_id);
         Ok(())
@@ -395,6 +416,23 @@ impl GistRegistry {
         env.storage()
             .instance()
             .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+
+    /// Remove `gist_id` from the per-cell index so listings do not keep
+    /// scanning ids of gists that no longer exist.
+    fn remove_from_cell_index(env: &Env, location_cell: &String, gist_id: u64) {
+        let idx_key = DataKey::CellIndex(location_cell.clone());
+        let ids: Vec<u64> = match env.storage().persistent().get(&idx_key) {
+            Some(ids) => ids,
+            None => return,
+        };
+        let mut kept: Vec<u64> = Vec::new(env);
+        for id in ids.iter() {
+            if id != gist_id {
+                kept.push_back(id);
+            }
+        }
+        env.storage().persistent().set(&idx_key, &kept);
     }
 
     /// Require that the call is authorized by the configured moderator.
@@ -532,6 +570,50 @@ mod tests {
 
         let gist = client.get_gist(&id).unwrap();
         assert_eq!(gist.author, Some(author));
+    }
+
+    #[test]
+    fn deleting_a_gist_prunes_it_from_the_cell_index() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        let author = Address::generate(&env);
+        let location = cell(&env, "r3gx");
+        let keep = client.post_gist(&None, &location, &cell(&env, "Qm0"), &None);
+        let id = client.post_gist(&Some(author), &location, &cell(&env, "Qm1"), &None);
+
+        client.delete_gist(&id);
+
+        let contract_id = client.address.clone();
+        let ids: Vec<u64> = env.as_contract(&contract_id, || {
+            env.storage()
+                .persistent()
+                .get(&DataKey::CellIndex(location.clone()))
+                .unwrap()
+        });
+        assert_eq!(ids.len(), 1);
+        assert_eq!(ids.get(0), Some(keep));
+    }
+
+    #[test]
+    fn removing_a_gist_prunes_it_from_the_cell_index() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+        let location = cell(&env, "r3gx");
+        let id = client.post_gist(&None, &location, &cell(&env, "Qm1"), &None);
+
+        client.remove_gist(&id);
+
+        let contract_id = client.address.clone();
+        let ids: Vec<u64> = env.as_contract(&contract_id, || {
+            env.storage()
+                .persistent()
+                .get(&DataKey::CellIndex(location.clone()))
+                .unwrap()
+        });
+        assert_eq!(ids.len(), 0);
     }
 
     #[test]
@@ -771,6 +853,15 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
+    fn initialize_without_admin_authorization_is_rejected() {
+        let env = Env::default();
+        // NOTE: no mock_all_auths() — the admin's authorization is absent.
+        let client = setup(&env);
+        client.initialize(&Address::generate(&env));
+    }
+
+    #[test]
     fn moderation_before_initialize_is_rejected() {
         let env = Env::default();
         env.mock_all_auths();
@@ -859,21 +950,34 @@ mod tests {
     #[test]
     fn anyone_can_report_and_reports_accumulate() {
         let env = Env::default();
+        env.mock_all_auths();
         let client = setup(&env);
 
         let location = cell(&env, "r3gx");
         let id = client.post_gist(&None, &location, &cell(&env, "Qm1"), &None);
+        let r1 = Address::generate(&env);
+        let r2 = Address::generate(&env);
 
         assert_eq!(client.report_count(&id), 0);
-        assert_eq!(client.report_gist(&id), 1);
-        assert_eq!(client.report_gist(&id), 2);
+        assert_eq!(client.report_gist(&id, &r1), 1);
+        assert_eq!(client.report_gist(&id, &r2), 2);
+        assert_eq!(client.report_count(&id), 2);
+
+        // the same reporter cannot report the same gist twice
+        assert_eq!(
+            client.try_report_gist(&id, &r1),
+            Err(Ok(GistError::AlreadyReported))
+        );
         assert_eq!(client.report_count(&id), 2);
 
         // reporting is advisory — it must not hide the gist on its own
         assert!(client.is_active(&id));
         assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 1);
 
-        assert_eq!(client.try_report_gist(&999), Err(Ok(GistError::NotFound)));
+        assert_eq!(
+            client.try_report_gist(&999, &r1),
+            Err(Ok(GistError::NotFound))
+        );
     }
 
     // -- author edit / delete (#879) ----------------------------------------
@@ -1139,7 +1243,9 @@ mod tests {
 
         let id = client.post_gist(&None, &cell(&env, "r3gx"), &cell(&env, "Qm1"), &None);
 
-        assert_eq!(client.report_gist(&id), 1);
+        let r1 = Address::generate(&env);
+        let r2 = Address::generate(&env);
+        assert_eq!(client.report_gist(&id, &r1), 1);
         let (topic, data) = last_event(&env);
         assert_eq!(topic, Symbol::new(&env, "gist_reported"));
         let (reported_id, count) = decode_report_payload(&env, data);
@@ -1147,7 +1253,7 @@ mod tests {
         assert_eq!(count, 1);
 
         // A second report moves both the return value and the published count.
-        assert_eq!(client.report_gist(&id), 2);
+        assert_eq!(client.report_gist(&id, &r2), 2);
         let (topic, data) = last_event(&env);
         assert_eq!(topic, Symbol::new(&env, "gist_reported"));
         let (reported_id, count) = decode_report_payload(&env, data);

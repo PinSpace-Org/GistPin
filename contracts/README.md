@@ -51,7 +51,7 @@ Each gist record tracks:
 
 | Method | Returns | Description |
 |---|---|---|
-| `initialize(admin)` | `Result<(), GistError>` | Set the moderator address. Callable **once**, at deploy time |
+| `initialize(admin)` | `Result<(), GistError>` | Set the moderator address. Callable **once**, at deploy time; `admin` must authorize the call |
 | `get_admin()` | `Option<Address>` | The configured moderator, if initialized |
 | `post_gist(author, location_cell, content_hash, ttl_secs)` | `Result<u64, GistError>` | Register a new gist; returns its `gist_id` |
 | `get_gist(gist_id)` | `Option<Gist>` | Retrieve a gist record by id (expired/hidden records are still returned) |
@@ -62,7 +62,7 @@ Each gist record tracks:
 | `hide_gist(gist_id)` | `Result<(), GistError>` | Soft-hide a gist — **moderator only** |
 | `unhide_gist(gist_id)` | `Result<(), GistError>` | Reverse a hide — **moderator only** |
 | `remove_gist(gist_id)` | `Result<(), GistError>` | Permanently delete — **moderator only** |
-| `report_gist(gist_id)` | `Result<u32, GistError>` | Flag for off-chain review (anyone); returns the new count |
+| `report_gist(gist_id, reporter)` | `Result<u32, GistError>` | Flag for off-chain review. `reporter` must authorize; one report per (reporter, gist); returns the new count |
 | `report_count(gist_id)` | `u32` | Reports filed against a gist |
 
 Posting works without `initialize`; only moderator actions require it.
@@ -116,6 +116,7 @@ Expired gists are excluded from `list_gists_by_cell` but remain retrievable via
 | `AlreadyInitialized` | 6 | `initialize` was called twice |
 | `NotInitialized` | 7 | A moderator action ran before `initialize` |
 | `AnonymousImmutable` | 8 | Edit/delete attempted on an anonymous gist |
+| `AlreadyReported` | 9 | The same reporter reported the same gist twice |
 
 Authorization failures surface as a **trapped `require_auth`** (a panic), not a
 `GistError` — that is Soroban's standard behaviour.
@@ -201,7 +202,7 @@ Verified live: `post_gist` → returned `gist_id 1` and emitted `gist_posted`;
 
 ### Requirements
 
-- Rust (≥ 1.70) — [install via rustup](https://rustup.rs)
+- Rust (≥ 1.84) — [install via rustup](https://rustup.rs)
 - `wasm32-unknown-unknown` target
 - `stellar-cli` — [install guide](https://developers.stellar.org/docs/build/smart-contracts/getting-started/setup)
 
