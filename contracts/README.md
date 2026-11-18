@@ -85,6 +85,12 @@ Posting works without `initialize`; only moderator actions require it.
 | Default TTL (when `ttl_secs` is `None`) | 24 hours |
 | Maximum TTL | 7 days |
 | Cooldown per (author, cell) | 60 seconds |
+| Storage TTL threshold (`TTL_THRESHOLD`) | 30 days of ledgers (518,400) |
+| Storage TTL extend-to (`TTL_EXTEND_TO`) | 60 days of ledgers (1,036,800) |
+
+Persistent entries (gists, the per-cell index, cooldown markers, report counts)
+and instance storage (gist counter, moderator) have their ledger TTL extended
+whenever the contract writes them, so live data is not archived by the network.
 
 Expired gists are excluded from `list_gists_by_cell` but remain retrievable via
 `get_gist`; use `is_active` to test expiry.

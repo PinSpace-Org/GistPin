@@ -270,19 +270,6 @@ Table: `gists` (entity: `src/gists/entities/gist.entity.ts`; schema from `src/da
 | `report_count` | `integer` NOT NULL | Default `0` |
 | `is_active` | `boolean` NOT NULL | Default `true` |
 
----|---|---|
-| `id` | `uuid` PK | Internal primary key |
-| `gist_id` | `bigint` UNIQUE | On-chain ID from GistRegistry contract |
-| `location_cell` | `text` | Coarse geohash cell |
-| `location` | `geography(Point, 4326)` | PostGIS point for geo queries |
-| `lat` | `float8` | Stored for convenience |
-| `lon` | `float8` | Stored for convenience |
-| `content_cid` | `text` | IPFS CID |
-| `text` | `text` | Full gist text (cached from IPFS) |
-| `author_address` | `text` | Nullable — anonymous posts allowed |
-| `tx_hash` | `text` | Stellar transaction hash |
-| `created_at` | `timestamptz` | |
-
 ---
 
 ## Indexer
