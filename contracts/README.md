@@ -56,7 +56,7 @@ Each gist record tracks:
 | `post_gist(author, location_cell, content_hash, ttl_secs)` | `Result<u64, GistError>` | Register a new gist; returns its `gist_id` |
 | `get_gist(gist_id)` | `Option<Gist>` | Retrieve a gist record by id (expired/hidden records are still returned) |
 | `is_active(gist_id)` | `bool` | Exists, not expired, and not hidden |
-| `list_gists_by_cell(location_cell, cursor, limit)` | `Vec<Gist>` | Paginated list of **active** gists in a cell |
+| `list_gists_by_cell(location_cell, cursor, limit)` | `GistPage { gists, next_cursor }` | Paginated list of **active** gists in a cell; examines at most 100 index entries per call and returns `next_cursor` (`None` when finished) |
 | `edit_gist(gist_id, new_content_hash)` | `Result<(), GistError>` | Replace the content pointer — **author only** |
 | `delete_gist(gist_id)` | `Result<(), GistError>` | Delete your own gist — **author only** |
 | `hide_gist(gist_id)` | `Result<(), GistError>` | Soft-hide a gist — **moderator only** |
@@ -119,6 +119,9 @@ Authorization failures surface as a **trapped `require_auth`** (a panic), not a
 `list_gists_by_cell` pages over a **secondary index of gist ids per cell**, so
 cost scales with the results in that cell rather than the total number of
 gists. `cursor` is a zero-based **offset into that index** (not a gist id).
+Each call examines at most `MAX_SCAN_PER_CALL` (100) index entries, so a page can
+be short (even empty) while more results exist: keep calling with `next_cursor`
+until it is `None`.
 
 ### Events
 

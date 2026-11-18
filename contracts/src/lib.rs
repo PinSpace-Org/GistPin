@@ -14,6 +14,9 @@ const DEFAULT_TTL_SECS: u64 = 24 * 60 * 60; // 24 hours
 const MAX_TTL_SECS: u64 = 7 * 24 * 60 * 60; // 7 days
 /// Minimum gap between two posts by the same author in the same cell.
 const COOLDOWN_SECS: u64 = 60;
+/// Maximum number of index entries `list_gists_by_cell` examines per call, so
+/// a cell full of expired/hidden gists cannot exhaust the call's resources.
+const MAX_SCAN_PER_CALL: u32 = 100;
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -60,6 +63,17 @@ pub struct Gist {
     /// Set by a moderator to soft-hide the gist. Hidden gists are excluded
     /// from listings but remain retrievable via `get_gist`.
     pub hidden: bool,
+}
+
+/// One page of `list_gists_by_cell` results.
+#[contracttype]
+#[derive(Clone)]
+pub struct GistPage {
+    /// Active gists found in this page.
+    pub gists: Vec<Gist>,
+    /// Cursor to pass to the next call, or `None` when the whole index has
+    /// been examined.
+    pub next_cursor: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -196,13 +210,16 @@ impl GistRegistry {
     /// Paginated list of the *active* (non-expired) gists in a location cell.
     ///
     /// `cursor` is a zero-based offset into the cell's index (not a gist id);
-    /// `limit` caps the number of results returned.
+    /// `limit` caps the number of results returned. At most
+    /// [`MAX_SCAN_PER_CALL`] index entries are examined per call, so a page may
+    /// hold fewer than `limit` gists even when more exist: keep calling with
+    /// `next_cursor` until it is `None`.
     pub fn list_gists_by_cell(
         env: Env,
         location_cell: String,
         cursor: u32,
         limit: u32,
-    ) -> Vec<Gist> {
+    ) -> GistPage {
         let ids: Vec<u64> = env
             .storage()
             .persistent()
@@ -213,8 +230,10 @@ impl GistRegistry {
         let mut results = Vec::new(&env);
         let mut count: u32 = 0;
         let mut i = cursor;
+        let mut scanned: u32 = 0;
 
-        while i < ids.len() && count < limit {
+        while i < ids.len() && count < limit && scanned < MAX_SCAN_PER_CALL {
+            scanned += 1;
             if let Some(id) = ids.get(i) {
                 if let Some(gist) = env
                     .storage()
@@ -230,7 +249,11 @@ impl GistRegistry {
             i += 1;
         }
 
-        results
+        let next_cursor = if i < ids.len() { Some(i) } else { None };
+        GistPage {
+            gists: results,
+            next_cursor,
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -511,10 +534,10 @@ mod tests {
         client.post_gist(&None, &location, &cell(&env, "QmShort"), &Some(50u64));
         client.post_gist(&None, &location, &cell(&env, "QmLong"), &Some(5_000u64));
 
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 2);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 2);
 
         env.ledger().set_timestamp(1_000 + 100); // first one expired
-        let active = client.list_gists_by_cell(&location, &0, &10);
+        let active = client.list_gists_by_cell(&location, &0, &10).gists;
         assert_eq!(active.len(), 1);
         assert_eq!(active.get(0).unwrap().content_hash, cell(&env, "QmLong"));
     }
@@ -595,7 +618,7 @@ mod tests {
         client.post_gist(&None, &location, &cell(&env, "Qm1"), &None);
         client.post_gist(&None, &location, &cell(&env, "Qm2"), &None);
 
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 2);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 2);
     }
 
     // -- cell index / pagination (#875) --------------------------------------
@@ -613,8 +636,8 @@ mod tests {
         client.post_gist(&None, &cell_b, &hash, &None);
         client.post_gist(&None, &cell_a, &hash, &None);
 
-        assert_eq!(client.list_gists_by_cell(&cell_a, &0, &10).len(), 2);
-        assert_eq!(client.list_gists_by_cell(&cell_b, &0, &10).len(), 1);
+        assert_eq!(client.list_gists_by_cell(&cell_a, &0, &10).gists.len(), 2);
+        assert_eq!(client.list_gists_by_cell(&cell_b, &0, &10).gists.len(), 1);
     }
 
     #[test]
@@ -627,17 +650,42 @@ mod tests {
             client.post_gist(&None, &location, &cell(&env, "Qm"), &None);
         }
 
-        let page1 = client.list_gists_by_cell(&location, &0, &2);
+        let page1 = client.list_gists_by_cell(&location, &0, &2).gists;
         assert_eq!(page1.len(), 2);
         assert_eq!(page1.get(0).unwrap().gist_id, 1);
         assert_eq!(page1.get(1).unwrap().gist_id, 2);
 
-        let page2 = client.list_gists_by_cell(&location, &2, &2);
+        let page2 = client.list_gists_by_cell(&location, &2, &2).gists;
         assert_eq!(page2.len(), 2);
         assert_eq!(page2.get(0).unwrap().gist_id, 3);
 
-        let page3 = client.list_gists_by_cell(&location, &4, &2);
+        let page3 = client.list_gists_by_cell(&location, &4, &2).gists;
         assert_eq!(page3.len(), 1);
+    }
+
+    #[test]
+    fn listing_caps_entries_examined_and_returns_a_resume_cursor() {
+        let env = Env::default();
+        let client = setup(&env);
+        env.ledger().set_timestamp(1_000_000);
+
+        let location = cell(&env, "r3gx");
+        // Many gists that will be expired by the time we list.
+        for _ in 0..(MAX_SCAN_PER_CALL + 5) {
+            client.post_gist(&None, &location, &cell(&env, "Qm"), &Some(10));
+        }
+        env.ledger().set_timestamp(1_000_100);
+        // Two more that are still active.
+        client.post_gist(&None, &location, &cell(&env, "Qm"), &None);
+        client.post_gist(&None, &location, &cell(&env, "Qm"), &None);
+
+        let page = client.list_gists_by_cell(&location, &0, &10);
+        assert_eq!(page.gists.len(), 0);
+        assert_eq!(page.next_cursor, Some(MAX_SCAN_PER_CALL));
+
+        let page = client.list_gists_by_cell(&location, &MAX_SCAN_PER_CALL, &10);
+        assert_eq!(page.gists.len(), 2);
+        assert_eq!(page.next_cursor, None);
     }
 
     #[test]
@@ -648,6 +696,7 @@ mod tests {
         assert_eq!(
             client
                 .list_gists_by_cell(&cell(&env, "nope"), &0, &10)
+                .gists
                 .len(),
             0
         );
@@ -700,7 +749,7 @@ mod tests {
         client.hide_gist(&id);
 
         // excluded from listings and inactive, but still auditable
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 0);
         assert!(!client.is_active(&id));
         let gist = client
             .get_gist(&id)
@@ -709,7 +758,7 @@ mod tests {
 
         client.unhide_gist(&id);
         assert!(client.is_active(&id));
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 1);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 1);
     }
 
     #[test]
@@ -741,7 +790,7 @@ mod tests {
 
         assert!(client.get_gist(&id).is_none());
         assert!(!client.is_active(&id));
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 0);
         // removing again reports NotFound
         assert_eq!(client.try_remove_gist(&id), Err(Ok(GistError::NotFound)));
     }
@@ -773,7 +822,7 @@ mod tests {
 
         // reporting is advisory — it must not hide the gist on its own
         assert!(client.is_active(&id));
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 1);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 1);
 
         assert_eq!(client.try_report_gist(&999), Err(Ok(GistError::NotFound)));
     }
@@ -815,7 +864,7 @@ mod tests {
         client.delete_gist(&id);
 
         assert!(client.get_gist(&id).is_none());
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 0);
     }
 
     #[test]
@@ -889,7 +938,7 @@ mod tests {
         env.ledger().set_timestamp(1_000 + 500);
         client.unhide_gist(&id);
         assert!(!client.is_active(&id));
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 0);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 0);
     }
 
     // -- event emission ------------------------------------------------------
