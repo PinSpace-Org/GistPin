@@ -102,7 +102,7 @@ Expired gists are excluded from `list_gists_by_cell` but remain retrievable via
 | `edit_gist` / `delete_gist` | the gist's **author** (`require_auth`) | Anonymous gists are immutable — no provable owner |
 | `hide_gist` / `unhide_gist` | **moderator** (`require_auth`) | Soft, reversible. Excluded from listings; still returned by `get_gist` with `hidden = true`, so moderation stays auditable |
 | `remove_gist` | **moderator** (`require_auth`) | Permanent and irreversible — prefer `hide_gist` unless the content must not persist |
-| `report_gist` | anyone | Advisory only; never hides content on its own |
+| `report_gist` | any authorizing address (once per gist) | Advisory only; never hides content on its own |
 
 ### Errors
 
