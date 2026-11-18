@@ -15,6 +15,13 @@ const MAX_TTL_SECS: u64 = 7 * 24 * 60 * 60; // 7 days
 /// Minimum gap between two posts by the same author in the same cell.
 const COOLDOWN_SECS: u64 = 60;
 
+/// Approximate number of ledgers per day (one ledger every ~5 seconds).
+const DAY_IN_LEDGERS: u32 = 17_280;
+/// When an entry's remaining TTL drops below this many ledgers, it is extended.
+const TTL_THRESHOLD: u32 = 30 * DAY_IN_LEDGERS;
+/// Number of ledgers persistent and instance entries are extended to.
+const TTL_EXTEND_TO: u32 = 60 * DAY_IN_LEDGERS;
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
@@ -136,6 +143,7 @@ impl GistRegistry {
                 }
             }
             env.storage().persistent().set(&last_key, &now);
+            Self::bump_persistent(&env, &last_key);
         }
 
         let gist_id: u64 = env.storage().instance().get(&GIST_COUNT).unwrap_or(0u64) + 1;
@@ -153,7 +161,9 @@ impl GistRegistry {
         env.storage()
             .persistent()
             .set(&DataKey::Gist(gist_id), &gist);
+        Self::bump_persistent(&env, &DataKey::Gist(gist_id));
         env.storage().instance().set(&GIST_COUNT, &gist_id);
+        Self::bump_instance(&env);
 
         // --- secondary index by cell (#875) --------------------------------
         // Keeps `list_gists_by_cell` proportional to the results in the cell
@@ -166,6 +176,7 @@ impl GistRegistry {
             .unwrap_or_else(|| Vec::new(&env));
         ids.push_back(gist_id);
         env.storage().persistent().set(&idx_key, &ids);
+        Self::bump_persistent(&env, &idx_key);
 
         // Canonical event consumed by the off-chain indexer.
         env.events()
@@ -245,6 +256,7 @@ impl GistRegistry {
             return Err(GistError::AlreadyInitialized);
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
+        Self::bump_instance(&env);
         Ok(())
     }
 
@@ -300,6 +312,7 @@ impl GistRegistry {
         let key = DataKey::Reports(gist_id);
         let count: u32 = env.storage().persistent().get(&key).unwrap_or(0) + 1;
         env.storage().persistent().set(&key, &count);
+        Self::bump_persistent(&env, &key);
         env.events()
             .publish((Symbol::new(&env, "gist_reported"),), (gist_id, count));
         Ok(count)
@@ -326,6 +339,7 @@ impl GistRegistry {
         env.storage()
             .persistent()
             .set(&DataKey::Gist(gist_id), &gist);
+        Self::bump_persistent(&env, &DataKey::Gist(gist_id));
         env.events()
             .publish((Symbol::new(&env, "gist_edited"),), gist);
         Ok(())
@@ -345,6 +359,20 @@ impl GistRegistry {
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
+
+    /// Extend the TTL of a persistent entry so it is not archived.
+    fn bump_persistent(env: &Env, key: &DataKey) {
+        env.storage()
+            .persistent()
+            .extend_ttl(key, TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+
+    /// Extend the TTL of instance storage (gist counter and moderator).
+    fn bump_instance(env: &Env) {
+        env.storage()
+            .instance()
+            .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
 
     /// Require that the call is authorized by the configured moderator.
     fn require_admin(env: &Env) -> Result<(), GistError> {
@@ -406,6 +434,27 @@ mod tests {
 
     fn cell(env: &Env, s: &str) -> String {
         String::from_str(env, s)
+    }
+
+    // -- storage TTL ---------------------------------------------------------
+
+    #[test]
+    fn posted_gist_survives_ledgers_past_the_default_entry_ttl() {
+        let env = Env::default();
+        let client = setup(&env);
+        env.ledger().set_timestamp(1_000_000);
+
+        let location = cell(&env, "r3gx");
+        let hash = cell(&env, "QmTtl");
+        let id = client.post_gist(&None, &location, &hash, &Some(MAX_TTL_SECS));
+
+        // Advance well beyond the default minimum entry TTL, but inside the
+        // window the contract extended the entries to.
+        env.ledger()
+            .with_mut(|l| l.sequence_number += TTL_EXTEND_TO / 2);
+
+        assert!(client.get_gist(&id).is_some());
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 1);
     }
 
     // -- posting / retrieval -------------------------------------------------
