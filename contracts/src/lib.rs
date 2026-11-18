@@ -515,7 +515,7 @@ mod tests {
             .with_mut(|l| l.sequence_number += TTL_EXTEND_TO / 2);
 
         assert!(client.get_gist(&id).is_some());
-        assert_eq!(client.list_gists_by_cell(&location, &0, &10).len(), 1);
+        assert_eq!(client.list_gists_by_cell(&location, &0, &10).gists.len(), 1);
     }
 
     // -- posting / retrieval -------------------------------------------------
