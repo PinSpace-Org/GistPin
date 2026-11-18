@@ -146,7 +146,7 @@ export default function AuthorConcentrationPage() {
               <li>Signed authors only (anonymous posts excluded)</li>
               <li>Calculated from posts-per-author histogram</li>
               <li>Gini coefficient: 1 - 2 × area under Lorenz curve</li>
-              <li>Top 10 share: sum of top 10 authors' posts / total posts</li>
+              <li>Top 10 share: sum of top 10 authors&apos; posts / total posts</li>
             </ul>
           </div>
         </div>

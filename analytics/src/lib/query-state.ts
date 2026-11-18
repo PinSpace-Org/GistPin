@@ -33,8 +33,12 @@ export function parseParam<T>(raw: string | null, schema: QueryParamSchema<T>): 
         ? (raw as unknown as T)
         : schema.defaultValue;
 
-    default:
-      return schema.defaultValue;
+    default: {
+      // Exhaustiveness check: adding a new schema type without handling it
+      // here becomes a compile-time error.
+      const unreachable: never = schema;
+      throw new Error(`Unsupported query param schema: ${JSON.stringify(unreachable)}`);
+    }
   }
 }
 
