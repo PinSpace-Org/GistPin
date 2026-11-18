@@ -37,6 +37,6 @@ export function useApi<T>(
 }
 
 /** Builds a stable SWR key from an endpoint name and its params. */
-export function buildApiKey(endpoint: string, params: Record<string, unknown>): string {
+export function buildApiKey(endpoint: string, params: object): string {
   return `${endpoint}?${JSON.stringify(params, Object.keys(params).sort())}`;
 }

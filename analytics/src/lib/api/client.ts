@@ -47,9 +47,9 @@ function getBaseUrl(): string {
   return url.replace(/\/+$/, '');
 }
 
-function buildQuery(params: Record<string, unknown>): string {
+function buildQuery(params: object): string {
   const search = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(params) as [string, unknown][]) {
     if (value !== undefined && value !== null) search.set(key, String(value));
   }
   const query = search.toString();

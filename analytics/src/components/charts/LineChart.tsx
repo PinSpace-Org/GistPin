@@ -2,8 +2,10 @@
 
 import { useMemo } from 'react';
 
-interface DataPoint {
-  [key: string]: unknown;
+type DataPoint = Record<string, number | string>;
+
+function toNumber(v: number | string): number {
+  return typeof v === 'string' ? new Date(v).getTime() : v;
 }
 
 interface LineChartProps {
@@ -32,9 +34,9 @@ export function LineChart({
       return { minX: 0, maxX: 1, minY: 0, maxY: 1, points: [] };
     }
 
-    const xValues = data.map((d) => d[xKey]);
-    const minX = Math.min(...xValues.map((v) => (typeof v === 'string' ? new Date(v).getTime() : v)));
-    const maxX = Math.max(...xValues.map((v) => (typeof v === 'string' ? new Date(v).getTime() : v)));
+    const xValues = data.map((d) => toNumber(d[xKey]));
+    const minX = Math.min(...xValues);
+    const maxX = Math.max(...xValues);
 
     let minY = Infinity;
     let maxY = -Infinity;
