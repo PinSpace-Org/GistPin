@@ -183,20 +183,21 @@ describe('SorobanService (live mode, mocked RPC)', () => {
         hidden: false,
         author: null,
       };
-      mockServer.simulateTransaction.mockResolvedValue(simulationOk([record, record]));
+      mockServer.simulateTransaction.mockResolvedValue(simulationOk({ gists: [record, record], next_cursor: 2 }));
 
       const result = await service.listGistsByCell('cell', 0, 10);
 
       expect(result.mock).toBe(false);
+      expect(result.nextCursor).toBe(2);
       expect(result.gists).toHaveLength(2);
       expect(result.gists[0]).toMatchObject({ gistId: '1', locationCell: 'cell' });
     });
 
-    it('throws when the contract returns something other than a vector', async () => {
+    it('throws when the contract returns something other than a page', async () => {
       mockServer.simulateTransaction.mockResolvedValue(simulationOk('nope'));
 
       await expect(service.listGistsByCell('cell', 0, 10)).rejects.toThrow(
-        'returned non-array for cell cell',
+        'returned no page for cell cell',
       );
     });
   });

@@ -83,6 +83,8 @@ export interface IsActiveResult {
 
 export interface ListGistsByCellResult {
   gists: GetGistResult[];
+  /** Resume cursor for the next call, or null when the whole index was examined. */
+  nextCursor: number | null;
   mock: boolean;
 }
 
@@ -237,9 +239,11 @@ export class SorobanService {
   /**
    * Paginated list of **active** gists in a location cell.
    *
-   * On-chain: `list_gists_by_cell(location_cell, cursor: u32, limit: u32) -> Vec<Gist>`
+   * On-chain: `list_gists_by_cell(location_cell, cursor: u32, limit: u32) -> GistPage { gists, next_cursor }`
    *
    * `cursor` is a zero-based offset into the per-cell index (not a gist id).
+   * The contract examines a bounded number of entries per call; continue with
+   * `nextCursor` until it is `null`.
    */
   async listGistsByCell(
     locationCell: string,
@@ -249,7 +253,7 @@ export class SorobanService {
     if (this.mockMode) {
       await this.simulateDelay();
       this.logger.debug(`MOCK listGistsByCell(${locationCell}, ${cursor}, ${limit}) → []`);
-      return { gists: [], mock: true };
+      return { gists: [], nextCursor: null, mock: true };
     }
 
     return withRetry(
@@ -549,14 +553,17 @@ export class SorobanService {
       throw new Error(`Soroban list_gists_by_cell returned no value for cell ${locationCell}`);
     }
 
-    const native = scValToNative(simulation.result.retval) as unknown[];
-    if (!Array.isArray(native)) {
-      throw new Error(`Soroban list_gists_by_cell returned non-array for cell ${locationCell}`);
+    const native = scValToNative(simulation.result.retval) as {
+      gists?: unknown[];
+      next_cursor?: number | null;
+    };
+    if (!native || !Array.isArray(native.gists)) {
+      throw new Error(`Soroban list_gists_by_cell returned no page for cell ${locationCell}`);
     }
 
-    const gists = native.map((record, idx) => this.normalizeGistRecord(String(idx), record));
+    const gists = native.gists.map((record, idx) => this.normalizeGistRecord(String(idx), record));
 
-    return { gists, mock: false };
+    return { gists, nextCursor: native.next_cursor ?? null, mock: false };
   }
 
   private async getEventsSinceLive(ledger: number): Promise<GistRegistryEvent[]> {
