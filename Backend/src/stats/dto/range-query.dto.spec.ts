@@ -10,13 +10,19 @@ describe('RangeQueryDto.resolveRange', () => {
 
   it('rejects a range wider than 90 days', () => {
     expect(() =>
-      RangeQueryDto.resolveRange({ from: '2020-01-01T00:00:00.000Z', to: '2020-06-01T00:00:00.000Z' }),
+      RangeQueryDto.resolveRange({
+        from: '2020-01-01T00:00:00.000Z',
+        to: '2020-06-01T00:00:00.000Z',
+      }),
     ).toThrow(BadRequestException);
   });
 
   it('rejects from >= to', () => {
     expect(() =>
-      RangeQueryDto.resolveRange({ from: '2026-01-02T00:00:00.000Z', to: '2026-01-01T00:00:00.000Z' }),
+      RangeQueryDto.resolveRange({
+        from: '2026-01-02T00:00:00.000Z',
+        to: '2026-01-01T00:00:00.000Z',
+      }),
     ).toThrow(BadRequestException);
   });
 

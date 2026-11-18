@@ -112,16 +112,15 @@ describe('Gists (e2e)', () => {
 
       expect(res.body.data.length).toBeLessThanOrEqual(2);
     });
-  });  describe('GET /gists/:id', () => {
+  });
+  describe('GET /gists/:id', () => {
     it('should return the gist when it exists', async () => {
       const created = await request(app.getHttpServer())
         .post('/gists')
         .send({ content: 'find me by id', lat: 9.0579, lon: 7.4951 })
         .expect(201);
 
-      const res = await request(app.getHttpServer())
-        .get(`/gists/${created.body.id}`)
-        .expect(200);
+      const res = await request(app.getHttpServer()).get(`/gists/${created.body.id}`).expect(200);
 
       expect(res.body).toMatchObject({
         id: created.body.id,
@@ -146,9 +145,7 @@ describe('Gists (e2e)', () => {
     });
 
     it('should return 400 when id is not a valid UUID', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/gists/not-a-uuid')
-        .expect(400);
+      const res = await request(app.getHttpServer()).get('/gists/not-a-uuid').expect(400);
 
       expect(res.body.statusCode).toBe(400);
     });
@@ -176,5 +173,4 @@ describe('Gists (e2e)', () => {
       expect(res.body.services.postgis.status).toBe('ok');
     });
   });
-
 });

@@ -3,9 +3,7 @@ import * as Joi from 'joi';
 export const envValidationSchema = Joi.object({
   // App
   PORT: Joi.number().integer().min(1).max(65535).default(3000),
-  NODE_ENV: Joi.string()
-    .valid('development', 'production', 'test')
-    .default('development'),
+  NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
 
   // Database — required; no meaningful fallback
   DATABASE_HOST: Joi.string().required(),
@@ -19,12 +17,8 @@ export const envValidationSchema = Joi.object({
   DB_POOL_MIN: Joi.number().integer().min(0).default(2),
 
   // Soroban / Stellar — optional in dev
-  SOROBAN_RPC_URL: Joi.string()
-    .uri()
-    .default('https://soroban-testnet.stellar.org'),
-  STELLAR_NETWORK_PASSPHRASE: Joi.string().default(
-    'Test SDF Network ; September 2015',
-  ),
+  SOROBAN_RPC_URL: Joi.string().uri().default('https://soroban-testnet.stellar.org'),
+  STELLAR_NETWORK_PASSPHRASE: Joi.string().default('Test SDF Network ; September 2015'),
   CONTRACT_ID_GIST_REGISTRY: Joi.string().allow('').default(''),
   STELLAR_SECRET_KEY: Joi.string().allow('').default(''),
   // Funded public key used as the simulation source for read-only calls (no secret needed)

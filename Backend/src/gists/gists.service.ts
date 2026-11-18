@@ -97,7 +97,11 @@ export class GistsService {
    * assigned; fall back to the server-clock estimate (mock mode, or if the
    * read fails).
    */
-  private async resolveExpiry(gistId: string, mock: boolean | undefined, ttlHours: number): Promise<Date> {
+  private async resolveExpiry(
+    gistId: string,
+    mock: boolean | undefined,
+    ttlHours: number,
+  ): Promise<Date> {
     if (!mock) {
       try {
         const onChain = await this.sorobanService.getGist(gistId);

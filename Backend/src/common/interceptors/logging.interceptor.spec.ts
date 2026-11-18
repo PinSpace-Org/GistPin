@@ -4,7 +4,12 @@ import { of, throwError } from 'rxjs';
 import { LoggingInterceptor } from './logging.interceptor';
 import * as correlationStore from '../logger/correlation-id.store';
 
-function makeContext(method: string, url: string, statusCode: number, ip = '::1'): ExecutionContext {
+function makeContext(
+  method: string,
+  url: string,
+  statusCode: number,
+  ip = '::1',
+): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => ({ method, url, ip }),
@@ -102,9 +107,7 @@ describe('LoggingInterceptor', () => {
     const err = new Error('something broke');
     interceptor.intercept(ctx, makeHandler(null, err)).subscribe({
       error: () => {
-        expect(errorSpy).toHaveBeenCalledWith(
-          expect.stringContaining('POST /gists ERROR'),
-        );
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('POST /gists ERROR'));
         expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('[test-corr-id]'));
         expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('something broke'));
         done();

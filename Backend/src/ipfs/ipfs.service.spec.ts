@@ -95,7 +95,9 @@ describe('IpfsService', () => {
     });
 
     it('fetches the document from the configured gateway', async () => {
-      const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ hello: 'world' }) });
+      const fetchMock = jest
+        .fn()
+        .mockResolvedValue({ ok: true, json: async () => ({ hello: 'world' }) });
       global.fetch = fetchMock as unknown as typeof fetch;
       const service = buildService({ ...LIVE, 'ipfs.gateway': 'https://gw.example/ipfs' });
 
@@ -107,7 +109,9 @@ describe('IpfsService', () => {
 
     it('throws when the gateway responds with an error status', async () => {
       jest.useFakeTimers();
-      global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 502 }) as unknown as typeof fetch;
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: false, status: 502 }) as unknown as typeof fetch;
       const service = buildService({ ...LIVE, IPFS_RETRY_ATTEMPTS: 1 });
 
       await expect(service.getJson('QmReal')).rejects.toThrow('IPFS fetch failed: 502');

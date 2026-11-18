@@ -35,11 +35,7 @@ describe('CorrelationIdMiddleware', () => {
       done();
     });
 
-    middleware.use(
-      mockRequest as Request,
-      mockResponse as Response,
-      nextFunction,
-    );
+    middleware.use(mockRequest as Request, mockResponse as Response, nextFunction);
 
     expect(mockResponse.setHeader).toHaveBeenCalledWith('x-correlation-id', incomingId);
     expect(nextFunction).toHaveBeenCalledTimes(1);
@@ -58,25 +54,17 @@ describe('CorrelationIdMiddleware', () => {
     nextFunction.mockImplementation(() => {
       expect(capturedId).toBeDefined();
       // Validates UUID v4 pattern
-      expect(capturedId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-      );
+      expect(capturedId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
       expect(correlationStore.getStore()).toEqual({ id: capturedId });
       expect(getCorrelationId()).toBe(capturedId);
       done();
     });
 
-    middleware.use(
-      mockRequest as Request,
-      mockResponse as Response,
-      nextFunction,
-    );
+    middleware.use(mockRequest as Request, mockResponse as Response, nextFunction);
 
     expect(mockResponse.setHeader).toHaveBeenCalledWith(
       'x-correlation-id',
-      expect.stringMatching(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-      ),
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
     );
     expect(nextFunction).toHaveBeenCalledTimes(1);
   });

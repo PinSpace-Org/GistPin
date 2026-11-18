@@ -136,11 +136,14 @@ describe('StatsService', () => {
     });
 
     it('returns the recent array from the second query', async () => {
-      dataSource.query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([
-          { event_type: 'gist_posted', ledger: '10', stellar_gist_id: 'g1', observed_at: new Date() },
-        ]);
+      dataSource.query.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        {
+          event_type: 'gist_posted',
+          ledger: '10',
+          stellar_gist_id: 'g1',
+          observed_at: new Date(),
+        },
+      ]);
 
       const result = await service.getEventStats({
         from: '2026-01-01T00:00:00.000Z',

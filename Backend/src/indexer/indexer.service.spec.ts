@@ -10,9 +10,7 @@ jest.mock('../soroban/soroban.service', () => ({
   SorobanService: class SorobanService {},
 }));
 
-function makeEvent(
-  overrides: Partial<GistPostedEvent['gist']> = {},
-): GistPostedEvent {
+function makeEvent(overrides: Partial<GistPostedEvent['gist']> = {}): GistPostedEvent {
   return {
     type: 'gist_posted',
     ledger: 100,
@@ -33,9 +31,7 @@ function makeEvent(
 // Helper: an existing persisted cursor row, so tests that only care about
 // event-processing behavior (not the cursor-seeding behavior) don't need
 // to also stub out getLatestLedger.
-function existingState(
-  lastProcessedLedger: number,
-): Partial<IndexerState> {
+function existingState(lastProcessedLedger: number): Partial<IndexerState> {
   return {
     id: 1,
     name: 'gist-indexer',
@@ -100,14 +96,10 @@ describe('IndexerService', () => {
     indexerStateRepo.findOne.mockResolvedValue(null as never);
 
     // Simulate TypeORM create().
-    indexerStateRepo.create.mockImplementation(
-      (state: Partial<IndexerState>) => state,
-    );
+    indexerStateRepo.create.mockImplementation((state: Partial<IndexerState>) => state);
 
     // Simulate TypeORM save().
-    indexerStateRepo.save.mockImplementation(
-      async (state: Partial<IndexerState>) => state,
-    );
+    indexerStateRepo.save.mockImplementation(async (state: Partial<IndexerState>) => state);
 
     eventLogRepo = {
       record: jest.fn(async () => undefined),
@@ -121,21 +113,13 @@ describe('IndexerService', () => {
       indexerStateRepo as any,
     );
 
-    logSpy = jest
-      .spyOn(Logger.prototype, 'log')
-      .mockImplementation(() => undefined);
+    logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
-    jest
-      .spyOn(Logger.prototype, 'debug')
-      .mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
 
-    warnSpy = jest
-      .spyOn(Logger.prototype, 'warn')
-      .mockImplementation(() => undefined);
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
-    errorSpy = jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation(() => undefined);
+    errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -154,25 +138,20 @@ describe('IndexerService', () => {
       // is explicitly out of scope per the acceptance criteria, so the
       // very first call to getEventsSince must never be seeded with 0.
       expect(soroban.getLatestLedger).toHaveBeenCalled();
-      expect(soroban.getEventsSince).toHaveBeenCalledWith(
-        4219504,
-      );
+      expect(soroban.getEventsSince).toHaveBeenCalledWith(4219504);
 
       // The seeded value must be persisted immediately so a restart
       // resumes from here rather than reseeding to "now" again.
       expect(indexerStateRepo.save).toHaveBeenCalled();
 
-      const savedState = indexerStateRepo.save.mock
-        .calls[0][0] as Partial<IndexerState>;
+      const savedState = indexerStateRepo.save.mock.calls[0][0] as Partial<IndexerState>;
 
       expect(savedState.name).toBe('gist-indexer');
       expect(savedState.lastProcessedLedger).toBe(4219504);
     });
 
     it('does not reseed when a cursor is already persisted', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(250) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(250) as never);
 
       soroban.getEventsSince.mockResolvedValue([]);
 
@@ -196,9 +175,7 @@ describe('IndexerService', () => {
     });
 
     it('loads the persisted cursor before polling', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(250) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(250) as never);
 
       soroban.getEventsSince.mockResolvedValue([]);
 
@@ -208,13 +185,9 @@ describe('IndexerService', () => {
     });
 
     it('persists a new event to the DB', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
-      soroban.getEventsSince.mockResolvedValue([
-        makeEvent(),
-      ]);
+      soroban.getEventsSince.mockResolvedValue([makeEvent()]);
 
       gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(false);
@@ -234,9 +207,7 @@ describe('IndexerService', () => {
     });
 
     it('decodes the locationCell via GeoService', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
       soroban.getEventsSince.mockResolvedValue([
         makeEvent({
@@ -250,19 +221,13 @@ describe('IndexerService', () => {
 
       await service.poll();
 
-      expect(geoService.decode).toHaveBeenCalledWith(
-        'u4pruyd',
-      );
+      expect(geoService.decode).toHaveBeenCalledWith('u4pruyd');
     });
 
     it('skips an event that is already indexed', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
-      soroban.getEventsSince.mockResolvedValue([
-        makeEvent(),
-      ]);
+      soroban.getEventsSince.mockResolvedValue([makeEvent()]);
 
       gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(true);
@@ -274,9 +239,7 @@ describe('IndexerService', () => {
     });
 
     it('advances and persists the cursor to the highest event ledger', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
       const events = [
         {
@@ -304,8 +267,7 @@ describe('IndexerService', () => {
 
       expect(indexerStateRepo.save).toHaveBeenCalled();
 
-      const savedState =
-        indexerStateRepo.save.mock.calls[0][0] as Partial<IndexerState>;
+      const savedState = indexerStateRepo.save.mock.calls[0][0] as Partial<IndexerState>;
 
       expect(savedState.lastProcessedLedger).toBe(350);
 
@@ -320,16 +282,11 @@ describe('IndexerService', () => {
 
       await service.poll();
 
-      expect(soroban.getEventsSince).toHaveBeenNthCalledWith(
-        2,
-        350,
-      );
+      expect(soroban.getEventsSince).toHaveBeenNthCalledWith(2, 350);
     });
 
     it('advances the cursor for already-indexed events', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
       soroban.getEventsSince.mockResolvedValue([
         {
@@ -349,9 +306,7 @@ describe('IndexerService', () => {
     });
 
     it('logs the number of events fetched', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
       soroban.getEventsSince.mockResolvedValue([
         makeEvent(),
@@ -366,15 +321,11 @@ describe('IndexerService', () => {
 
       await service.poll();
 
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('2 new event(s)'),
-      );
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('2 new event(s)'));
     });
 
     it('skips a malformed event and continues processing later events', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
       const malformedEvent = {
         type: 'gist_posted',
@@ -389,18 +340,13 @@ describe('IndexerService', () => {
         ledger: 102,
       };
 
-      soroban.getEventsSince.mockResolvedValue([
-        malformedEvent,
-        validEvent,
-      ]);
+      soroban.getEventsSince.mockResolvedValue([malformedEvent, validEvent]);
 
       gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(false);
       gistRepo.create.mockResolvedValue({} as never);
 
-      await expect(
-        service.poll(),
-      ).resolves.toBeUndefined();
+      await expect(service.poll()).resolves.toBeUndefined();
 
       expect(warnSpy).toHaveBeenCalled();
 
@@ -423,9 +369,7 @@ describe('IndexerService', () => {
     });
 
     it('continues processing when one event handler fails', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
       const firstEvent = {
         ...makeEvent({
@@ -441,19 +385,14 @@ describe('IndexerService', () => {
         ledger: 101,
       };
 
-      soroban.getEventsSince.mockResolvedValue([
-        firstEvent,
-        secondEvent,
-      ]);
+      soroban.getEventsSince.mockResolvedValue([firstEvent, secondEvent]);
 
       gistRepo.existsByStellarGistId
         .mockRejectedValueOnce(new Error('Database failure'))
         .mockResolvedValueOnce(false);
       gistRepo.create.mockResolvedValue({} as never);
 
-      await expect(
-        service.poll(),
-      ).resolves.toBeUndefined();
+      await expect(service.poll()).resolves.toBeUndefined();
 
       expect(warnSpy).toHaveBeenCalled();
 
@@ -471,17 +410,11 @@ describe('IndexerService', () => {
     });
 
     it('logs an error and does not throw when Soroban fails', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
-      soroban.getEventsSince.mockRejectedValue(
-        new Error('RPC timeout'),
-      );
+      soroban.getEventsSince.mockRejectedValue(new Error('RPC timeout'));
 
-      await expect(
-        service.poll(),
-      ).resolves.toBeUndefined();
+      await expect(service.poll()).resolves.toBeUndefined();
 
       expect(errorSpy).toHaveBeenCalledWith(
         'Indexer poll failed',
@@ -491,23 +424,15 @@ describe('IndexerService', () => {
     });
 
     it('skips a DB write failure and advances the cursor', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
-      soroban.getEventsSince.mockResolvedValue([
-        makeEvent(),
-      ]);
+      soroban.getEventsSince.mockResolvedValue([makeEvent()]);
 
       gistRepo.findByStellarGistId.mockResolvedValue(null);
       gistRepo.existsByStellarGistId.mockResolvedValue(false);
-      gistRepo.create.mockRejectedValue(
-        new Error('DB down'),
-      );
+      gistRepo.create.mockRejectedValue(new Error('DB down'));
 
-      await expect(
-        service.poll(),
-      ).resolves.toBeUndefined();
+      await expect(service.poll()).resolves.toBeUndefined();
 
       expect(warnSpy).toHaveBeenCalled();
 
@@ -521,32 +446,22 @@ describe('IndexerService', () => {
     });
 
     it('does not start another poll while one is already running', async () => {
-      indexerStateRepo.findOne.mockResolvedValue(
-        existingState(0) as never,
-      );
+      indexerStateRepo.findOne.mockResolvedValue(existingState(0) as never);
 
-      let resolveEvents:
-        | ((events: GistPostedEvent[]) => void)
-        | undefined;
+      let resolveEvents: ((events: GistPostedEvent[]) => void) | undefined;
 
-      const pendingEvents = new Promise<GistPostedEvent[]>(
-        (resolve) => {
-          resolveEvents = resolve;
-        },
-      );
+      const pendingEvents = new Promise<GistPostedEvent[]>((resolve) => {
+        resolveEvents = resolve;
+      });
 
-      soroban.getEventsSince.mockReturnValueOnce(
-        pendingEvents,
-      );
+      soroban.getEventsSince.mockReturnValueOnce(pendingEvents);
 
       const firstPoll = service.poll();
 
       // Wait until the first poll has actually started.
       await new Promise<void>((resolve) => {
         const check = () => {
-          if (
-            soroban.getEventsSince.mock.calls.length > 0
-          ) {
+          if (soroban.getEventsSince.mock.calls.length > 0) {
             resolve();
             return;
           }
@@ -561,9 +476,7 @@ describe('IndexerService', () => {
 
       await secondPoll;
 
-      expect(
-        soroban.getEventsSince,
-      ).toHaveBeenCalledTimes(1);
+      expect(soroban.getEventsSince).toHaveBeenCalledTimes(1);
 
       resolveEvents?.([]);
 

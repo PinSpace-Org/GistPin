@@ -96,7 +96,9 @@ export class StatsService {
     const bucketMs = query.bucket === 'hour' ? 3_600_000 : 86_400_000;
     const pointCount = Math.ceil((to.getTime() - from.getTime()) / bucketMs);
     if (pointCount > MAX_POINTS) {
-      throw new BadRequestException(`Range too large: ${pointCount} points exceeds max of ${MAX_POINTS}`);
+      throw new BadRequestException(
+        `Range too large: ${pointCount} points exceeds max of ${MAX_POINTS}`,
+      );
     }
 
     const rows = await this.dataSource.query<
@@ -198,7 +200,9 @@ export class StatsService {
     const bucketMs = BUCKET_MS[query.bucket];
     const bucketCount = Math.ceil((to.getTime() - from.getTime()) / bucketMs);
     if (bucketCount > MAX_BUCKETS) {
-      throw new BadRequestException(`Range too large: ${bucketCount} buckets exceeds max of ${MAX_BUCKETS}`);
+      throw new BadRequestException(
+        `Range too large: ${bucketCount} buckets exceeds max of ${MAX_BUCKETS}`,
+      );
     }
 
     const params: unknown[] = [from, to];
@@ -208,7 +212,9 @@ export class StatsService {
       typeClause = `AND event_type = $${params.length}`;
     }
 
-    const rows = await this.dataSource.query<Array<{ bucket: Date; event_type: string; count: string }>>(
+    const rows = await this.dataSource.query<
+      Array<{ bucket: Date; event_type: string; count: string }>
+    >(
       `
       SELECT date_trunc('${query.bucket}', observed_at) AS bucket, event_type, COUNT(*) AS count
       FROM indexed_events
@@ -249,7 +255,12 @@ export class StatsService {
     recentParams.push(query.recentLimit ?? 20);
 
     const recentRows = await this.dataSource.query<
-      Array<{ event_type: string; ledger: string; stellar_gist_id: string | null; observed_at: Date }>
+      Array<{
+        event_type: string;
+        ledger: string;
+        stellar_gist_id: string | null;
+        observed_at: Date;
+      }>
     >(
       `
       SELECT event_type, ledger, stellar_gist_id, observed_at

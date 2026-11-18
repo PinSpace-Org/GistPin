@@ -14,7 +14,12 @@ jest.mock('@stellar/stellar-sdk', () => {
       Address: { publicKey: jest.fn(() => ({})) },
       ScVal: { scvU64: jest.fn(() => ({})) },
       ScBytes: { scBytes: jest.fn(() => ({})) },
-      ContractEvent: { v0: jest.fn(() => ({ contractId: () => Buffer.alloc(32), data: () => ({ value: () => ({}) }) })) },
+      ContractEvent: {
+        v0: jest.fn(() => ({
+          contractId: () => Buffer.alloc(32),
+          data: () => ({ value: () => ({}) }),
+        })),
+      },
     },
     TransactionBuilder: jest.fn().mockImplementation(() => ({
       addOperation: jest.fn().mockReturnThis(),
@@ -206,9 +211,7 @@ describe('SorobanService', () => {
 
   describe('GistError enum', () => {
     it('has all 8 error codes', () => {
-      const values = Object.values(GistError).filter(
-        (v) => typeof v === 'number',
-      );
+      const values = Object.values(GistError).filter((v) => typeof v === 'number');
       expect(values).toHaveLength(8);
     });
 

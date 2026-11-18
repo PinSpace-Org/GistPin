@@ -35,7 +35,12 @@ describe('EventLogRepository', () => {
     await service.record(event);
 
     expect(repository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: 'evt-1', ledger: 100, eventType: 'gist_posted', stellarGistId: 'gist-1' }),
+      expect.objectContaining({
+        eventId: 'evt-1',
+        ledger: 100,
+        eventType: 'gist_posted',
+        stellarGistId: 'gist-1',
+      }),
     );
     expect(repository.insert).toHaveBeenCalledTimes(1);
   });

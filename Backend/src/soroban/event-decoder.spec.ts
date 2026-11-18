@@ -1,7 +1,4 @@
-import {
-  decodeGistRegistryEvent,
-  GIST_EVENT_TOPICS,
-} from './soroban.service';
+import { decodeGistRegistryEvent, GIST_EVENT_TOPICS } from './soroban.service';
 import { nativeToScVal } from '@stellar/stellar-sdk';
 
 /**
@@ -25,8 +22,7 @@ describe('decodeGistRegistryEvent', () => {
       ...overrides,
     });
 
-  const buildIdPayload = (gistId: bigint = BigInt(42)) =>
-    nativeToScVal({ gist_id: gistId });
+  const buildIdPayload = (gistId: bigint = BigInt(42)) => nativeToScVal({ gist_id: gistId });
 
   const buildReportPayload = (gistId: bigint = BigInt(7), count: bigint = BigInt(3)) =>
     nativeToScVal({ gist_id: gistId, count });
@@ -184,7 +180,12 @@ describe('decodeGistRegistryEvent', () => {
 
     it('returns null when payload is malformed (no gist_id)', () => {
       const badPayload = nativeToScVal({ wrong_field: 'x' });
-      const result = decodeGistRegistryEvent(GIST_EVENT_TOPICS.DELETED, badPayload, LEDGER, EVENT_ID);
+      const result = decodeGistRegistryEvent(
+        GIST_EVENT_TOPICS.DELETED,
+        badPayload,
+        LEDGER,
+        EVENT_ID,
+      );
       expect(result).toBeNull();
     });
   });

@@ -36,33 +36,24 @@ export class IndexerService {
   @Interval(10_000)
   async poll(): Promise<void> {
     if (this.polling) {
-      this.logger.debug(
-        'Indexer poll already running; skipping tick',
-      );
+      this.logger.debug('Indexer poll already running; skipping tick');
       return;
     }
 
     this.polling = true;
 
     try {
-      const lastProcessedLedger =
-        await this.getLastProcessedLedger();
+      const lastProcessedLedger = await this.getLastProcessedLedger();
 
-      const events =
-        await this.soroban.getEventsSince(
-          lastProcessedLedger,
-        );
+      const events = await this.soroban.getEventsSince(lastProcessedLedger);
 
       if (events.length === 0) {
         return;
       }
 
-      this.logger.log(
-        `Indexer: ${events.length} new event(s) from ledger ${lastProcessedLedger}`,
-      );
+      this.logger.log(`Indexer: ${events.length} new event(s) from ledger ${lastProcessedLedger}`);
 
-      let highestProcessedLedger =
-        lastProcessedLedger;
+      let highestProcessedLedger = lastProcessedLedger;
 
       for (const event of events) {
         /*
@@ -72,10 +63,7 @@ export class IndexerService {
          * This prevents one malformed event from permanently
          * wedging the indexer.
          */
-        highestProcessedLedger = Math.max(
-          highestProcessedLedger,
-          event.ledger,
-        );
+        highestProcessedLedger = Math.max(highestProcessedLedger, event.ledger);
 
         // Log every decoded event — including types handleEvent doesn't
         // otherwise persist to the gists table — so stats can be derived
@@ -97,32 +85,21 @@ export class IndexerService {
         } catch (err) {
           this.logger.warn(
             `Skipping event at ledger ${event.ledger}: ${
-              err instanceof Error
-                ? err.message
-                : String(err)
+              err instanceof Error ? err.message : String(err)
             }`,
           );
         }
       }
 
-      if (
-        highestProcessedLedger >
-        lastProcessedLedger
-      ) {
-        await this.saveLastProcessedLedger(
-          highestProcessedLedger,
-        );
+      if (highestProcessedLedger > lastProcessedLedger) {
+        await this.saveLastProcessedLedger(highestProcessedLedger);
 
-        this.logger.debug(
-          `Indexer cursor advanced to ledger ${highestProcessedLedger}`,
-        );
+        this.logger.debug(`Indexer cursor advanced to ledger ${highestProcessedLedger}`);
       }
     } catch (err) {
       this.logger.error(
         'Indexer poll failed',
-        err instanceof Error
-          ? err.message
-          : String(err),
+        err instanceof Error ? err.message : String(err),
         err instanceof Error ? err.stack : undefined,
       );
     } finally {
@@ -220,19 +197,16 @@ export class IndexerService {
    * genesis (Soroban RPC also rejects startLedger: 0 outright).
    */
   private async getLastProcessedLedger(): Promise<number> {
-    const state =
-      await this.indexerStateRepository.findOne({
-        where: {
-          name: this.cursorName,
-        },
-      });
+    const state = await this.indexerStateRepository.findOne({
+      where: {
+        name: this.cursorName,
+      },
+    });
 
     if (!state) {
       const latestLedger = await this.soroban.getLatestLedger();
 
-      this.logger.log(
-        `No indexer cursor found; seeding from current ledger ${latestLedger}`,
-      );
+      this.logger.log(`No indexer cursor found; seeding from current ledger ${latestLedger}`);
 
       await this.saveLastProcessedLedger(latestLedger);
 
@@ -245,28 +219,22 @@ export class IndexerService {
   /**
    * Persist the latest processed ledger.
    */
-  private async saveLastProcessedLedger(
-    ledger: number,
-  ): Promise<void> {
-    let state =
-      await this.indexerStateRepository.findOne({
-        where: {
-          name: this.cursorName,
-        },
-      });
+  private async saveLastProcessedLedger(ledger: number): Promise<void> {
+    let state = await this.indexerStateRepository.findOne({
+      where: {
+        name: this.cursorName,
+      },
+    });
 
     if (!state) {
-      state =
-        this.indexerStateRepository.create({
-          name: this.cursorName,
-          lastProcessedLedger: ledger,
-        });
+      state = this.indexerStateRepository.create({
+        name: this.cursorName,
+        lastProcessedLedger: ledger,
+      });
     } else {
       state.lastProcessedLedger = ledger;
     }
 
-    await this.indexerStateRepository.save(
-      state,
-    );
+    await this.indexerStateRepository.save(state);
   }
 }

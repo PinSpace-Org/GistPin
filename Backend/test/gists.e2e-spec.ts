@@ -193,8 +193,12 @@ describe('Gists lifecycle (e2e)', () => {
 
       const contents = res.body.data.map((row: { content: string }) => row.content);
       expect(contents).toEqual(['near', 'mid', 'far']);
-      expect(res.body.data[0].distance_meters).toBeLessThanOrEqual(res.body.data[1].distance_meters);
-      expect(res.body.data[1].distance_meters).toBeLessThanOrEqual(res.body.data[2].distance_meters);
+      expect(res.body.data[0].distance_meters).toBeLessThanOrEqual(
+        res.body.data[1].distance_meters,
+      );
+      expect(res.body.data[1].distance_meters).toBeLessThanOrEqual(
+        res.body.data[2].distance_meters,
+      );
       expect(contents).not.toContain('outside');
       expect(contents).not.toContain('expired');
     });
@@ -255,7 +259,9 @@ describe('Gists lifecycle (e2e)', () => {
         .send({ content: 'lookup me', lat: 9.0579, lon: 7.4951 })
         .expect(201);
 
-      const res = await request(app.getHttpServer()).get(`${API_ROOT}/${created.body.id}`).expect(200);
+      const res = await request(app.getHttpServer())
+        .get(`${API_ROOT}/${created.body.id}`)
+        .expect(200);
 
       expect(res.body).toMatchObject({
         id: created.body.id,

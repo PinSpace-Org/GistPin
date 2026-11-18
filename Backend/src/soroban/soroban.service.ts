@@ -18,13 +18,6 @@ import { GistRegistryEvent, decodeGistRegistryEvent } from './event-decoder';
 
 export * from './event-decoder';
 
-/**
- * Canonical event name emitted by the GistRegistry Soroban contract on a new
- * gist. Must match the symbol published in contracts/src/lib.rs (see
- * contracts/README.md "Events").
- */
-const GIST_POSTED_EVENT = 'gist_posted';
-
 // ── GistError codes (matches contracts/src/lib.rs GistError enum) ─────────────
 
 export enum GistError {
@@ -101,7 +94,6 @@ export interface GistEvent {
   ledger: number;
   createdAt: number;
 }
-
 
 /** Page size and safety bound for paginated `getEvents` reads. */
 const EVENTS_PAGE_LIMIT = 200;
@@ -332,10 +324,10 @@ export class SorobanService {
     const contract = this.getContract();
 
     const simulation = await rpcServer.simulateTransaction(
-      new TransactionBuilder(
-        await rpcServer.getAccount(this.getReadAccountKey()),
-        { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
-      )
+      new TransactionBuilder(await rpcServer.getAccount(this.getReadAccountKey()), {
+        fee: BASE_FEE,
+        networkPassphrase: this.networkPassphrase,
+      })
         .addOperation(contract.call('get_admin'))
         .setTimeout(30)
         .build(),
@@ -354,11 +346,12 @@ export class SorobanService {
       return { admin: null, mock: false };
     }
 
-    const addr = typeof native === 'string'
-      ? native
-      : typeof native === 'object' && native !== null && 'toString' in native
-        ? String(native)
-        : null;
+    const addr =
+      typeof native === 'string'
+        ? native
+        : typeof native === 'object' && native !== null && 'toString' in native
+          ? String(native)
+          : null;
 
     return { admin: addr, mock: false };
   }
@@ -449,10 +442,7 @@ export class SorobanService {
     }
 
     const txResult = await this.waitForTransaction(rpcServer, sendResult.hash);
-    if (
-      txResult.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS ||
-      !txResult.returnValue
-    ) {
+    if (txResult.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS || !txResult.returnValue) {
       throw new Error(
         `Soroban post_gist did not return a successful result for ${sendResult.hash}`,
       );
@@ -475,13 +465,11 @@ export class SorobanService {
     const contract = this.getContract();
 
     const simulation = await rpcServer.simulateTransaction(
-      new TransactionBuilder(
-        await rpcServer.getAccount(this.getReadAccountKey()),
-        { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
-      )
-        .addOperation(
-          contract.call('get_gist', nativeToScVal(BigInt(gistId), { type: 'u64' })),
-        )
+      new TransactionBuilder(await rpcServer.getAccount(this.getReadAccountKey()), {
+        fee: BASE_FEE,
+        networkPassphrase: this.networkPassphrase,
+      })
+        .addOperation(contract.call('get_gist', nativeToScVal(BigInt(gistId), { type: 'u64' })))
         .setTimeout(30)
         .build(),
     );
@@ -507,13 +495,11 @@ export class SorobanService {
     const contract = this.getContract();
 
     const simulation = await rpcServer.simulateTransaction(
-      new TransactionBuilder(
-        await rpcServer.getAccount(this.getReadAccountKey()),
-        { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
-      )
-        .addOperation(
-          contract.call('is_active', nativeToScVal(BigInt(gistId), { type: 'u64' })),
-        )
+      new TransactionBuilder(await rpcServer.getAccount(this.getReadAccountKey()), {
+        fee: BASE_FEE,
+        networkPassphrase: this.networkPassphrase,
+      })
+        .addOperation(contract.call('is_active', nativeToScVal(BigInt(gistId), { type: 'u64' })))
         .setTimeout(30)
         .build(),
     );
@@ -539,10 +525,10 @@ export class SorobanService {
     const contract = this.getContract();
 
     const simulation = await rpcServer.simulateTransaction(
-      new TransactionBuilder(
-        await rpcServer.getAccount(this.getReadAccountKey()),
-        { fee: BASE_FEE, networkPassphrase: this.networkPassphrase },
-      )
+      new TransactionBuilder(await rpcServer.getAccount(this.getReadAccountKey()), {
+        fee: BASE_FEE,
+        networkPassphrase: this.networkPassphrase,
+      })
         .addOperation(
           contract.call(
             'list_gists_by_cell',
@@ -560,21 +546,15 @@ export class SorobanService {
     }
 
     if (!simulation.result.retval) {
-      throw new Error(
-        `Soroban list_gists_by_cell returned no value for cell ${locationCell}`,
-      );
+      throw new Error(`Soroban list_gists_by_cell returned no value for cell ${locationCell}`);
     }
 
     const native = scValToNative(simulation.result.retval) as unknown[];
     if (!Array.isArray(native)) {
-      throw new Error(
-        `Soroban list_gists_by_cell returned non-array for cell ${locationCell}`,
-      );
+      throw new Error(`Soroban list_gists_by_cell returned non-array for cell ${locationCell}`);
     }
 
-    const gists = native.map((record, idx) =>
-      this.normalizeGistRecord(String(idx), record),
-    );
+    const gists = native.map((record, idx) => this.normalizeGistRecord(String(idx), record));
 
     return { gists, mock: false };
   }
@@ -641,9 +621,7 @@ export class SorobanService {
       fee: BASE_FEE,
       networkPassphrase: this.networkPassphrase,
     })
-      .addOperation(
-        contract.call('report_gist', nativeToScVal(BigInt(gistId), { type: 'u64' })),
-      )
+      .addOperation(contract.call('report_gist', nativeToScVal(BigInt(gistId), { type: 'u64' })))
       .setTimeout(30)
       .build();
 
@@ -659,7 +637,9 @@ export class SorobanService {
 
     const txResult = await this.waitForTransaction(rpcServer, sendResult.hash);
     if (txResult.status !== SorobanRpc.Api.GetTransactionStatus.SUCCESS || !txResult.returnValue) {
-      throw new Error(`Soroban report_gist did not return a successful result for ${sendResult.hash}`);
+      throw new Error(
+        `Soroban report_gist did not return a successful result for ${sendResult.hash}`,
+      );
     }
 
     return {

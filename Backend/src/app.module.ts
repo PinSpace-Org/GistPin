@@ -81,11 +81,6 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // In-flight-request middleware must run before correlation-id so that
     // every response (including 404s) is counted toward the drain window.
-    consumer
-      .apply(
-        InFlightRequestMiddleware,
-        CorrelationIdMiddleware,
-      )
-      .forRoutes('*');
+    consumer.apply(InFlightRequestMiddleware, CorrelationIdMiddleware).forRoutes('*');
   }
 }

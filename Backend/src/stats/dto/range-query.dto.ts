@@ -31,7 +31,9 @@ export class RangeQueryDto {
    */
   static resolveRange(dto: Pick<RangeQueryDto, 'from' | 'to'>): { from: Date; to: Date } {
     const to = dto.to ? new Date(dto.to) : new Date();
-    const from = dto.from ? new Date(dto.from) : new Date(to.getTime() - DEFAULT_RANGE_DAYS * DAY_MS);
+    const from = dto.from
+      ? new Date(dto.from)
+      : new Date(to.getTime() - DEFAULT_RANGE_DAYS * DAY_MS);
 
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from >= to) {
       throw new BadRequestException('`from` must be a valid ISO date before `to`');

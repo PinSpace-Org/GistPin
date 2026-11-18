@@ -26,7 +26,11 @@ describe('StatsService.getGistsTimeseries', () => {
 
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain('generate_series');
-    expect(params).toEqual([new Date('2026-01-01T00:00:00.000Z'), new Date('2026-01-03T00:00:00.000Z'), '1 day']);
+    expect(params).toEqual([
+      new Date('2026-01-01T00:00:00.000Z'),
+      new Date('2026-01-03T00:00:00.000Z'),
+      '1 day',
+    ]);
   });
 
   it('returns empty buckets as zero counts', async () => {

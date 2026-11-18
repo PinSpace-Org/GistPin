@@ -65,7 +65,18 @@ export class GistRepository {
         ST_X(location::geometry) AS lon,
         ST_Y(location::geometry) AS lat
       `,
-      [content, lon, lat, location_cell, content_hash, stellar_gist_id, tx_hash, author_address, expiresAt, false],
+      [
+        content,
+        lon,
+        lat,
+        location_cell,
+        content_hash,
+        stellar_gist_id,
+        tx_hash,
+        author_address,
+        expiresAt,
+        false,
+      ],
     );
 
     return result[0];

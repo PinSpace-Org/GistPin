@@ -111,28 +111,28 @@ describe('envValidationSchema', () => {
 
   describe('DATABASE fields validation', () => {
     it('fails when DATABASE_HOST is missing', () => {
-      const { DATABASE_HOST, ...envWithoutHost } = minimalValidEnv;
+      const { DATABASE_HOST: _omitted, ...envWithoutHost } = minimalValidEnv;
       const { error } = envValidationSchema.validate(envWithoutHost);
       expect(error).toBeDefined();
       expect(error?.details[0].path).toContain('DATABASE_HOST');
     });
 
     it('fails when DATABASE_USER is missing', () => {
-      const { DATABASE_USER, ...envWithoutUser } = minimalValidEnv;
+      const { DATABASE_USER: _omitted, ...envWithoutUser } = minimalValidEnv;
       const { error } = envValidationSchema.validate(envWithoutUser);
       expect(error).toBeDefined();
       expect(error?.details[0].path).toContain('DATABASE_USER');
     });
 
     it('fails when DATABASE_PASSWORD is missing', () => {
-      const { DATABASE_PASSWORD, ...envWithoutPassword } = minimalValidEnv;
+      const { DATABASE_PASSWORD: _omitted, ...envWithoutPassword } = minimalValidEnv;
       const { error } = envValidationSchema.validate(envWithoutPassword);
       expect(error).toBeDefined();
       expect(error?.details[0].path).toContain('DATABASE_PASSWORD');
     });
 
     it('fails when DATABASE_NAME is missing', () => {
-      const { DATABASE_NAME, ...envWithoutName } = minimalValidEnv;
+      const { DATABASE_NAME: _omitted, ...envWithoutName } = minimalValidEnv;
       const { error } = envValidationSchema.validate(envWithoutName);
       expect(error).toBeDefined();
       expect(error?.details[0].path).toContain('DATABASE_NAME');

@@ -474,10 +474,9 @@ describe('GistRepository (integration)', () => {
     });
 
     afterAll(async () => {
-      await dataSource.query(
-        `DELETE FROM gists WHERE stellar_gist_id LIKE $1`,
-        [`%${HIDDEN_MARKER}%`],
-      );
+      await dataSource.query(`DELETE FROM gists WHERE stellar_gist_id LIKE $1`, [
+        `%${HIDDEN_MARKER}%`,
+      ]);
     });
 
     it('create always inserts hidden=false', async () => {
@@ -561,7 +560,12 @@ describe('GistRepository (integration)', () => {
 
     it('returns an active gist from findByGistId and findNearby', async () => {
       expect((await repository.findByGistId(gistId))?.id).toBe(gistId);
-      const page = await repository.findNearby({ lat: 9.0579, lon: 7.4951, radiusMeters: 500, limit: 100 });
+      const page = await repository.findNearby({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+        limit: 100,
+      });
       expect(page.data.some((g) => g.id === gistId)).toBe(true);
     });
 
@@ -570,7 +574,12 @@ describe('GistRepository (integration)', () => {
       await repository.setGistActive(MARKER, false);
 
       expect(await repository.findByGistId(gistId)).toBeNull();
-      const page = await repository.findNearby({ lat: 9.0579, lon: 7.4951, radiusMeters: 500, limit: 100 });
+      const page = await repository.findNearby({
+        lat: 9.0579,
+        lon: 7.4951,
+        radiusMeters: 500,
+        limit: 100,
+      });
       expect(page.data.some((g) => g.id === gistId)).toBe(false);
       expect(await repository.countNearby(9.0579, 7.4951, 500)).toBe(before - 1);
     });

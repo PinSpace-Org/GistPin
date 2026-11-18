@@ -3,7 +3,12 @@ import { of, throwError } from 'rxjs';
 import { HttpMetricsInterceptor } from './http-metrics.interceptor';
 import { Counter, Histogram } from 'prom-client';
 
-function makeContext(method: string, url: string, statusCode: number, routePath?: string): ExecutionContext {
+function makeContext(
+  method: string,
+  url: string,
+  statusCode: number,
+  routePath?: string,
+): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => ({ method, url, route: routePath ? { path: routePath } : undefined }),
@@ -12,7 +17,10 @@ function makeContext(method: string, url: string, statusCode: number, routePath?
   } as unknown as ExecutionContext;
 }
 
-function makeHandler(value: unknown = null, error?: { status?: number; message?: string }): CallHandler {
+function makeHandler(
+  value: unknown = null,
+  error?: { status?: number; message?: string },
+): CallHandler {
   return { handle: () => (error ? throwError(() => error) : of(value)) };
 }
 
@@ -38,7 +46,11 @@ describe('HttpMetricsInterceptor', () => {
       complete: () => {
         expect(histogram.startTimer).toHaveBeenCalledWith({ method: 'GET', route: '/gists' });
         expect(stopTimer).toHaveBeenCalledWith({ status_code: '200' });
-        expect(counter.inc).toHaveBeenCalledWith({ method: 'GET', route: '/gists', status_code: '200' });
+        expect(counter.inc).toHaveBeenCalledWith({
+          method: 'GET',
+          route: '/gists',
+          status_code: '200',
+        });
         done();
       },
     });
@@ -54,9 +66,7 @@ describe('HttpMetricsInterceptor', () => {
     const ctx = makeContext('POST', '/gists', 400, '/gists');
     interceptor.intercept(ctx, makeHandler()).subscribe({
       complete: () => {
-        expect(counter.inc).toHaveBeenCalledWith(
-          expect.objectContaining({ status_code: '400' }),
-        );
+        expect(counter.inc).toHaveBeenCalledWith(expect.objectContaining({ status_code: '400' }));
         done();
       },
     });
@@ -73,9 +83,7 @@ describe('HttpMetricsInterceptor', () => {
     interceptor.intercept(ctx, makeHandler(null, { status: 422 })).subscribe({
       error: () => {
         expect(stopTimer).toHaveBeenCalledWith({ status_code: '422' });
-        expect(counter.inc).toHaveBeenCalledWith(
-          expect.objectContaining({ status_code: '422' }),
-        );
+        expect(counter.inc).toHaveBeenCalledWith(expect.objectContaining({ status_code: '422' }));
         done();
       },
     });
@@ -91,9 +99,7 @@ describe('HttpMetricsInterceptor', () => {
     const ctx = makeContext('GET', '/gists', 500);
     interceptor.intercept(ctx, makeHandler(null, {})).subscribe({
       error: () => {
-        expect(counter.inc).toHaveBeenCalledWith(
-          expect.objectContaining({ status_code: '500' }),
-        );
+        expect(counter.inc).toHaveBeenCalledWith(expect.objectContaining({ status_code: '500' }));
         done();
       },
     });

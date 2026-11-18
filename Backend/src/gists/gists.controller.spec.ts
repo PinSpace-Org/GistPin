@@ -35,9 +35,9 @@ describe('GistsController', () => {
             getContent: jest.fn().mockResolvedValue({ content: 'hello' }),
             countNearby: jest.fn().mockResolvedValue({ count: 1 }),
             report: jest.fn().mockResolvedValue({ count: 1 }),
-            getModerator: jest
-              .fn()
-              .mockResolvedValue({ moderatorAddress: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN' }),
+            getModerator: jest.fn().mockResolvedValue({
+              moderatorAddress: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+            }),
           },
         },
       ],

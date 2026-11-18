@@ -11,7 +11,13 @@ import { IpfsModule } from '../ipfs/ipfs.module';
 import { SorobanModule } from '../soroban/soroban.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot(), TypeOrmModule.forFeature([Gist]), GeoModule, IpfsModule, SorobanModule],
+  imports: [
+    ScheduleModule.forRoot(),
+    TypeOrmModule.forFeature([Gist]),
+    GeoModule,
+    IpfsModule,
+    SorobanModule,
+  ],
   controllers: [GistsController],
   providers: [GistRepository, GistsService, GistCleanupService],
   exports: [GistsService, GistRepository],

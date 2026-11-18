@@ -68,7 +68,10 @@ describe('GistsService', () => {
         { provide: DataSource, useValue: { transaction: transactionMock } },
         { provide: GistRepository, useValue: gistRepo },
         { provide: GeoService, useValue: { encode: jest.fn().mockReturnValue('s1t7d8c') } },
-        { provide: IpfsService, useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'Qmrealcid' }) } },
+        {
+          provide: IpfsService,
+          useValue: { pinJson: jest.fn().mockResolvedValue({ cid: 'Qmrealcid' }) },
+        },
         {
           provide: SorobanService,
           useValue: {
@@ -148,7 +151,11 @@ describe('GistsService', () => {
 
     it('stores the expiry the contract assigned instead of the server-clock estimate', async () => {
       const sorobanService = (service as any).sorobanService;
-      sorobanService.postGist.mockResolvedValueOnce({ gistId: 'gist-1', txHash: 'tx', mock: false });
+      sorobanService.postGist.mockResolvedValueOnce({
+        gistId: 'gist-1',
+        txHash: 'tx',
+        mock: false,
+      });
       sorobanService.getGist.mockResolvedValueOnce({ gistId: 'gist-1', expiresAt: 1_900_000_000 });
       gistRepository.create.mockResolvedValue(buildGist());
 
@@ -160,7 +167,11 @@ describe('GistsService', () => {
 
     it('falls back to the server clock when the on-chain read fails', async () => {
       const sorobanService = (service as any).sorobanService;
-      sorobanService.postGist.mockResolvedValueOnce({ gistId: 'gist-1', txHash: 'tx', mock: false });
+      sorobanService.postGist.mockResolvedValueOnce({
+        gistId: 'gist-1',
+        txHash: 'tx',
+        mock: false,
+      });
       sorobanService.getGist.mockRejectedValueOnce(new Error('rpc down'));
       gistRepository.create.mockResolvedValue(buildGist());
       const before = Date.now();
@@ -307,9 +318,9 @@ describe('GistsService', () => {
     it('findOne throws NotFoundException when the gist is hidden (repository filters it out)', async () => {
       gistRepository.findByGistId.mockResolvedValue(null);
 
-      await expect(
-        service.findOne('00000000-0000-0000-0000-000000000001'),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.findOne('00000000-0000-0000-0000-000000000001')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('create returns a gist with hidden=false', async () => {

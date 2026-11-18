@@ -50,7 +50,9 @@ describe('HealthController', () => {
   });
 
   it('reports degraded with both errors when both checks fail', async () => {
-    query.mockRejectedValueOnce(new Error('db down')).mockRejectedValueOnce(new Error('no postgis'));
+    query
+      .mockRejectedValueOnce(new Error('db down'))
+      .mockRejectedValueOnce(new Error('no postgis'));
 
     const result = await controller.check();
 

@@ -50,9 +50,7 @@ export class ShutdownService {
     const timeoutMs = this.configService.get<number>('SHUTDOWN_TIMEOUT_MS', 25_000);
     const start = Date.now();
 
-    this.logger.log(
-      `Received ${signal} — beginning graceful shutdown (timeout=${timeoutMs}ms)`,
-    );
+    this.logger.log(`Received ${signal} — beginning graceful shutdown (timeout=${timeoutMs}ms)`);
 
     let cleanShutdown = true;
 
@@ -60,20 +58,14 @@ export class ShutdownService {
       await this.drainHttpServer(timeoutMs, start);
     } catch (err) {
       cleanShutdown = false;
-      this.logger.error(
-        `Drain step failed: ${(err as Error).message}`,
-        (err as Error).stack,
-      );
+      this.logger.error(`Drain step failed: ${(err as Error).message}`, (err as Error).stack);
     }
 
     try {
       await this.closeApp(start);
     } catch (err) {
       cleanShutdown = false;
-      this.logger.error(
-        `App close failed: ${(err as Error).message}`,
-        (err as Error).stack,
-      );
+      this.logger.error(`App close failed: ${(err as Error).message}`, (err as Error).stack);
     }
 
     this.logger.log(`Shutdown complete in ${Date.now() - start}ms`);

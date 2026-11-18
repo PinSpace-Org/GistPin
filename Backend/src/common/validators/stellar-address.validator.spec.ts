@@ -41,7 +41,9 @@ describe('IsStellarAddress', () => {
   });
 
   it('fails with an address that does not start with G', async () => {
-    const dto = Object.assign(new TestDto(), { authorAddress: 'XAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN' });
+    const dto = Object.assign(new TestDto(), {
+      authorAddress: 'XAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
+    });
     const errors = await validate(dto);
     expect(errors).toHaveLength(1);
   });
