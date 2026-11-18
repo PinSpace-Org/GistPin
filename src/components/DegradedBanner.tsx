@@ -1,1 +1,0 @@
-export function DegradedBanner() {\n    return <div>Degraded Status</div>;\n}\n

@@ -1,1 +1,0 @@
-test('smoke test', () => {\n    // End-to-end smoke tests\n});\n

@@ -1,1 +1,0 @@
-export function DashboardWidgets() {\n    return <div>Widgets</div>;\n}\n

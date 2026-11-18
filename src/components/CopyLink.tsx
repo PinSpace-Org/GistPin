@@ -1,1 +1,0 @@
-export function CopyLink() {\n    return <div>Copy link</div>;\n}\n

@@ -1,1 +1,0 @@
-export function LoadingSkeleton() {\n    return <div>Loading...</div>;\n}\n
