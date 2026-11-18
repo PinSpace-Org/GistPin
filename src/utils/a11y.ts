@@ -1,1 +1,0 @@
-export function checkA11y() {\n    // accessibility pass\n}\n

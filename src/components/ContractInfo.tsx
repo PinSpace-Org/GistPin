@@ -1,1 +1,0 @@
-export function ContractInfo() {\n    return <div>Contract Info</div>;\n}\n

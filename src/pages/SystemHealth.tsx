@@ -1,1 +1,0 @@
-export function SystemHealth() {\n    return <div>System Health</div>;\n}\n
