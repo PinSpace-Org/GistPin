@@ -85,7 +85,7 @@ describe('splitWeekdayWeekend', () => {
 
   it('returns a null difference when there is no weekday activity', () => {
     const split = splitWeekdayWeekend([{ date: '2026-01-10T00:00:00.000Z', count: 5 }], 'utc');
-    expect(split.weekdayAverage).toBe(0);
+    expect(split.weekdayAverage).toBeNull();
     expect(split.percentDifference).toBeNull();
   });
 

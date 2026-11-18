@@ -21,8 +21,20 @@ describe('tokenize', () => {
   });
 
   it('drops short terms', () => {
-    expect(tokenize('a be see')).toEqual(['see']);
+    expect(tokenize('a be cat')).toEqual(['cat']);
     expect(DEFAULT_MIN_TERM_LENGTH).toBe(3);
+  });
+
+  it('keeps two-character words in scripts written without spaces', () => {
+    expect(tokenize('東京 ひらがな 서울 カタカナ')).toEqual(['東京', 'ひらがな', '서울', 'カタカナ']);
+  });
+
+  it('still drops one and two character ASCII, accented and numeric terms', () => {
+    expect(tokenize('a be to 42 é')).toEqual([]);
+  });
+
+  it('applies the minimum length to Latin words next to CJK ones', () => {
+    expect(tokenize('ab 東京 cd')).toEqual(['東京']);
   });
 
   it('drops stop words', () => {
