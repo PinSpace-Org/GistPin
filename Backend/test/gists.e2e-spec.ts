@@ -140,6 +140,29 @@ describe('Gists lifecycle (e2e)', () => {
 
       expect(res.body.statusCode).toBe(400);
     });
+
+    it('rejects a latitude outside -90..90', async () => {
+      const res = await request(app.getHttpServer())
+        .post(API_ROOT)
+        .send({ content: 'bad lat', lat: 999, lon: 7.4951 })
+        .expect(400);
+
+      expect(res.body.statusCode).toBe(400);
+    });
+
+    it('rejects a body with no coordinates', async () => {
+      await request(app.getHttpServer())
+        .post(API_ROOT)
+        .send({ content: 'missing coords' })
+        .expect(400);
+    });
+
+    it('rejects unknown fields (whitelist)', async () => {
+      await request(app.getHttpServer())
+        .post(API_ROOT)
+        .send({ content: 'whitelist test', lat: 9.0579, lon: 7.4951, hack: 'injected' })
+        .expect(400);
+    });
   });
 
   describe('GET /gists', () => {
@@ -250,6 +273,30 @@ describe('Gists lifecycle (e2e)', () => {
 
       expect(page2.body.data[0].content).not.toBe(page1.body.data[0].content);
     });
+
+    it('returns 400 when lat and lon are missing', async () => {
+      await request(app.getHttpServer()).get(API_ROOT).expect(400);
+    });
+
+    it('respects the limit parameter', async () => {
+      for (const name of ['limit-a', 'limit-b', 'limit-c']) {
+        await seedGist({
+          content: name,
+          lat: 9.0579,
+          lon: 7.4951,
+          location_cell: name,
+          content_hash: `mock_cid_${name}`,
+          stellar_gist_id: `g-${name}`,
+        });
+      }
+
+      const res = await request(app.getHttpServer())
+        .get(API_ROOT)
+        .query({ lat: 9.0579, lon: 7.4951, radius: 1000, limit: 2 })
+        .expect(200);
+
+      expect(res.body.data).toHaveLength(2);
+    });
   });
 
   describe('GET /gists/:id', () => {
@@ -293,6 +340,21 @@ describe('Gists lifecycle (e2e)', () => {
 
       const res = await request(app.getHttpServer()).get(`${API_ROOT}/${expired.id}`).expect(404);
       expect(res.body.statusCode).toBe(404);
+    });
+
+    it('returns 400 when the id is not a valid UUID', async () => {
+      const res = await request(app.getHttpServer()).get(`${API_ROOT}/not-a-uuid`).expect(400);
+
+      expect(res.body.statusCode).toBe(400);
+    });
+
+    it('returns 400 when the id contains SQL metacharacters', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`${API_ROOT}/${encodeURIComponent("'; DROP TABLE gists; --")}`)
+        .expect(400);
+
+      expect(res.body.statusCode).toBe(400);
+      expect(String(res.body.message)).toMatch(/uuid/i);
     });
   });
 
