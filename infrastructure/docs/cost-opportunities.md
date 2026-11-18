@@ -20,7 +20,7 @@ To generate the latest report:
 ```bash
 # Make scripts executable (first time only)
 chmod +x ./infrastructure/scripts/find-optimizations.sh
-chmod +x ./infrastructure/scripts/scripts/generate-opportunity-report.py
+chmod +x ./infrastructure/scripts/generate-opportunity-report.py
 
 # Run the scan and generate report
 ./infrastructure/scripts/find-optimizations.sh

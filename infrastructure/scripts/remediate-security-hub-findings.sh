@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# remediate-findings.sh
+# remediate-security-hub-findings.sh
 #
 # Ad-hoc / SSM-runnable remediation for common AWS Security Hub findings.
 # Mirrors the automated logic in infrastructure/lambda/remediation/index.py
@@ -8,11 +8,11 @@
 # via SSM Run Command outside of the EventBridge -> Lambda path.
 #
 # Usage:
-#   ./remediate-findings.sh --list
-#   ./remediate-findings.sh --finding-type s3-public-access --bucket my-bucket [--dry-run]
-#   ./remediate-findings.sh --finding-type s3-encryption --bucket my-bucket [--dry-run]
-#   ./remediate-findings.sh --finding-type open-security-group --sg-id sg-0123456789abcdef0 [--dry-run]
-#   ./remediate-findings.sh --scan   # finds and remediates all supported ACTIVE findings automatically
+#   ./remediate-security-hub-findings.sh --list
+#   ./remediate-security-hub-findings.sh --finding-type s3-public-access --bucket my-bucket [--dry-run]
+#   ./remediate-security-hub-findings.sh --finding-type s3-encryption --bucket my-bucket [--dry-run]
+#   ./remediate-security-hub-findings.sh --finding-type open-security-group --sg-id sg-0123456789abcdef0 [--dry-run]
+#   ./remediate-security-hub-findings.sh --scan   # finds and remediates all supported ACTIVE findings automatically
 #
 # Requires: awscli v2, jq
 set -euo pipefail
