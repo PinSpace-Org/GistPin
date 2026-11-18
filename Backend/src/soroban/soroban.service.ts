@@ -628,7 +628,13 @@ export class SorobanService {
       fee: BASE_FEE,
       networkPassphrase: this.networkPassphrase,
     })
-      .addOperation(contract.call('report_gist', nativeToScVal(BigInt(gistId), { type: 'u64' })))
+      .addOperation(
+        contract.call(
+          'report_gist',
+          nativeToScVal(BigInt(gistId), { type: 'u64' }),
+          nativeToScVal(Address.fromString(signer.publicKey())),
+        ),
+      )
       .setTimeout(30)
       .build();
 
