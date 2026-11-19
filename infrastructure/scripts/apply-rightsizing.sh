@@ -20,4 +20,4 @@ else
 fi
 
 echo "Calculating monthly estimated cost savings..."
-echo "Estimated savings: $140/month based on current memory usage."
+echo "Estimated savings: \$140/month based on current memory usage."
