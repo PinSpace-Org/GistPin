@@ -4,8 +4,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TERRAFORM_DIR="${SCRIPT_DIR}/../terraform"
 LOG_DIR="${SCRIPT_DIR}/../logs"
-STATE_BUCKET="gistpin-terraform-state"
-STATE_KEY="gistpin/terraform.tfstate"
 LOCK_TABLE="gistpin-terraform-locks"
 LOCK_ID="drift-remediation-lock"
 LOCK_TTL=3600
@@ -233,9 +231,7 @@ handle_manual_changes() {
 }
 
 create_pr() {
-    local changes_file="$1"
     local pr_title="${2:-Terraform drift remediation}"
-    local auto_approve="${3:-true}"
     local branch_name=""
     local remote=""
 
