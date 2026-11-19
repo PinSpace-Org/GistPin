@@ -87,6 +87,20 @@ describe('countContentLengths', () => {
     expect(EMPTY_LABEL).toBe('Empty');
   });
 
+  it('treats any whitespace-only content as empty', () => {
+    const summary = countContentLengths(['\t', '\n\n', ' \r\n\t ', '\u00a0']);
+    expect(summary.emptyCount).toBe(4);
+    expect(summary.bins.every((b) => b.count === 0)).toBe(true);
+    expect(summary.medianLength).toBeNull();
+  });
+
+  it('still measures real content untrimmed', () => {
+    const summary = countContentLengths(['  hi  ']);
+    expect(summary.emptyCount).toBe(0);
+    expect(summary.medianLength).toBe(6);
+    expect(summary.bins[0].count).toBe(1);
+  });
+
   it('reports the median length of non-empty gists', () => {
     const summary = countContentLengths(['a'.repeat(10), 'b'.repeat(20), 'c'.repeat(60)]);
     expect(summary.medianLength).toBe(20);
