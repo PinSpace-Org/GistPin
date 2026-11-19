@@ -7,7 +7,6 @@ import json
 import argparse
 import sys
 import os
-import subprocess
 from datetime import datetime, timezone
 
 
