@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import { ApiOperation, ApiTags, ApiOkResponse } from '@nestjs/swagger';
 
 interface ServiceStatus {
   status: 'ok' | 'error';
@@ -16,11 +17,40 @@ interface HealthResponse {
   };
 }
 
+const serviceStatusSchema = {
+  type: 'object',
+  properties: {
+    status: { type: 'string', enum: ['ok', 'error'] },
+    message: { type: 'string', nullable: true },
+  },
+};
+
+const healthResponseSchema = {
+  type: 'object',
+  properties: {
+    status: { type: 'string', enum: ['ok', 'degraded'] },
+    timestamp: { type: 'string', format: 'date-time' },
+    services: {
+      type: 'object',
+      properties: {
+        database: serviceStatusSchema,
+        postgis: serviceStatusSchema,
+      },
+    },
+  },
+};
+
+@ApiTags('health')
 @Controller({ path: 'health', version: '1' })
 export class HealthController {
   constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   @Get()
+  @ApiOperation({ summary: 'Check database and PostGIS connectivity' })
+  @ApiOkResponse({
+    description: 'Service health, status is "ok" or "degraded" if a dependency failed',
+    schema: healthResponseSchema,
+  })
   async check(): Promise<HealthResponse> {
     const database = await this.checkDatabase();
     const postgis = await this.checkPostGIS();
