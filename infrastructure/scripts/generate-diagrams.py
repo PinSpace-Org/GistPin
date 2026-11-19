@@ -2,9 +2,7 @@
 """Generate network and architecture diagrams from infrastructure manifests."""
 
 import os
-import sys
 import glob
-import json
 from pathlib import Path
 
 OUTPUT_DIR = Path("infrastructure/docs/auto-generated")

@@ -1,5 +1,4 @@
 import os
-import json
 
 def monitor_state_size(state_file_path: str, max_size_mb: float = 50.0):
     """Checks Terraform state file sizes to prevent unbounded state growth."""
