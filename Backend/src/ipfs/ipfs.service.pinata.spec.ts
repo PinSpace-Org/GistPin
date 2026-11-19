@@ -2,12 +2,11 @@ import { ConfigService } from '@nestjs/config';
 
 import { IpfsService } from './ipfs.service';
 
-const pinJSONToIPFS = jest.fn();
-const PinataClient = jest.fn().mockImplementation(() => ({ pinJSONToIPFS }));
-
-jest.mock('@pinata/sdk', () => PinataClient, { virtual: true });
-
+/** Dummy credentials against a mocked Pinata REST endpoint; no real network. */
 describe('IpfsService with Pinata keys set', () => {
+  const realFetch = global.fetch;
+  const pinFetch = jest.fn();
+
   const buildService = () => {
     const values: Record<string, unknown> = {
       PINATA_API_KEY: 'dummy-key',
@@ -20,22 +19,36 @@ describe('IpfsService with Pinata keys set', () => {
   };
 
   beforeEach(() => {
-    PinataClient.mockClear();
-    pinJSONToIPFS.mockReset();
+    pinFetch.mockReset();
+    global.fetch = pinFetch as unknown as typeof fetch;
   });
 
-  it('constructs the Pinata client with the configured keys', () => {
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('does not call Pinata until something is pinned', () => {
     buildService();
 
-    expect(PinataClient).toHaveBeenCalledWith('dummy-key', 'dummy-secret');
+    expect(pinFetch).not.toHaveBeenCalled();
   });
 
-  it('pins through the Pinata client and returns a non-mock CID', async () => {
-    pinJSONToIPFS.mockResolvedValue({ IpfsHash: 'QmRealCid' });
+  it('pins through the Pinata REST API and returns a non-mock CID', async () => {
+    pinFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ IpfsHash: 'QmRealCid' }),
+    });
 
     const result = await buildService().pinJson({ hello: 'world' });
 
-    expect(pinJSONToIPFS).toHaveBeenCalledWith({ hello: 'world' }, expect.any(Object));
+    const [url, init] = pinFetch.mock.calls[0];
+    expect(url).toBe('https://api.pinata.cloud/pinning/pinJSONToIPFS');
+    expect(init.headers).toMatchObject({
+      pinata_api_key: 'dummy-key',
+      pinata_secret_api_key: 'dummy-secret',
+    });
+    expect(JSON.parse(init.body).pinataContent).toEqual({ hello: 'world' });
     expect(result).toEqual({ cid: 'QmRealCid', mock: false });
   });
 });
