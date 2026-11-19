@@ -16,7 +16,7 @@ log "Checking for stopped EC2 instances..."
 aws ec2 describe-instances \
   --region "${AWS_REGION}" \
   --filters "Name=instance-state-name,Values=stopped" \
-  --query "Reservations[].Instances[].[InstanceId,InstanceType,LaunchTime,Tags[?Key==\`Name\`].Value|[0]]" \
+  --query 'Reservations[].Instances[].[InstanceId,InstanceType,LaunchTime,Tags[?Key==`Name`].Value|[0]]' \
   --output table | tee -a "${REPORT_FILE}"
 
 # Detect unattached EBS volumes
@@ -44,7 +44,7 @@ aws cloudwatch get-metric-statistics \
   --period 604800 \
   --start-time "$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-7d +%Y-%m-%dT%H:%M:%SZ)" \
   --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --query "Datapoints[?Average<\`5\`]" \
+  --query 'Datapoints[?Average<`5`]' \
   --output table | tee -a "${REPORT_FILE}" || true
 
 # Right-sizing: find over-provisioned EKS nodes
