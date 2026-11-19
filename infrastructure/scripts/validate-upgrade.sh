@@ -7,7 +7,6 @@ CURRENT=""
 TARGET=""
 DRY_RUN=false
 CLUSTER_NAME="${CLUSTER_NAME:-gistpin-cluster}"
-REGION="${AWS_REGION:-us-east-1}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -24,7 +23,7 @@ PASS=0; FAIL=0
 
 check() {
   local name="$1"; shift
-  if eval "$@" &>/dev/null; then
+  if eval "$*" &>/dev/null; then
     echo "  [PASS] ${name}"
     ((PASS++)) || true
   else
