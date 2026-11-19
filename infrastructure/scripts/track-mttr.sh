@@ -33,7 +33,7 @@ query_incidents() {
     --data-urlencode "end=${end_ts}" \
     --data-urlencode "step=60" \
     -H "Accept: application/json" 2>/dev/null \
-  | python3 - <<'PYEOF'
+  | python3 -c "$(cat <<'PYEOF'
 import json, sys
 data = json.load(sys.stdin)
 results = data.get("data", {}).get("result", [])
@@ -52,6 +52,7 @@ for series in results:
                     "duration_minutes": round(duration_min, 2)})
 print(json.dumps(incidents))
 PYEOF
+)"
 }
 
 # ── Calculate MTTR stats ──────────────────────────────────────────────────────
