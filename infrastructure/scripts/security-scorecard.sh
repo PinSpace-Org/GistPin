@@ -304,6 +304,7 @@ get_score_grade() {
 generate_remediation() {
   local category="$1"
   local score="$2"
+  local max=100
 
   if [[ $score -ge 80 ]]; then
     echo "  - Maintain current posture"
@@ -342,8 +343,7 @@ generate_report() {
   grade="$(get_score_grade "$overall_score")"
   local timestamp
   timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  local report_file
-  report_file="${REPORT_DIR}/security-scorecard-$(date -u +%Y%m%d-%H%M%S).json"
+  local report_file="${REPORT_DIR}/security-scorecard-$(date -u +%Y%m%d-%H%M%S).json"
 
   log "Generating security scorecard report..."
 
@@ -400,8 +400,8 @@ generate_report() {
     fi
   done
 
-  local -a sorted
-  mapfile -t sorted < <(for p in "${priorities[@]}"; do echo "$p"; done | sort -t: -k2 -n)
+  IFS=$'\n' sorted=($(for p in "${priorities[@]}"; do echo "$p"; done | sort -t: -k2 -n))
+  unset IFS
 
   if [[ ${#sorted[@]} -gt 0 ]]; then
     for entry in "${sorted[@]}"; do
