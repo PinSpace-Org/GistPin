@@ -1,5 +1,12 @@
 export const TOKEN_PATTERN = /[\p{L}\p{N}_]+/gu;
 export const DEFAULT_MIN_TERM_LENGTH = 3;
+
+/**
+ * Scripts written without spaces, where a two-character token is a normal
+ * word (東京, 서울), so the minimum length (which counts characters) must not
+ * apply to them.
+ */
+const NO_MIN_LENGTH_SCRIPTS = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 export const DEFAULT_TERM_LIMIT = 20;
 
 export const DEFAULT_STOP_WORDS: ReadonlySet<string> = new Set([
@@ -82,7 +89,10 @@ export function tokenize(
   const minLength = options.minLength ?? DEFAULT_MIN_TERM_LENGTH;
   const matches = content.normalize('NFKC').toLowerCase().match(TOKEN_PATTERN);
   if (matches === null) return [];
-  return matches.filter((term) => term.length >= minLength && !stopWords.has(term));
+  return matches.filter(
+    (term) =>
+      (term.length >= minLength || NO_MIN_LENGTH_SCRIPTS.test(term)) && !stopWords.has(term),
+  );
 }
 
 export function countTerms(
