@@ -18,9 +18,12 @@ interface AuthorDetailPageProps {
 }
 
 export default function AuthorDetailPage({ params }: AuthorDetailPageProps) {
-  const [from, setFrom] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-  const [to, setTo] = useState(() => new Date().toISOString());
-  const [bucket, setBucket] = useState<'hour' | 'day'>('hour');
+  // DateRangePicker and BucketSelector take only defaults and manage their own
+  // selection, so these are fixed initial values (stable across renders), not
+  // state that this page changes.
+  const [from] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+  const [to] = useState(() => new Date().toISOString());
+  const bucket: 'hour' | 'day' = 'hour';
 
   const { address } = use(params);
 
