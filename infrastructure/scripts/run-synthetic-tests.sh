@@ -2,9 +2,6 @@
 # Run GistPin synthetic monitoring tests
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="${SCRIPT_DIR}/../monitoring/synthetic-config.yml"
-TESTS_DIR="${SCRIPT_DIR}/../monitoring/synthetic-tests"
 BASE_URL="${BASE_URL:-https://api.gistpin.io}"
 FRONTEND_URL="${FRONTEND_URL:-https://gistpin.io}"
 TIMEOUT="${TIMEOUT:-10}"
