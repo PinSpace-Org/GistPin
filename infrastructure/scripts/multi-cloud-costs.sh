@@ -62,6 +62,7 @@ collect_aws_costs() {
   local other="0"
 
   if command -v aws >/dev/null 2>&1; then
+    # shellcheck disable=SC2016  # backticks are JMESPath literals, not shell expansion
     monthly_cost=$(aws ce get-cost-and-usage \
       --time-period Start="$(date -u -d '30 days ago' +%Y-%m-%d 2>/dev/null || date -u -v-30d +%Y-%m-%d)",End="$(date -u +%Y-%m-%d)" \
       --granularity MONTHLY \
@@ -241,7 +242,8 @@ calculate_tco() {
 generate_report() {
   local timestamp
   timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  local report_file="${REPORT_DIR}/multi-cloud-costs-$(date -u +%Y%m%d-%H%M%S).json"
+  local report_file
+  report_file="${REPORT_DIR}/multi-cloud-costs-$(date -u +%Y%m%d-%H%M%S).json"
 
   log "Generating multi-cloud cost comparison report..."
 

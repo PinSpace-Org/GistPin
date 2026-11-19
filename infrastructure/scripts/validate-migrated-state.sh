@@ -9,13 +9,11 @@ REPORT_DIR="${REPORT_DIR:-infrastructure/ci/reports}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
 log()     { echo -e "${BLUE}[$(date -u +%Y-%m-%dT%H:%M:%SZ)]${NC} $*"; }
 success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 usage() {
@@ -143,7 +141,8 @@ validate_lock() {
 generate_report() {
   local timestamp
   timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  local report_file="${REPORT_DIR}/migration-validation-$(date -u +%Y%m%d-%H%M%S).json"
+  local report_file
+  report_file="${REPORT_DIR}/migration-validation-$(date -u +%Y%m%d-%H%M%S).json"
 
   jq -n \
     --arg timestamp "$timestamp" \
