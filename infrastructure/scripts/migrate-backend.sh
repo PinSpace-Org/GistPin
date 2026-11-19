@@ -84,7 +84,8 @@ check_prerequisites() {
 }
 
 backup_state() {
-  local backup_file="${BACKUP_DIR}/state-backup-$(date -u +%Y%m%d-%H%M%S).tfstate"
+  local backup_file
+  backup_file="${BACKUP_DIR}/state-backup-$(date -u +%Y%m%d-%H%M%S).tfstate"
 
   log "Backing up current state to: ${backup_file}"
 
@@ -140,7 +141,8 @@ migrate_resources() {
   fi
 
   log "Pulling state from source..."
-  local state_file="${BACKUP_DIR}/pre-migration-$(date -u +%Y%m%d-%H%M%S).tfstate"
+  local state_file
+  state_file="${BACKUP_DIR}/pre-migration-$(date -u +%Y%m%d-%H%M%S).tfstate"
   terraform -chdir="${TERRAFORM_DIR}" state pull > "${state_file}" 2>/dev/null || true
 
   log "Configuring new backend..."
@@ -198,8 +200,13 @@ rollback() {
     return 0
   fi
 
-  local latest_backup
-  latest_backup=$(ls -t "${BACKUP_DIR}"/state-backup-*.tfstate 2>/dev/null | head -1)
+  local latest_backup="" candidate
+  for candidate in "${BACKUP_DIR}"/state-backup-*.tfstate; do
+    [[ -e "${candidate}" ]] || continue
+    if [[ -z "${latest_backup}" || "${candidate}" -nt "${latest_backup}" ]]; then
+      latest_backup="${candidate}"
+    fi
+  done
 
   if [[ -n "$latest_backup" ]]; then
     log "Restoring state from: ${latest_backup}"

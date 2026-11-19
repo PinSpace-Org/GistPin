@@ -33,10 +33,6 @@ get_vpa_recommendations() {
     vpa_json=$(kubectl get vpa "${vpa_name}" -n "${NAMESPACE}" -o json 2>/dev/null || true)
     if [[ -z "${vpa_json}" ]]; then continue; fi
 
-    local target kind target_name
-    target=$(echo "${vpa_json}" | jq -r '.spec.targetRef.kind // "Deployment"')
-    target_name=$(echo "${vpa_json}" | jq -r '.spec.targetRef.name // "unknown"')
-
     local lower_bound upper_bound target_ recommendation
     lower_bound=$(echo "${vpa_json}" | jq -r '.status.recommendation.containerRecommendations[0]?.lowerBound.cpu // ""' 2>/dev/null)
     upper_bound=$(echo "${vpa_json}" | jq -r '.status.recommendation.containerRecommendations[0]?.upperBound.cpu // ""' 2>/dev/null)

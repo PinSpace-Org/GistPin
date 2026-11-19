@@ -7,7 +7,6 @@ cd "${REPO_ROOT}"
 TERRAFORM_DIR="${TERRAFORM_DIR:-infrastructure/terraform}"
 BACKEND_CONFIG="${BACKEND_CONFIG:-}"
 ACTION="${1:-}"
-STATE_FILE="${2:-}"
 EXIT_CODE=0
 
 log()  { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
@@ -45,13 +44,14 @@ validate_state() {
 
 migrate_state() {
   log "Starting state migration..."
+  local init_ok=0
   if [[ -n "${BACKEND_CONFIG}" && -f "${BACKEND_CONFIG}" ]]; then
-    terraform -chdir="${TERRAFORM_DIR}" init -migrate-state -backend-config="${BACKEND_CONFIG}" 2>&1
+    terraform -chdir="${TERRAFORM_DIR}" init -migrate-state -backend-config="${BACKEND_CONFIG}" 2>&1 || init_ok=$?
   else
-    terraform -chdir="${TERRAFORM_DIR}" init -migrate-state 2>&1
+    terraform -chdir="${TERRAFORM_DIR}" init -migrate-state 2>&1 || init_ok=$?
   fi
 
-  if [[ $? -eq 0 ]]; then
+  if [[ ${init_ok} -eq 0 ]]; then
     log "State migration completed successfully."
   else
     error "State migration failed."
@@ -61,8 +61,13 @@ migrate_state() {
 rollback_state() {
   log "Rolling back to previous state..."
   local backup_dir="${TERRAFORM_DIR}/backups"
-  local latest_backup
-  latest_backup=$(ls -t "${backup_dir}"/state-backup-*.json 2>/dev/null | head -1)
+  local latest_backup="" candidate
+  for candidate in "${backup_dir}"/state-backup-*.json; do
+    [[ -e "${candidate}" ]] || continue
+    if [[ -z "${latest_backup}" || "${candidate}" -nt "${latest_backup}" ]]; then
+      latest_backup="${candidate}"
+    fi
+  done
   if [[ -z "${latest_backup}" ]]; then
     error "No backup found for rollback."
   fi
