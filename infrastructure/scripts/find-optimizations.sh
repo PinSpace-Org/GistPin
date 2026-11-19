@@ -36,7 +36,7 @@ add_opportunity() {
   local recommendation="$7"
   
   # Escape special characters for JSON
-  recommendation=$(echo "$recommendation" | sed 's/"/\\"/g')
+  recommendation="${recommendation//\"/\\\"}"
   
   # Append to opportunities array
   jq --arg category "$category" \
@@ -76,7 +76,7 @@ if command -v aws >/dev/null 2>&1; then
           "Terminate idle EC2 instance or stop when not in use"
       fi
     fi
-  done < <(aws cloudwatch get-metric-statistics --namespace AWS/EC2 --metric-name CPUUtilization --period 86400 --start-time $(date -u +"%Y-%m-%dT00:00:00Z" -d '7 days ago') --end-time $(date -u +"%Y-%m-%dT00:00:00Z") --statistics Average --dimensions Name=InstanceId,Value=i-* 2>/dev/null || echo "")
+  done < <(aws cloudwatch get-metric-statistics --namespace AWS/EC2 --metric-name CPUUtilization --period 86400 --start-time "$(date -u +"%Y-%m-%dT00:00:00Z" -d '7 days ago')" --end-time "$(date -u +"%Y-%m-%dT00:00:00Z")" --statistics Average --dimensions Name=InstanceId,Value=i-* 2>/dev/null || echo "")
 else
   # Simulate detection for demo purposes
   add_opportunity "idle_resource" "i-abc123def456" "EC2_INSTANCE" 85.0 85.0 "HIGH" "Terminate idle EC2 instance or stop when not in use"
@@ -125,7 +125,7 @@ add_opportunity "reserved_instance" "3 running t3.micro instances" "EC2_RESERVAT
 
 # 4. Savings plan recommendations
 echo -e "\n=== Generating savings plan recommendations ==="
-add_opportunity "savings_plan" "Compute spend across all regions" "COMPUTE_SPEND" 1250.0 212.5 "HIGH" "Purchase $1000/month compute savings plan: 17% savings on consistent compute spend"
+add_opportunity "savings_plan" "Compute spend across all regions" "COMPUTE_SPEND" 1250.0 212.5 "HIGH" "Purchase \$1000/month compute savings plan: 17% savings on consistent compute spend"
 add_opportunity "savings_plan" "Lambda continuous workloads" "SERVERLESS_SPEND" 300.0 45.0 "MEDIUM" "Apply savings plan to Lambda compute: 15% savings on sustained usage"
 
 # Sort opportunities by priority (HIGH > MEDIUM > LOW)
