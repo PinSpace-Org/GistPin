@@ -14,7 +14,6 @@ set -euo pipefail
 #   SCORE_CRITICAL        — Score below this triggers critical alert (default: 40)
 #   SCORE_WARNING         — Score below this triggers warning alert (default: 70)
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHAOS_RESULTS_DIR="${CHAOS_RESULTS_DIR:-/tmp/chaos-results}"
 SCORE_HISTORY_FILE="${SCORE_HISTORY_FILE:-/tmp/chaos-score-history.json}"
 CHAOS_EXPERIMENTS="${CHAOS_EXPERIMENTS:-pod-failure network-latency resource-exhaustion failover}"
@@ -173,7 +172,8 @@ generate_report() {
   local services
   services=$(find "${CHAOS_RESULTS_DIR}" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null || true)
 
-  local report_file="/tmp/chaos-score-report-$(date +%Y-%m-%d).md"
+  local report_file
+  report_file="/tmp/chaos-score-report-$(date +%Y-%m-%d).md"
 
   {
     echo "# Chaos Resilience Score Report — $(date +%Y-%m-%d)"
