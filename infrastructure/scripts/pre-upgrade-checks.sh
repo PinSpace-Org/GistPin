@@ -83,8 +83,10 @@ check_node_group_exists() {
     fi
     
     # Check if upgrade is allowed (only one minor version jump at a time in EKS)
-    local current_minor=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-    local target_minor=$(echo "$TARGET_VERSION" | cut -d. -f2)
+    local current_minor
+    local target_minor
+    current_minor=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+    target_minor=$(echo "$TARGET_VERSION" | cut -d. -f2)
     
     if [ $((target_minor - current_minor)) -gt 1 ]; then
         error "Cannot upgrade from $CURRENT_VERSION to $TARGET_VERSION. Only one minor version jump is allowed."
@@ -152,9 +154,12 @@ check_node_group_resources() {
     local node_group_scaling
     node_group_scaling=$(aws eks describe-nodegroup --cluster-name "$CLUSTER_NAME" --nodegroup-name "$NODE_GROUP_NAME" | jq -r '.nodegroup.scalingConfig')
     
-    local min_size=$(echo "$node_group_scaling" | jq -r '.minSize')
-    local max_size=$(echo "$node_group_scaling" | jq -r '.maxSize')
-    local desired_size=$(echo "$node_group_scaling" | jq -r '.desiredSize')
+    local min_size
+    local max_size
+    local desired_size
+    min_size=$(echo "$node_group_scaling" | jq -r '.minSize')
+    max_size=$(echo "$node_group_scaling" | jq -r '.maxSize')
+    desired_size=$(echo "$node_group_scaling" | jq -r '.desiredSize')
     
     log "Node group scaling config - Min: $min_size, Max: $max_size, Desired: $desired_size"
     
