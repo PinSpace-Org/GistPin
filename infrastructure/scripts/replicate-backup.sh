@@ -8,9 +8,13 @@ set -e
 
 # --- Configuration ---
 # Database connection details
+# shellcheck disable=SC2034
 DB_HOST="your_db_host"
+# shellcheck disable=SC2034
 DB_USER="your_db_user"
+# shellcheck disable=SC2034
 DB_NAME="your_db_name"
+# shellcheck disable=SC2034
 DB_PASSWORD="your_db_password" # It's recommended to use a more secure way to handle passwords, like AWS Secrets Manager.
 
 # S3 Bucket for primary backups
@@ -31,26 +35,26 @@ echo "Starting database backup..."
 
 # For this example, we'll create a placeholder file
 echo "This is a placeholder for the actual database backup." > /tmp/placeholder.txt
-gzip -c /tmp/placeholder.txt > $LOCAL_BACKUP_PATH
+gzip -c /tmp/placeholder.txt > "$LOCAL_BACKUP_PATH"
 rm /tmp/placeholder.txt
 
 echo "Backup created locally at ${LOCAL_BACKUP_PATH}"
 
 # Upload the backup to the primary S3 bucket
 echo "Uploading backup to S3 bucket: ${PRIMARY_BUCKET}"
-aws s3 cp $LOCAL_BACKUP_PATH s3://${PRIMARY_BUCKET}/${BACKUP_FILE}
+aws s3 cp "$LOCAL_BACKUP_PATH" "s3://${PRIMARY_BUCKET}/${BACKUP_FILE}"
 
 # Integrity Verification: Calculate and upload a checksum for the backup
 echo "Calculating checksum for integrity verification..."
-CHECKSUM=$(sha256sum $LOCAL_BACKUP_PATH | awk '{ print $1 }')
-echo $CHECKSUM > ${LOCAL_BACKUP_PATH}.sha256
-aws s3 cp ${LOCAL_BACKUP_PATH}.sha256 s3://${PRIMARY_BUCKET}/${BACKUP_FILE}.sha256
+CHECKSUM=$(sha256sum "$LOCAL_BACKUP_PATH" | awk '{ print $1 }')
+echo "$CHECKSUM" > "${LOCAL_BACKUP_PATH}.sha256"
+aws s3 cp "${LOCAL_BACKUP_PATH}.sha256" "s3://${PRIMARY_BUCKET}/${BACKUP_FILE}.sha256"
 echo "Checksum uploaded to S3."
 
 # Clean up local backup files
 echo "Cleaning up local files..."
-rm $LOCAL_BACKUP_PATH
-rm ${LOCAL_BACKUP_PATH}.sha256
+rm "$LOCAL_BACKUP_PATH"
+rm "${LOCAL_BACKUP_PATH}.sha256"
 
 echo "Backup process completed successfully."
 echo "The backup will be replicated to the secondary region automatically by S3."
