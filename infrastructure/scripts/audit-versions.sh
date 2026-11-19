@@ -111,7 +111,7 @@ scan_images() {
           fi
         fi
       fi
-    done < "${file}"
+    done < <(cat "${file}")
   done <<< "${IMAGES}"
 }
 
@@ -177,7 +177,8 @@ scan_api_versions() {
 
 generate_report() {
   local count=${#violations[@]}
-  local report_file="${REPORT_DIR}/version-pinning-$(date -u +%Y%m%d-%H%M%S).json"
+  local report_file
+  report_file="${REPORT_DIR}/version-pinning-$(date -u +%Y%m%d-%H%M%S).json"
   jq -n \
     --arg timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     --arg dir "${K8S_DIR}" \
