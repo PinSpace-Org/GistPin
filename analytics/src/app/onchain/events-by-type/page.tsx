@@ -203,7 +203,9 @@ export default function EventsByTypeOverTimePage() {
                         <span>{EVENT_TYPE_LABELS[type]}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">{totals[type].toLocaleString()}</TableCell>
+                    <TableCell className="font-medium" title={totals[type].toLocaleString()}>
+                      {formatCompactNumber(totals[type])}
+                    </TableCell>
                     <TableCell>{totalEvents > 0 ? ((totals[type] / totalEvents) * 100).toFixed(1) + '%' : '—'}</TableCell>
                     <TableCell>{buckets.length > 0 ? (totals[type] / buckets.length).toFixed(1) : '—'}</TableCell>
                   </TableRow>
