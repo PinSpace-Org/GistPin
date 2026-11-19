@@ -17,12 +17,10 @@ log "Started: $(date)"
 
 # Test 1: DR EKS cluster reachability
 log "[Test 1] DR EKS cluster reachability"
-if aws eks describe-cluster --name gistpin-dr --region "${DR_REGION}" \
-  --query 'cluster.status' --output text 2>/dev/null | grep -q "ACTIVE"; then
-  pass "DR EKS cluster is ACTIVE"
-else
-  fail_check "DR EKS cluster not reachable"
-fi
+aws eks describe-cluster --name gistpin-dr --region "${DR_REGION}" \
+  --query 'cluster.status' --output text 2>/dev/null | grep -q "ACTIVE" \
+  && pass "DR EKS cluster is ACTIVE" \
+  || fail_check "DR EKS cluster not reachable"
 
 # Test 2: RDS read replica lag
 log "[Test 2] RDS replication lag"
@@ -45,13 +43,11 @@ fi
 # Test 3: S3 cross-region replication
 log "[Test 3] S3 cross-region replication"
 TEST_KEY="dr-test/probe-$(date +%s).txt"
-if aws s3 cp - "s3://gistpin-backups/${TEST_KEY}" <<< "dr-probe" 2>/dev/null \
+aws s3 cp - "s3://gistpin-backups/${TEST_KEY}" <<< "dr-probe" 2>/dev/null \
   && sleep 5 \
-  && aws s3 ls "s3://gistpin-backups-dr/${TEST_KEY}" --region "${DR_REGION}" 2>/dev/null; then
-  pass "S3 cross-region replication working"
-else
-  fail_check "S3 cross-region replication not verified"
-fi
+  && aws s3 ls "s3://gistpin-backups-dr/${TEST_KEY}" --region "${DR_REGION}" 2>/dev/null \
+  && pass "S3 cross-region replication working" \
+  || fail_check "S3 cross-region replication not verified"
 aws s3 rm "s3://gistpin-backups/${TEST_KEY}" 2>/dev/null || true
 
 # Test 4: DR workload pod readiness
