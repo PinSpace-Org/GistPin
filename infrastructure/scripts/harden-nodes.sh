@@ -100,16 +100,8 @@ apply_aide() {
 }
 
 scan_services() {
-  if systemctl is-active --quiet auditd; then
-    log "OK   auditd active"
-  else
-    fail "auditd not active"
-  fi
-  if command -v aide >/dev/null; then
-    log "OK   aide installed"
-  else
-    fail "aide not installed"
-  fi
+  systemctl is-active --quiet auditd && log "OK   auditd active" || fail "auditd not active"
+  command -v aide >/dev/null && log "OK   aide installed" || fail "aide not installed"
 }
 
 if [[ "$MODE" == "scan" ]]; then
