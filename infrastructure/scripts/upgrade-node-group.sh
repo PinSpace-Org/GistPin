@@ -10,11 +10,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-UPGRADE_START_TIME=""
 ORIGINAL_NODE_GROUP_VERSION=""
 UPGRADE_IN_PROGRESS=false
-NODE_GROUP_ARN=""
-ROLLBACK_MODE=false
 
 log() {
     echo -e "[$(date +'%Y-%m-%dT%H:%M:%S%z')] $1"
@@ -147,7 +144,6 @@ validate_upgrade() {
         node_version=$(kubectl get node "$node" -o json | jq -r '.status.nodeInfo.kubeletVersion' | sed 's/v//')
         if [ "$node_version" != "$TARGET_VERSION" ]; then
             error "Node $node is on version $node_version, expected $TARGET_VERSION"
-            all_valid=false
         else
             success "Node $node is running target version $TARGET_VERSION"
         fi
@@ -196,12 +192,12 @@ perform_rolling_upgrade() {
     # Get list of current nodes before upgrade starts
     local old_nodes
     old_nodes=$(get_node_group_nodes)
-    local old_node_count=$(echo "$old_nodes" | wc -l | xargs)
+    local old_node_count
+    old_node_count=$(echo "$old_nodes" | wc -l | xargs)
     log "Found $old_node_count existing nodes in node group"
     
     # Store original node group version
     ORIGINAL_NODE_GROUP_VERSION=$(aws eks describe-nodegroup --cluster-name "$CLUSTER_NAME" --nodegroup-name "$NODE_GROUP_NAME" | jq -r '.nodegroup.version')
-    NODE_GROUP_ARN=$(aws eks describe-nodegroup --cluster-name "$CLUSTER_NAME" --nodegroup-name "$NODE_GROUP_NAME" | jq -r '.nodegroup.arn')
     
     log "Original version: $ORIGINAL_NODE_GROUP_VERSION, Target version: $TARGET_VERSION"
     
@@ -243,7 +239,7 @@ perform_rolling_upgrade() {
     
     # Wait for all old nodes to be terminated and all new nodes ready
     log "Waiting for all nodes to reach ready state..."
-    wait_for_new_nodes $old_node_count
+    wait_for_new_nodes "$old_node_count"
     
     # All new nodes should be ready and uncordoned by default, but verify
     local new_nodes
@@ -276,12 +272,10 @@ main() {
     TARGET_VERSION="$3"
     
     if [ "$#" -eq 4 ] && [ "$4" = "--rollback" ]; then
-        ROLLBACK_MODE=true
         log "Running in rollback mode..."
         # Update kubeconfig
         aws eks update-kubeconfig --name "$CLUSTER_NAME"
         perform_rollback
-        exit 0
     fi
     
     log "Starting node group upgrade process for $NODE_GROUP_NAME in cluster $CLUSTER_NAME"
