@@ -53,7 +53,9 @@ export function countContentLengths(
   let emptyCount = 0;
 
   for (const content of contents) {
-    const length = typeof content === 'string' ? content.length : 0;
+    // A gist that is only whitespace has no content, so it counts as empty rather than
+    // landing in the first bin. Real content is still measured untrimmed.
+    const length = typeof content === 'string' && content.trim().length > 0 ? content.length : 0;
     const index = binIndexForLength(length);
     if (index === null) {
       emptyCount += 1;

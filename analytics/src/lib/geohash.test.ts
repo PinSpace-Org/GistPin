@@ -66,14 +66,36 @@ describe('neighbours', () => {
     expect(() => neighbours(hash)).not.toThrow();
   });
 
-  // Edge case: near the antimeridian, longitude wraps instead of going
-  // out of the valid [-180, 180] range.
-  it('handles a cell near the antimeridian by wrapping longitude', () => {
-    const hash = encode(10, 179.9, 5);
-    const result = neighbours(hash);
-    // The eastward neighbour should wrap to a hash starting near -180,
-    // not throw or produce an out-of-range encode() call.
-    const eastDecoded = decode(result.e);
-    expect(eastDecoded.lon).toBeLessThan(-170);
+  // Edge case: next to the antimeridian, longitude wraps instead of going
+  // out of the valid [-180, 180] range. A precision-5 cell is about 0.044 degrees wide, so the
+  // test points have to sit inside the outermost cells for the neighbour to cross the edge.
+  it('wraps the east neighbour of the easternmost cell to just past -180', () => {
+    const hash = encode(10, 179.99, 5);
+    expect(bounds(hash).maxLon).toBe(180); // the cell really touches the antimeridian
+
+    const eastDecoded = decode(neighbours(hash).e);
+
+    expect(eastDecoded.lon).toBeLessThan(-179.9);
+    expect(eastDecoded.lon).toBeGreaterThanOrEqual(-180);
+  });
+
+  it('wraps the west neighbour of the westernmost cell to just before 180', () => {
+    const hash = encode(10, -179.99, 5);
+    expect(bounds(hash).minLon).toBe(-180);
+
+    const westDecoded = decode(neighbours(hash).w);
+
+    expect(westDecoded.lon).toBeGreaterThan(179.9);
+    expect(westDecoded.lon).toBeLessThanOrEqual(180);
+  });
+
+  it('wraps the diagonal neighbours across the antimeridian too', () => {
+    const east = neighbours(encode(10, 179.99, 5));
+    const west = neighbours(encode(10, -179.99, 5));
+
+    expect(decode(east.ne).lon).toBeLessThan(-179.9);
+    expect(decode(east.se).lon).toBeLessThan(-179.9);
+    expect(decode(west.nw).lon).toBeGreaterThan(179.9);
+    expect(decode(west.sw).lon).toBeGreaterThan(179.9);
   });
 });
