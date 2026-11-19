@@ -9,6 +9,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 K8S_DIR="${REPO_ROOT}/infrastructure/k8s/blue-green"
 HISTORY_DIR="${REPO_ROOT}/infrastructure/deployment-history"
 SMOKE_TEST_SCRIPT="${SCRIPT_DIR}/smoke-tests.sh"
+SWITCH_SCRIPT="${SCRIPT_DIR}/switch-blue-green.sh"
 
 SERVICE_NAME="${SERVICE_NAME:-gistpin-backend}"
 NAMESPACE="${NAMESPACE:-gistpin}"
@@ -104,8 +105,7 @@ record_deployment() {
   local slot="$1"
   local image_tag="$2"
   local status="$3"
-  local history_file
-  history_file="${HISTORY_DIR}/deployment-$(date -u +%Y%m%d-%H%M%S).json"
+  local history_file="${HISTORY_DIR}/deployment-$(date -u +%Y%m%d-%H%M%S).json"
 
   cat > "${history_file}" <<HISTEOF
 {

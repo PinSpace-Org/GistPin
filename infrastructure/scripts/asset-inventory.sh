@@ -22,7 +22,7 @@ echo ""
 echo "ResourceType,ResourceId,Name,Tagged,Compliant,Notes" > "${OUTPUT_FILE}"
 
 check_tags() {
-  local tags="$3"
+  local type="$1" id="$2" tags="$3"
   local required=("Environment" "Project" "Owner")
   local missing=()
   for tag in "${required[@]}"; do
