@@ -59,6 +59,10 @@ query_crtsh() {
   local domain="$1"
   local lookback="$2"
 
+  local since_date
+  since_date=$(date -u -d "${lookback} hours ago" +%Y-%m-%dT%H:%M:%S 2>/dev/null || \
+               date -u -v-"${lookback}"H +%Y-%m-%dT%H:%M:%S 2>/dev/null)
+
   local url="${CT_API_BASE}/?q=${domain}&output=json"
 
   local response
@@ -118,8 +122,7 @@ check_domain() {
 }
 
 generate_report() {
-  local report_file
-  report_file="${REPORT_DIR}/ct-report-$(date +%Y-%m-%d).md"
+  local report_file="${REPORT_DIR}/ct-report-$(date +%Y-%m-%d).md"
   mkdir -p "${REPORT_DIR}"
 
   {
