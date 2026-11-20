@@ -42,6 +42,8 @@ done
 
 # RDS engine version check
 log "[3/4] RDS engine version and pending maintenance"
+# Backticks are JMESPath literal delimiters and must reach the AWS CLI unexpanded
+# shellcheck disable=SC2016
 aws rds describe-db-instances \
   --region "${AWS_REGION}" \
   --query 'DBInstances[?contains(DBInstanceIdentifier, `gistpin`)].[DBInstanceIdentifier,EngineVersion,PendingModifiedValues.EngineVersion,AutoMinorVersionUpgrade]' \
