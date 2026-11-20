@@ -6,7 +6,7 @@ BUMP_TYPE="${2:-patch}"
 
 bump_version() {
   local type="$1"
-  agvtool what-marketing-version -terse1 | read current_version || current_version="1.0.0"
+  agvtool what-marketing-version -terse1 | read -r current_version || current_version="1.0.0"
   node -e "
     let [major, minor, patch] = '${current_version:-1.0.0}'.split('.').map(Number);
     if ('$type' === 'major') { major++; minor = 0; patch = 0; }

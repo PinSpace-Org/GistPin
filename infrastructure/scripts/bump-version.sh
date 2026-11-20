@@ -19,7 +19,7 @@ else
   range="$(git rev-list --max-parents=0 HEAD)..HEAD"
 fi
 
-log_data="$(git log --pretty=format:'%s%n%b<<END>>' ${range})"
+log_data="$(git log --pretty=format:'%s%n%b<<END>>' "${range}")"
 
 bump="none"
 if grep -Eq "BREAKING CHANGE|!:" <<<"${log_data}"; then
