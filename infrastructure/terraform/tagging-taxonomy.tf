@@ -11,35 +11,35 @@ variable "tag_taxonomy_version" {
 locals {
   # ── Automation tags ──────────────────────────────────────────────────
   automation_tags = {
-    "gistpin:environment"     = var.environment
-    "gistpin:managed-by"      = "terraform"
-    "gistpin:provisioner"     = "terraform-cloud"
+    "gistpin:environment"         = var.environment
+    "gistpin:managed-by"          = "terraform"
+    "gistpin:provisioner"         = "terraform-cloud"
     "gistpin:terraform-workspace" = terraform.workspace
   }
 
   # ── Cost allocation tags ─────────────────────────────────────────────
   cost_tags = {
-    "gistpin:cost-center"     = var.cost_center
-    "gistpin:project"         = var.project_name
-    "gistpin:service"         = ""
-    "gistpin:sub-service"     = ""
-    "gistpin:billing-code"    = ""
+    "gistpin:cost-center"  = var.cost_center
+    "gistpin:project"      = var.project_name
+    "gistpin:service"      = ""
+    "gistpin:sub-service"  = ""
+    "gistpin:billing-code" = ""
   }
 
   # ── Ownership tags ───────────────────────────────────────────────────
   ownership_tags = {
-    "gistpin:owner"           = var.owner
-    "gistpin:team"            = ""
-    "gistpin:contact-email"   = ""
-    "gistpin:slack-channel"   = ""
+    "gistpin:owner"         = var.owner
+    "gistpin:team"          = ""
+    "gistpin:contact-email" = ""
+    "gistpin:slack-channel" = ""
   }
 
   # ── Operational tags ─────────────────────────────────────────────────
   operational_tags = {
-    "gistpin:tier"            = ""
-    "gistpin:criticality"     = ""
-    "gistpin:backup"          = ""
-    "gistpin:retention"       = ""
+    "gistpin:tier"               = ""
+    "gistpin:criticality"        = ""
+    "gistpin:backup"             = ""
+    "gistpin:retention"          = ""
     "gistpin:maintenance-window" = ""
   }
 
@@ -53,10 +53,10 @@ locals {
 
   # ── Lifecycle tags ───────────────────────────────────────────────────
   lifecycle_tags = {
-    "gistpin:created-by"      = ""
-    "gistpin:created-date"    = ""
+    "gistpin:created-by"        = ""
+    "gistpin:created-date"      = ""
     "gistpin:decommission-date" = ""
-    "gistpin:ttl"             = ""
+    "gistpin:ttl"               = ""
   }
 
   # Combined taxonomy

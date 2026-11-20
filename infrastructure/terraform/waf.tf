@@ -1,4 +1,4 @@
-﻿# WAF for application protection
+# WAF for application protection
 resource "aws_wafv2_web_acl" "app_waf" {
   name  = "${var.app_name}-${var.environment}-waf"
   scope = "REGIONAL"

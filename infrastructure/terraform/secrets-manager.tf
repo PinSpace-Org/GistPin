@@ -1,4 +1,4 @@
-﻿# Secrets Manager for centralized secrets storage
+# Secrets Manager for centralized secrets storage
 resource "aws_secretsmanager_secret" "app_secret" {
   name                    = "${var.app_name}-${var.environment}-secret"
   description             = "Application secrets for ${var.environment}"

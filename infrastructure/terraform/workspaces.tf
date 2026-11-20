@@ -1,4 +1,4 @@
-﻿# Multi-environment workspace configuration
+# Multi-environment workspace configuration
 locals {
   env_config = {
     dev = {

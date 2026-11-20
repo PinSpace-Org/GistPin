@@ -1,4 +1,4 @@
-﻿# Standard tag schema for cost tracking and resource management
+# Standard tag schema for cost tracking and resource management
 locals {
   common_tags = {
     Project     = var.project_name

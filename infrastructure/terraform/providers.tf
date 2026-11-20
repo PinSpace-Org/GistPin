@@ -14,8 +14,8 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "gistpin"
-      ManagedBy   = "terraform"
+      Project   = "gistpin"
+      ManagedBy = "terraform"
     }
   }
 }

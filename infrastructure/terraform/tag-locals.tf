@@ -75,23 +75,23 @@ locals {
   env_tags = {
     production  = merge(local.tier2_important_tags, { "gistpin:environment" = "production" })
     staging     = merge(local.tier3_standard_tags, { "gistpin:environment" = "staging" })
-    development = merge(local.tier4_dev_tags,      { "gistpin:environment" = "development" })
+    development = merge(local.tier4_dev_tags, { "gistpin:environment" = "development" })
   }
 
   # ── Service-specific tags ────────────────────────────────────────────
 
   service_tags = {
-    api          = { "gistpin:service" = "api",          "gistpin:sub-service" = "backend" }
-    frontend     = { "gistpin:service" = "frontend",     "gistpin:sub-service" = "web" }
-    database     = { "gistpin:service" = "database",     "gistpin:sub-service" = "postgres" }
-    cache        = { "gistpin:service" = "cache",        "gistpin:sub-service" = "redis" }
-    analytics    = { "gistpin:service" = "analytics",    "gistpin:sub-service" = "data-pipeline" }
-    cdn          = { "gistpin:service" = "cdn",          "gistpin:sub-service" = "cloudfront" }
-    search       = { "gistpin:service" = "search",       "gistpin:sub-service" = "elasticsearch" }
-    queue        = { "gistpin:service" = "queue",        "gistpin:sub-service" = "sqs" }
-    monitoring   = { "gistpin:service" = "monitoring",   "gistpin:sub-service" = "observability" }
-    networking   = { "gistpin:service" = "networking",   "gistpin:sub-service" = "vpc" }
-    security     = { "gistpin:service" = "security",     "gistpin:sub-service" = "iam" }
-    ci_cd        = { "gistpin:service" = "ci-cd",        "gistpin:sub-service" = "github-actions" }
+    api        = { "gistpin:service" = "api", "gistpin:sub-service" = "backend" }
+    frontend   = { "gistpin:service" = "frontend", "gistpin:sub-service" = "web" }
+    database   = { "gistpin:service" = "database", "gistpin:sub-service" = "postgres" }
+    cache      = { "gistpin:service" = "cache", "gistpin:sub-service" = "redis" }
+    analytics  = { "gistpin:service" = "analytics", "gistpin:sub-service" = "data-pipeline" }
+    cdn        = { "gistpin:service" = "cdn", "gistpin:sub-service" = "cloudfront" }
+    search     = { "gistpin:service" = "search", "gistpin:sub-service" = "elasticsearch" }
+    queue      = { "gistpin:service" = "queue", "gistpin:sub-service" = "sqs" }
+    monitoring = { "gistpin:service" = "monitoring", "gistpin:sub-service" = "observability" }
+    networking = { "gistpin:service" = "networking", "gistpin:sub-service" = "vpc" }
+    security   = { "gistpin:service" = "security", "gistpin:sub-service" = "iam" }
+    ci_cd      = { "gistpin:service" = "ci-cd", "gistpin:sub-service" = "github-actions" }
   }
 }

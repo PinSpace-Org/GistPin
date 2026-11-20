@@ -6,7 +6,6 @@ Takes the JSON output from find-optimizations.sh and generates a detailed markdo
 
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
 
 def load_opportunities(json_path):
@@ -67,9 +66,9 @@ def generate_markdown_report(data, output_path):
     report_content = []
     report_content.append("# Infrastructure Cost Optimization Opportunities")
     report_content.append(f"\nScan performed: {scan_timestamp}")
-    report_content.append(f"\n## Summary")
+    report_content.append("\n## Summary")
     report_content.append(f"\n**Total estimated monthly savings: ${total_savings:,.2f}**")
-    report_content.append(f"\n### Opportunities by Priority")
+    report_content.append("\n### Opportunities by Priority")
     report_content.append("\n| Priority | Count | Potential Savings |")
     report_content.append("|----------|-------|-------------------|")
     for priority in ['HIGH', 'MEDIUM', 'LOW']:

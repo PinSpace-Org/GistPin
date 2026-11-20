@@ -17,14 +17,14 @@ resource "aws_codeartifact_repository" "terraform_modules" {
 }
 
 resource "aws_codeartifact_repository_permissions_policy" "terraform_modules" {
-  repository  = aws_codeartifact_repository.terraform_modules.repository
-  domain      = aws_codeartifact_domain.terraform_modules.domain
+  repository = aws_codeartifact_repository.terraform_modules.repository
+  domain     = aws_codeartifact_domain.terraform_modules.domain
 
   policy_document = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
+        Effect    = "Allow"
         Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
         Action = [
           "codeartifact:GetPackageVersionAsset",

@@ -6,7 +6,7 @@
 variable "blocked_countries" {
   description = "List of ISO 3166-1 alpha-2 country codes to block"
   type        = list(string)
-  default     = ["KP", "IR", "SY", "CU"]  # North Korea, Iran, Syria, Cuba (OFAC)
+  default     = ["KP", "IR", "SY", "CU"] # North Korea, Iran, Syria, Cuba (OFAC)
 }
 
 variable "alb_arn" {

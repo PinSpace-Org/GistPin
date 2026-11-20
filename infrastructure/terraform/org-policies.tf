@@ -7,10 +7,10 @@ resource "aws_organizations_policy" "deny_root_user" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "DenyRootUser"
-        Effect    = "Deny"
-        Action    = "*"
-        Resource  = "*"
+        Sid      = "DenyRootUser"
+        Effect   = "Deny"
+        Action   = "*"
+        Resource = "*"
         Condition = {
           StringLike = {
             "aws:PrincipalArn" = "arn:aws:iam::*:root"
@@ -30,9 +30,9 @@ resource "aws_organizations_policy" "deny_leave_organization" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "DenyLeaveOrganization"
-        Effect   = "Deny"
-        Action   = [
+        Sid    = "DenyLeaveOrganization"
+        Effect = "Deny"
+        Action = [
           "organizations:LeaveOrganization",
         ]
         Resource = "*"
@@ -61,9 +61,9 @@ resource "aws_organizations_policy" "enforce_imdsv2" {
         }
       },
       {
-        Sid      = "DenyModifyIMDSSettings"
-        Effect   = "Deny"
-        Action   = [
+        Sid    = "DenyModifyIMDSSettings"
+        Effect = "Deny"
+        Action = [
           "ec2:ModifyInstanceMetadataOptions",
         ]
         Resource = "arn:aws:ec2:*:*:instance/*"
@@ -120,8 +120,8 @@ resource "aws_organizations_policy" "restrict_regions" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "DenyNonApprovedRegions"
-        Effect   = "Deny"
+        Sid    = "DenyNonApprovedRegions"
+        Effect = "Deny"
         NotAction = [
           "a4b:*",
           "budgets:*",

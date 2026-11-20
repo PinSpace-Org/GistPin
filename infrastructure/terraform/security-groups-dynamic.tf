@@ -6,17 +6,17 @@
 locals {
   # Define all ingress rules as a list — dynamic block iterates over this
   app_ingress_rules = [
-    { port = 3000, description = "Backend API",     source_sg = "alb" },
+    { port = 3000, description = "Backend API", source_sg = "alb" },
     { port = 8080, description = "Health endpoint", source_sg = "alb" },
-    { port = 9090, description = "Metrics scrape",  source_sg = "monitoring" },
+    { port = 9090, description = "Metrics scrape", source_sg = "monitoring" },
   ]
 
   # Tag map applied to all resources via dynamic block
   resource_tags = merge(
     local.common_tags,
     {
-      ManagedBy  = "terraform"
-      UpdatedAt  = timestamp()
+      ManagedBy = "terraform"
+      UpdatedAt = timestamp()
     }
   )
 }

@@ -106,10 +106,10 @@ resource "aws_networkfirewall_rule_group" "tls_inspection" {
         stateful_rule {
           action = "PASS"
           header {
-            protocol    = "TCP"
-            source      = "HOME_NET"
-            source_port = "ANY"
-            direction   = "FORWARD"
+            protocol         = "TCP"
+            source           = "HOME_NET"
+            source_port      = "ANY"
+            direction        = "FORWARD"
             destination      = "EXTERNAL_NET"
             destination_port = "443"
           }
