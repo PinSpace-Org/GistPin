@@ -13,7 +13,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --files)
       shift
-      MIGRATION_FILES=($@)
+      MIGRATION_FILES=("$@")
       break
       ;;
     --rollback)

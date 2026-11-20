@@ -10,7 +10,16 @@ OUTPUT_FORMAT="${OUTPUT_FORMAT:-text}"  # text | json | markdown
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 
 latest_report() {
-  ls -t "${REPORT_DIR}"/drift-*.json 2>/dev/null | head -1
+  local newest= f
+  for f in "${REPORT_DIR}"/drift-*.json; do
+    [[ -e "$f" ]] || continue
+    if [[ -z "${newest}" || "$f" -nt "${newest}" ]]; then
+      newest="$f"
+    fi
+  done
+  if [[ -n "${newest}" ]]; then
+    printf '%s\n' "${newest}"
+  fi
 }
 
 render_text() {
