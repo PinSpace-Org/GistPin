@@ -7,14 +7,13 @@ and produces node scaling recommendations with cost implications.
 """
 
 import argparse
+import importlib.util
 import json
 import sys
 from datetime import datetime, timezone
 from typing import Any
 
-try:
-    import boto3
-except ImportError:
+if importlib.util.find_spec("boto3") is None:
     print("boto3 required: pip install boto3", file=sys.stderr)
     sys.exit(1)
 
@@ -56,7 +55,7 @@ def _node_capacity_and_requests(core, metrics_api, namespace: str):
     """Return per-node capacity, current requests and utilisation."""
     nodes = core.list_node().items
     pod_list = core.list_pod_for_all_namespaces(
-        field_selector=f"status.phase=Running"
+        field_selector="status.phase=Running"
     ).items
 
     node_map: dict[str, dict[str, Any]] = {}

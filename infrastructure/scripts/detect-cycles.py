@@ -136,7 +136,7 @@ def main():
     for i, cycle in enumerate(cycles, 1):
         print(f"  Cycle {i}: {' -> '.join(cycle)}", file=sys.stderr)
 
-    print(f"\nNodes involved in cycles:", file=sys.stderr)
+    print("\nNodes involved in cycles:", file=sys.stderr)
     for node in sorted(cycle_nodes):
         print(f"  - {node}", file=sys.stderr)
 

@@ -7,8 +7,7 @@ forecast, and prints capacity recommendations with cost impact warnings.
 
 import subprocess
 import sys
-import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 def run_kubectl_top(namespace: str = "default") -> dict:
@@ -79,15 +78,15 @@ def print_recommendations(pod: str, cpu_forecast_pct: float, mem_forecast_pct: f
     print(f"   7-day Memory forecast: {mem_forecast_pct:.1f}%")
 
     if cpu_forecast_pct > 80:
-        print(f"   ⚠️  COST IMPACT WARNING: CPU forecast exceeds 80% — consider scaling up or optimizing workloads.")
-        print(f"      Recommendation: Increase CPU requests/limits or add horizontal pod autoscaler (HPA).")
+        print("   ⚠️  COST IMPACT WARNING: CPU forecast exceeds 80% — consider scaling up or optimizing workloads.")
+        print("      Recommendation: Increase CPU requests/limits or add horizontal pod autoscaler (HPA).")
 
     if mem_forecast_pct > 80:
-        print(f"   ⚠️  COST IMPACT WARNING: Memory forecast exceeds 80% — risk of OOMKilled pods.")
-        print(f"      Recommendation: Increase memory limits or investigate memory leaks.")
+        print("   ⚠️  COST IMPACT WARNING: Memory forecast exceeds 80% — risk of OOMKilled pods.")
+        print("      Recommendation: Increase memory limits or investigate memory leaks.")
 
     if cpu_forecast_pct <= 80 and mem_forecast_pct <= 80:
-        print(f"   ✅ Resources within safe thresholds. No immediate action required.")
+        print("   ✅ Resources within safe thresholds. No immediate action required.")
 
 
 def main():
@@ -97,7 +96,7 @@ def main():
 
     print(f"🔍 Fetching K8s utilization metrics from namespace: {namespace}")
     print(f"   CPU limit: {cpu_limit_millicores}m | Memory limit: {mem_limit_mib}Mi")
-    print(f"   Forecast horizon: 7 days")
+    print("   Forecast horizon: 7 days")
     print(f"   Timestamp: {datetime.utcnow().isoformat()}Z\n")
 
     metrics = run_kubectl_top(namespace)
