@@ -141,7 +141,8 @@ detect_drift() {
 generate_report() {
   local timestamp
   timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  local report_file="${REPORT_DIR}/cfn-drift-$(date -u +%Y%m%d-%H%M%S).json"
+  local report_file
+  report_file="${REPORT_DIR}/cfn-drift-$(date -u +%Y%m%d-%H%M%S).json"
 
   mkdir -p "${REPORT_DIR}"
 
