@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Analyze Terraform resource dependency graphs."""
-import json, sys, subprocess
+import subprocess
 from collections import defaultdict
 
 def get_graph():

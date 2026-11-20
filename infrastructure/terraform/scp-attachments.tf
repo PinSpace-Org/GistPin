@@ -82,8 +82,8 @@ resource "aws_organizations_policy" "prod_region_lock" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "DenyNonProdRegions"
-        Effect    = "Deny"
+        Sid    = "DenyNonProdRegions"
+        Effect = "Deny"
         NotAction = [
           "a4b:*",
           "acm:*",
@@ -126,9 +126,9 @@ resource "aws_organizations_policy" "prod_region_lock" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "prod-region-lock"
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "prod-region-lock"
   }
 }
 
@@ -144,16 +144,16 @@ resource "aws_organizations_policy_attachment" "prod_region_lock" {
 output "scp_ids" {
   description = "Map of SCP names to their IDs"
   value = {
-    deny_root_user           = aws_organizations_policy.deny_root_user.id
-    restrict_regions         = aws_organizations_policy.restrict_regions.id
-    deny_dangerous_iam       = aws_organizations_policy.deny_dangerous_iam.id
+    deny_root_user            = aws_organizations_policy.deny_root_user.id
+    restrict_regions          = aws_organizations_policy.restrict_regions.id
+    deny_dangerous_iam        = aws_organizations_policy.deny_dangerous_iam.id
     deny_billing_modification = aws_organizations_policy.deny_billing_modification.id
-    deny_leave_org           = aws_organizations_policy.deny_leave_org.id
-    enforce_imdsv2           = aws_organizations_policy.enforce_imdsv2.id
-    deny_s3_public           = aws_organizations_policy.deny_s3_public.id
+    deny_leave_org            = aws_organizations_policy.deny_leave_org.id
+    enforce_imdsv2            = aws_organizations_policy.enforce_imdsv2.id
+    deny_s3_public            = aws_organizations_policy.deny_s3_public.id
     deny_open_security_groups = aws_organizations_policy.deny_open_security_groups.id
     deny_cloudtrail_tampering = aws_organizations_policy.deny_cloudtrail_tampering.id
-    prod_region_lock         = aws_organizations_policy.prod_region_lock.id
+    prod_region_lock          = aws_organizations_policy.prod_region_lock.id
   }
 }
 

@@ -37,10 +37,10 @@ resource "aws_organizations_policy" "deny_root_user" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "DenyRootUserAccess"
-        Effect    = "Deny"
-        Action    = "*"
-        Resource  = "*"
+        Sid      = "DenyRootUserAccess"
+        Effect   = "Deny"
+        Action   = "*"
+        Resource = "*"
         Condition = {
           StringLike = {
             "aws:PrincipalArn" = "arn:aws:iam::*:root"
@@ -51,10 +51,10 @@ resource "aws_organizations_policy" "deny_root_user" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "deny-root-user"
-    AuditOnly   = tostring(var.scp_audit_only)
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "deny-root-user"
+    AuditOnly = tostring(var.scp_audit_only)
   }
 }
 
@@ -73,8 +73,8 @@ resource "aws_organizations_policy" "restrict_regions" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "DenyNonApprovedRegions"
-        Effect    = "Deny"
+        Sid    = "DenyNonApprovedRegions"
+        Effect = "Deny"
         NotAction = [
           # Global services that must remain accessible
           "a4b:*",
@@ -121,10 +121,10 @@ resource "aws_organizations_policy" "restrict_regions" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "restrict-regions"
-    AuditOnly   = tostring(var.scp_audit_only)
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "restrict-regions"
+    AuditOnly = tostring(var.scp_audit_only)
   }
 }
 
@@ -205,10 +205,10 @@ resource "aws_organizations_policy" "deny_dangerous_iam" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "deny-dangerous-iam"
-    AuditOnly   = tostring(var.scp_audit_only)
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "deny-dangerous-iam"
+    AuditOnly = tostring(var.scp_audit_only)
   }
 }
 
@@ -284,10 +284,10 @@ resource "aws_organizations_policy" "deny_billing_modification" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "deny-billing-modification"
-    AuditOnly   = tostring(var.scp_audit_only)
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "deny-billing-modification"
+    AuditOnly = tostring(var.scp_audit_only)
   }
 }
 
@@ -314,9 +314,9 @@ resource "aws_organizations_policy" "deny_leave_org" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "deny-leave-organization"
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "deny-leave-organization"
   }
 }
 
@@ -335,10 +335,10 @@ resource "aws_organizations_policy" "enforce_imdsv2" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "EnforceIMDSv2"
-        Effect    = "Deny"
-        Action    = "ec2:RunInstances"
-        Resource  = "*"
+        Sid      = "EnforceIMDSv2"
+        Effect   = "Deny"
+        Action   = "ec2:RunInstances"
+        Resource = "*"
         Condition = {
           StringNotEquals = {
             "ec2:MetadataHttpTokens" = "required"
@@ -349,9 +349,9 @@ resource "aws_organizations_policy" "enforce_imdsv2" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "enforce-imdsv2"
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "enforce-imdsv2"
   }
 }
 
@@ -379,8 +379,8 @@ resource "aws_organizations_policy" "deny_s3_public" {
         Condition = {
           StringNotEquals = {
             "s3:PublicAccessBlockConfiguration/BlockPublicAcls"       = "true"
-            "s3:PublicAccessBlockConfiguration/BlockPublicPolicy"    = "true"
-            "s3:PublicAccessBlockConfiguration/IgnorePublicAcls"     = "true"
+            "s3:PublicAccessBlockConfiguration/BlockPublicPolicy"     = "true"
+            "s3:PublicAccessBlockConfiguration/IgnorePublicAcls"      = "true"
             "s3:PublicAccessBlockConfiguration/RestrictPublicBuckets" = "true"
           }
         }
@@ -407,9 +407,9 @@ resource "aws_organizations_policy" "deny_s3_public" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "deny-s3-public-access"
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "deny-s3-public-access"
   }
 }
 
@@ -444,9 +444,9 @@ resource "aws_organizations_policy" "deny_open_security_groups" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "deny-open-security-groups"
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "deny-open-security-groups"
   }
 }
 
@@ -479,8 +479,8 @@ resource "aws_organizations_policy" "deny_cloudtrail_tampering" {
   })
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "deny-cloudtrail-tampering"
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "deny-cloudtrail-tampering"
   }
 }

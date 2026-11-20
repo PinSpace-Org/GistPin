@@ -23,7 +23,7 @@ resource "aws_db_instance" "postgres_replica" {
   publicly_accessible = false
 
   # Inherit encryption & monitoring from primary
-  storage_encrypted  = true
+  storage_encrypted   = true
   monitoring_interval = 60
 
   # Replica-specific: allow auto-promotion on failover
@@ -59,7 +59,7 @@ resource "aws_cloudwatch_metric_alarm" "replica_lag" {
   namespace           = "AWS/RDS"
   period              = 60
   statistic           = "Average"
-  threshold           = 30  # seconds
+  threshold           = 30 # seconds
 
   dimensions = {
     DBInstanceIdentifier = aws_db_instance.postgres_replica[count.index].id

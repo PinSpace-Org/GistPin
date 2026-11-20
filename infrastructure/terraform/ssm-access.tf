@@ -80,9 +80,9 @@ resource "aws_iam_role_policy" "node_session_logging" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "SessionLogsToS3"
-        Effect = "Allow"
-        Action = ["s3:PutObject"]
+        Sid      = "SessionLogsToS3"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
         Resource = "${aws_s3_bucket.ssm_session_logs.arn}/*"
       },
       {

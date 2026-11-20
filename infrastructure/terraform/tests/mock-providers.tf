@@ -64,8 +64,8 @@ mock_provider "aws" {
 
     mock_resource "aws_security_group" {
       defaults = {
-        id   = "sg-mock-12345"
-        name = "test-sg"
+        id     = "sg-mock-12345"
+        name   = "test-sg"
         vpc_id = "vpc-mock-12345"
       }
     }
@@ -85,8 +85,8 @@ mock_provider "aws" {
 
     mock_resource "aws_kms_key" {
       defaults = {
-        arn    = "arn:aws:kms:us-east-1:123456789012:key/test-key"
-        id     = "test-key-id"
+        arn = "arn:aws:kms:us-east-1:123456789012:key/test-key"
+        id  = "test-key-id"
       }
     }
 

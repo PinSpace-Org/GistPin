@@ -80,7 +80,7 @@ resource "aws_wafv2_web_acl" "gasguard_rate_acl" {
 
         custom_key {
           header {
-            name          = "x-stellar-address"
+            name = "x-stellar-address"
             text_transformation {
               priority = 0
               type     = "LOWERCASE"
