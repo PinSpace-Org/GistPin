@@ -75,9 +75,9 @@ pipelines:
     sampling_strategy: hybrid
     tail_sampling_policies:
       - policy: gistpin-error-policy
-        policy: gistpin-latency-policy
-        policy: gistpin-random-sampling
-        policy: gistpin-status-sampling
+      - policy: gistpin-latency-policy
+      - policy: gistpin-random-sampling
+      - policy: gistpin-status-sampling
     probabilistic_sample_rate: 0.1
     max_trace_duration: 30s
 
