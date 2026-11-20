@@ -105,16 +105,16 @@ resource "aws_iam_role_policy_attachment" "replication" {
 # For this example, we are referencing it by name.
 resource "aws_s3_bucket_replication_configuration" "primary" {
   # This should be the name of your primary backup bucket resource
-  bucket = "primary-backup-bucket" 
+  bucket = "primary-backup-bucket"
 
   role = aws_iam_role.replication.arn
 
   rule {
-    id = "replicate-all"
+    id     = "replicate-all"
     status = "Enabled"
 
     destination {
-      bucket = aws_s3_bucket.backup_replication_target.arn
+      bucket        = aws_s3_bucket.backup_replication_target.arn
       storage_class = "STANDARD_IA"
     }
 

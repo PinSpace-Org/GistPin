@@ -42,7 +42,7 @@ resource "aws_guardduty_detector_feature" "eks_protection" {
   status      = "ENABLED"
 
   additional_configuration {
-    name  = "EKS_ADDON_MANAGEMENT"
+    name   = "EKS_ADDON_MANAGEMENT"
     status = "ENABLED"
   }
 }

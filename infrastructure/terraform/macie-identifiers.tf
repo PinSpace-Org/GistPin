@@ -19,9 +19,9 @@
 resource "aws_macie2_custom_data_identifier" "stellar_secret_key" {
   depends_on = [aws_macie2_account.main]
 
-  name                 = "gistpin-stellar-secret-key"
-  description          = "Stellar network secret key (S...) - treat as exposed credentials"
-  keywords             = ["secret", "seed", "private", "key", "signer", "signing"]
+  name                   = "gistpin-stellar-secret-key"
+  description            = "Stellar network secret key (S...) - treat as exposed credentials"
+  keywords               = ["secret", "seed", "private", "key", "signer", "signing"]
   maximum_match_distance = 30
   ignore_words_threshold = 90
 
@@ -41,9 +41,9 @@ resource "aws_macie2_custom_data_identifier" "stellar_secret_key" {
 resource "aws_macie2_custom_data_identifier" "stellar_public_key" {
   depends_on = [aws_macie2_account.main]
 
-  name        = "gistpin-stellar-public-key"
-  description = "Stellar network public key / account ID (G...)"
-  keywords    = ["wallet", "account", "public", "address", "destination"]
+  name                   = "gistpin-stellar-public-key"
+  description            = "Stellar network public key / account ID (G...)"
+  keywords               = ["wallet", "account", "public", "address", "destination"]
   maximum_match_distance = 30
 
   regex = "G[A-Z2-7]{55}"
@@ -62,9 +62,9 @@ resource "aws_macie2_custom_data_identifier" "stellar_public_key" {
 resource "aws_macie2_custom_data_identifier" "api_key" {
   depends_on = [aws_macie2_account.main]
 
-  name        = "gistpin-service-api-key"
-  description = "Provider API keys and bearer tokens committed to S3 payloads/logs"
-  keywords    = ["api", "token", "authorization", "bearer", "apikey"]
+  name                   = "gistpin-service-api-key"
+  description            = "Provider API keys and bearer tokens committed to S3 payloads/logs"
+  keywords               = ["api", "token", "authorization", "bearer", "apikey"]
   maximum_match_distance = 20
 
   regex = "(sk_(live|test)_[0-9a-zA-Z]{16,}|gpin_[0-9a-zA-Z]{24,}|eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+)"
@@ -83,9 +83,9 @@ resource "aws_macie2_custom_data_identifier" "api_key" {
 resource "aws_macie2_custom_data_identifier" "db_connection_string" {
   depends_on = [aws_macie2_account.main]
 
-  name        = "gistpin-db-connection-string"
-  description = "Connection strings embedding usernames/passwords (postgres://user:pass@host)"
-  keywords    = ["postgres", "postgresql", "database_url", "connection"]
+  name                   = "gistpin-db-connection-string"
+  description            = "Connection strings embedding usernames/passwords (postgres://user:pass@host)"
+  keywords               = ["postgres", "postgresql", "database_url", "connection"]
   maximum_match_distance = 20
 
   regex = "(postgres(ql)?://[A-Za-z0-9_]+:[^@/\\s]{8,}@[A-Za-z0-9_.-]+[:0-9]*/?[A-Za-z0-9_]*)"
