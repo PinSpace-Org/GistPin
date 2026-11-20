@@ -44,7 +44,7 @@ done
 log "[3/4] RDS engine version and pending maintenance"
 aws rds describe-db-instances \
   --region "${AWS_REGION}" \
-  --query 'DBInstances[?contains(DBInstanceIdentifier, `gistpin`)].[DBInstanceIdentifier,EngineVersion,PendingModifiedValues.EngineVersion,AutoMinorVersionUpgrade]' \
+  --query "DBInstances[?contains(DBInstanceIdentifier, \`gistpin\)].[DBInstanceIdentifier,EngineVersion,PendingModifiedValues.EngineVersion,AutoMinorVersionUpgrade]" \
   --output table 2>/dev/null | tee -a "${REPORT_FILE}" || true
 
 aws rds describe-pending-maintenance-actions \

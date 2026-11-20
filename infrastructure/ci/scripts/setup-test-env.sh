@@ -14,7 +14,7 @@ docker run -d \
 
 # Wait for DB to be ready
 echo "Waiting for database..."
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   if docker exec gistpin-test-db pg_isready -U gistpin_test -d gistpin_test &>/dev/null; then
     echo "Database ready."
     break
