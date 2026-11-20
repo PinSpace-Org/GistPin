@@ -20,7 +20,6 @@ spec:
       # failurePolicy: Fail = reject request on webhook error; Ignore = allow through
       # Use "Ignore" in dev to prevent webhook outages from blocking all API calls
       # Use "Fail" in production to enforce policy on every request
-      failurePolicy: Fail
       namespaceSelector:
         matchLabels:
           webhook.gistpin.io/validate: "true"

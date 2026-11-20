@@ -54,8 +54,7 @@ inhibit_rules:
       alertname: "HighLogVolume"
     equal: ['instance']
 
-# Deduplication settings to prevent alert flooding
-inhibit_rules:
+  # Deduplication settings to prevent alert flooding
   - source_match_re:
       alertname: ".*"
     target_match_re:
