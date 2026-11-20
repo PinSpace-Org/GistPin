@@ -3,9 +3,6 @@
 # Manages ephemeral debug containers for live pod debugging
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-
 NAMESPACE="${NAMESPACE:-gistpin}"
 POD_NAME="${POD_NAME:-}"
 CONTAINER_NAME="${CONTAINER_NAME:-debug-$(date +%s)}"
