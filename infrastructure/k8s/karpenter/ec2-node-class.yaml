@@ -32,7 +32,4 @@ spec:
     Environment: "${ENVIRONMENT}"
     Project: gistpin
     ManagedBy: karpenter
-  metadataOptions:
-    httpEndpoint: enabled
-    httpTokens: required
   instanceProfile: KarpenterNodeRole-${ENVIRONMENT}
