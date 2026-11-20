@@ -126,8 +126,8 @@ resource "aws_organizations_account" "shared_services" {
 resource "aws_organizations_account" "environment" {
   for_each = var.environment_accounts
 
-  name      = "gistpin-${each.key}"
-  email     = each.value
+  name  = "gistpin-${each.key}"
+  email = each.value
   parent_id = lookup(
     {
       "dev"     = aws_organizations_ou.workloads_dev.id
@@ -162,7 +162,7 @@ data "aws_iam_policy_document" "organization_assume_role" {
   }
 
   statement {
-    effect = "Allow"
+    effect  = "Allow"
     actions = ["sts:AssumeRole"]
 
     principals {
@@ -185,14 +185,14 @@ resource "aws_iam_role" "organization_access" {
     aws_organizations_account.shared_services.id,
   ])
 
-  name               = "OrganizationAccessRole"
-  assume_role_policy = data.aws_iam_policy_document.organization_assume_role.json
+  name                 = "OrganizationAccessRole"
+  assume_role_policy   = data.aws_iam_policy_document.organization_assume_role.json
   max_session_duration = 3600
 
   tags = {
-    Project     = "gistpin"
-    ManagedBy   = "terraform"
-    Purpose     = "cross-account-access"
+    Project   = "gistpin"
+    ManagedBy = "terraform"
+    Purpose   = "cross-account-access"
   }
 }
 

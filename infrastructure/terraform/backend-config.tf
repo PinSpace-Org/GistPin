@@ -18,7 +18,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "terraform_state" 
 }
 
 resource "aws_s3_bucket_public_access_block" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
+  bucket                  = aws_s3_bucket.terraform_state.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -44,7 +44,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
 }
 
 resource "aws_s3_bucket_logging" "terraform_state" {
-  bucket = aws_s3_bucket.terraform_state.id
+  bucket        = aws_s3_bucket.terraform_state.id
   target_bucket = aws_s3_bucket.access_logs.id
   target_prefix = "tf-state-logs/"
 }

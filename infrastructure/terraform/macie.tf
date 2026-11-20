@@ -22,7 +22,7 @@ data "aws_caller_identity" "current" {}
 # ---------------------------------------------------------------------------
 
 resource "aws_macie2_account" "main" {
-  status                        = "ENABLED"
+  status                       = "ENABLED"
   finding_publishing_frequency = "FIFTEEN_MINUTES"
 
   tags = {

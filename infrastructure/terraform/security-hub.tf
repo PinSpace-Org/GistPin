@@ -105,7 +105,7 @@ data "aws_partition" "current" {}
 ############################################
 
 resource "aws_securityhub_account" "this" {
-  enable_default_standards = false # we control which standards are subscribed explicitly below
+  enable_default_standards  = false # we control which standards are subscribed explicitly below
   control_finding_generator = "SECURITY_CONTROL"
   auto_enable_controls      = true
 }

@@ -10,12 +10,12 @@
 # Maintenance Window – Production Linux
 # ---------------------------------------------------------------------------
 resource "aws_ssm_maintenance_window" "prod_linux" {
-  name              = "${local.common_tags.Project}-${local.common_tags.Environment}-prod-linux-mw"
-  description       = "Weekly maintenance window for production Linux patching"
-  schedule          = "cron(0 3 ? * SAT *)"   # Every Saturday at 03:00 UTC
-  duration          = 4                         # 4-hour window
-  cutoff            = 1                         # Stop new tasks 1 hour before end
-  enabled           = true
+  name                       = "${local.common_tags.Project}-${local.common_tags.Environment}-prod-linux-mw"
+  description                = "Weekly maintenance window for production Linux patching"
+  schedule                   = "cron(0 3 ? * SAT *)" # Every Saturday at 03:00 UTC
+  duration                   = 4                     # 4-hour window
+  cutoff                     = 1                     # Stop new tasks 1 hour before end
+  enabled                    = true
   allow_unassociated_targets = false
 
   tags = merge(local.common_tags, {
@@ -96,12 +96,12 @@ resource "aws_ssm_maintenance_window_task" "prod_linux_install" {
 # Maintenance Window – Production Windows
 # ---------------------------------------------------------------------------
 resource "aws_ssm_maintenance_window" "prod_windows" {
-  name              = "${local.common_tags.Project}-${local.common_tags.Environment}-prod-windows-mw"
-  description       = "Weekly maintenance window for production Windows patching"
-  schedule          = "cron(0 2 ? * SUN *)"   # Every Sunday at 02:00 UTC
-  duration          = 5                         # 5-hour window (Windows patches take longer)
-  cutoff            = 1
-  enabled           = true
+  name                       = "${local.common_tags.Project}-${local.common_tags.Environment}-prod-windows-mw"
+  description                = "Weekly maintenance window for production Windows patching"
+  schedule                   = "cron(0 2 ? * SUN *)" # Every Sunday at 02:00 UTC
+  duration                   = 5                     # 5-hour window (Windows patches take longer)
+  cutoff                     = 1
+  enabled                    = true
   allow_unassociated_targets = false
 
   tags = merge(local.common_tags, {

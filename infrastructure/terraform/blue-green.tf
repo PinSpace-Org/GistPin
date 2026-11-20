@@ -62,7 +62,7 @@ resource "aws_lb_listener_rule" "blue_green_switch" {
 
 output "active_slot" {
   description = "Which blue-green slot is currently active"
-  value       = {
+  value = {
     active_workspace = var.active_workspace
     stage_suffix     = var.stage_suffix
     app_version      = var.app_version

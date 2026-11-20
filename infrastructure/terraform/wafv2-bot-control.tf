@@ -5,7 +5,9 @@ resource "aws_wafv2_rule_group" "soroban_rpc" {
   rule {
     name     = "SorobanRPCRateLimit"
     priority = 1
-    action { block {} }
+    action {
+      block {}
+    }
     statement {
       rate_based_statement {
         limit              = 100
